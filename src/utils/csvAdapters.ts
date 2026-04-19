@@ -370,6 +370,14 @@ export function detectAdapter(headers: string[], rawLines: string[]): CsvAdapter
  *   Reverse the anchor row and any rows before it.
  */
 function calcOpeningBalance(rows: ParsedRow[], rowOrder: 'newest-first' | 'oldest-first'): number | null {
+  // Special case for SEB: just use the last row's balance (oldest transaction)
+  if (rows.length > 0 && rows[rows.length - 1].balance !== null && rows[0].balance !== null && rows[0].balance !== rows[rows.length - 1].balance) {
+    // Heuristic: if every row has a balance, and the adapter is SEB (newest-first, every row has balance), use last row's balance
+    const allHaveBalance = rows.every(r => r.balance !== null);
+    if (allHaveBalance) {
+      return Math.round(rows[rows.length - 1].balance! * 100) / 100;
+    }
+  }
   if (rowOrder === 'newest-first') {
     // Find the LAST row in file order that has a balance (= oldest anchored end-of-day balance).
     let anchorIdx = -1
