@@ -18,16 +18,18 @@ const sebAdapter: CsvAdapter = {
     return score
   },
   parse(headers, lines) {
-    const idx = (pat: RegExp) => headers.findIndex(h => pat.test(h.trim()))
-    const dateCol    = idx(/^booking date$/i)
-    const detailCol  = idx(/^text$/i)
-    const amountCol  = idx(/^amount$/i)
-    const balanceCol = idx(/^balance$/i)
-    if (dateCol < 0 || detailCol < 0 || amountCol < 0) return []
+    // Flatten string[][] to string[]
+    const flatLines: string[] = ([] as string[]).concat(...lines);
+    const idx = (pat: RegExp) => headers.findIndex(h => pat.test(h.trim()));
+    const dateCol    = idx(/^booking date$/i);
+    const detailCol  = idx(/^text$/i);
+    const amountCol  = idx(/^amount$/i);
+    const balanceCol = idx(/^balance$/i);
+    if (dateCol < 0 || detailCol < 0 || amountCol < 0) return [];
 
     const rows: ParsedRow[] = [];
-    for (const line of lines) {
-      const cols = Array.isArray(line) ? line : parseCsvLine(line, ';');
+    for (const line of flatLines) {
+      const cols = parseCsvLine(line, ';');
       if (cols.length <= amountCol) continue;
       const isoDate = parseDate(cols[dateCol]?.trim() ?? '');
       if (!isoDate) continue;
@@ -452,7 +454,7 @@ function parseSingleCsvFile(text: string, fileName: string, forcedAdapterId?: st
 
   // For SEB, pass raw lines; for others, split with parseCsvLine (comma)
   const dataLines = adapter.id === 'seb'
-    ? dataRawLines
+    ? dataRawLines.map(line => [line])
     : dataRawLines.map(line => parseCsvLine(line));
 
   // Parse in the adapter's native file order (needed for balance calculations).
