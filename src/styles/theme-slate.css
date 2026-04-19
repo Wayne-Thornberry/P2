@@ -1,0 +1,97 @@
+/*
+ * Clearbook "Slate" Theme
+ * A modern light theme. Zinc palette shifted to a subtle warm blue-grey
+ * (slate), so the surface is never flat white — just a whisper of colour.
+ * Accent: indigo #6366f1.
+ *
+ * Applied when <html> has .theme-slate (no .dark class — this is light).
+ */
+
+/* ── 1. Zinc → slate-blue tint ──────────────────────────────── */
+
+.theme-slate {
+  --color-zinc-50:  oklch(0.987 0.008 252);   /* near-white, ghost of blue  */
+  --color-zinc-100: oklch(0.961 0.016 250);   /* very light slate           */
+  --color-zinc-200: oklch(0.906 0.030 248);   /* light blue-grey border     */
+  --color-zinc-300: oklch(0.820 0.044 246);   /* muted slate border         */
+  --color-zinc-400: oklch(0.676 0.058 244);   /* placeholder / icon         */
+  --color-zinc-500: oklch(0.542 0.068 242);   /* secondary text             */
+  --color-zinc-600: oklch(0.416 0.062 240);   /* body text                  */
+  --color-zinc-700: oklch(0.306 0.050 238);   /* strong text                */
+  --color-zinc-800: oklch(0.212 0.038 236);   /* near-dark                  */
+  --color-zinc-900: oklch(0.146 0.028 234);   /* headings / primary text    */
+  --color-zinc-950: oklch(0.088 0.018 232);   /* deepest                    */
+}
+
+/* ── 2. Accent overrides (indigo) ───────────────────────────── */
+
+/* Active month cell */
+.theme-slate .month-picker-cell-active {
+  border-color: #6366f1 !important;
+  background-color: #6366f1 !important;
+  color: #fff !important;
+}
+
+/* Category group left border */
+.theme-slate .category-group-header {
+  border-left-color: #6366f1;
+}
+
+/* Budget add-category button hover */
+.theme-slate .budget-add-cat-btn:hover {
+  border-color: #6366f1;
+  color: #6366f1;
+}
+
+/* Report tab active */
+.theme-slate .rpt-tab.active {
+  color: #6366f1;
+  border-bottom-color: #6366f1;
+}
+
+/* Budget selected row highlight */
+.theme-slate .p-datatable .budget-row-selected > td {
+  background-color: #eef2ff !important;
+}
+
+/* Accounts opening balance panel */
+.theme-slate .accounts-ob-panel {
+  border-top-color: #6366f1;
+  background: #f5f3ff;
+}
+.theme-slate .accounts-ob-header {
+  color: #6366f1;
+}
+
+/* Nav active item */
+.theme-slate .nav-item-active {
+  background-color: #eef2ff !important;
+  color: #4f46e5 !important;
+}
+
+/* Sidebar accent line on active item (if any) */
+.theme-slate .nav-item-active .nav-item-icon {
+  color: #4f46e5 !important;
+}
+
+/* Bulk action bar tint */
+.theme-slate .tx-bulk-bar {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  color: #3730a3;
+}
+
+/* Primary buttons */
+.theme-slate .sg-btn--primary,
+.theme-slate .tx-add-btn,
+.theme-slate .tx-import-btn {
+  background: #6366f1;
+  border-color: #6366f1;
+  color: #fff;
+}
+.theme-slate .sg-btn--primary:hover,
+.theme-slate .tx-add-btn:hover,
+.theme-slate .tx-import-btn:hover {
+  background: #4f46e5;
+  border-color: #4f46e5;
+}

@@ -16,7 +16,7 @@ const settings     = useSettingsStore()
 function formatMoney(v: number): string { return settings.formatMoney(v) }
 
 // ── Theme ──────────────────────────────────────────────────────
-const isDark  = computed(() => settings.theme === 'dark')
+const isDark  = computed(() => ['dark', 'midnight', 'forest', 'purple'].includes(settings.theme))
 const textClr = computed(() => isDark.value ? '#a1a1aa' : '#52525b')
 const gridClr = computed(() => isDark.value ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)')
 
@@ -38,7 +38,7 @@ function goTx(opts: { month?: string; accountId?: string; name?: string; type?: 
 type Tab = 'overall' | 'breakdown' | 'items'
 const activeTab = ref<Tab>('overall')
 
-type BreakdownSubTab = 'year' | 'accounts' | 'month'
+type BreakdownSubTab = 'year' | 'accounts' | 'month' | 'range'
 const breakdownSubTab = ref<BreakdownSubTab>('year')
 const tabs: { id: Tab; label: string }[] = [
   { id: 'overall',   label: 'Overview'   },
@@ -172,8 +172,8 @@ const yearTopOut = computed(() => topByName(txStore.transactions.filter(t => t.d
 // ──────────────────────────────────────────────────────────────
 // MONTHLY TAB DATA
 // ──────────────────────────────────────────────────────────────
-const selYear  = computed(() => parseInt(selectedMonthKey.value.split('-')[0]))
-const selMonth = computed(() => parseInt(selectedMonthKey.value.split('-')[1]))
+const selYear  = computed(() => parseInt(selectedMonthKey.value.split('-')[0], 10))
+const selMonth = computed(() => parseInt(selectedMonthKey.value.split('-')[1], 10))
 
 const monthlyTxs = computed(() =>
   txStore.transactions.filter(t => t.date.startsWith(selectedMonthKey.value))
@@ -187,7 +187,7 @@ const dailySpending = computed(() => {
   const cnt  = new Date(selYear.value, selMonth.value, 0).getDate()
   const days = Array.from({ length: cnt }, (_, i) => ({ day: i + 1, out: 0, in: 0 }))
   for (const t of monthlyTxs.value) {
-    const idx = parseInt(t.date.split('-')[2]) - 1
+    const idx = parseInt(t.date.split('-')[2], 10) - 1
     if (days[idx]) { if (t.type === 'out') days[idx].out += t.amount; else days[idx].in += t.amount }
   }
   return days
@@ -250,17 +250,32 @@ const trendMonths = computed(() => {
   }))
 })
 
-const accountTrend = computed(() =>
-  accountStore.accounts.map((acc, i) => ({
-    name:     acc.name,
-    color:    PALETTE[i % PALETTE.length],
-    balances: trendMonths.value.map(({ key }) =>
-      txStore.transactions
-        .filter(t => t.accountId === acc.id && t.date.substring(0, 7) <= key)
-        .reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0)
-    ),
-  }))
-)
+const accountTrend = computed(() => {
+  const yearStr = String(yearViewYear.value)
+  // Only include accounts that have at least one transaction in the selected year
+  const activeAccounts = accountStore.accounts.filter(acc =>
+    txStore.transactions.some(t => t.accountId === acc.id && t.date.startsWith(yearStr))
+  )
+  return activeAccounts.map((acc, i) => {
+    // Single chronological pass: compute cumulative balance at each month boundary
+    const accTxs = txStore.transactions
+      .filter(t => t.accountId === acc.id)
+      .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt))
+
+    const months = trendMonths.value
+    const balances: number[] = []
+    let running = 0
+    let txIdx   = 0
+    for (const { key } of months) {
+      while (txIdx < accTxs.length && accTxs[txIdx].date.substring(0, 7) <= key) {
+        const t = accTxs[txIdx++]
+        running = Math.round((running + (t.type === 'in' ? t.amount : -t.amount)) * 100) / 100
+      }
+      balances.push(running)
+    }
+    return { name: acc.name, color: PALETTE[i % PALETTE.length], balances }
+  })
+})
 
 // ──────────────────────────────────────────────────────────────
 // ITEMS TAB DATA  (all-time, all global items — no month filter)
@@ -278,6 +293,72 @@ const itemsData = computed(() =>
 const itemsTotalSpent    = computed(() => itemsData.value.reduce((s, i) => s + i.activity, 0))
 const itemsUnassigned    = computed(() => txStore.getUnassignedActivity())
 
+// ── Date range filter ─────────────────────────────────────────
+const _todayStr    = _now.toISOString().slice(0, 10)
+const _thirtyAgo   = new Date(_now); _thirtyAgo.setDate(_thirtyAgo.getDate() - 30)
+const _thirtyAgoStr = _thirtyAgo.toISOString().slice(0, 10)
+const rangeFrom = ref(_thirtyAgoStr)
+const rangeTo   = ref(_todayStr)
+
+const rangeTxs = computed(() =>
+  txStore.transactions.filter(t => t.date >= rangeFrom.value && t.date <= rangeTo.value)
+)
+const rangeIn  = computed(() => rangeTxs.value.filter(t => t.type === 'in').reduce((s, t) => s + t.amount, 0))
+const rangeOut = computed(() => rangeTxs.value.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0))
+const rangeNet = computed(() => rangeIn.value - rangeOut.value)
+
+const rangeTopOut = computed(() => {
+  const map = new Map<string, number>()
+  for (const t of rangeTxs.value) {
+    if (t.type !== 'out') continue
+    map.set(t.name, (map.get(t.name) ?? 0) + t.amount)
+  }
+  return [...map.entries()].map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total).slice(0, 10)
+})
+const rangeTopIn = computed(() => {
+  const map = new Map<string, number>()
+  for (const t of rangeTxs.value) {
+    if (t.type !== 'in') continue
+    map.set(t.name, (map.get(t.name) ?? 0) + t.amount)
+  }
+  return [...map.entries()].map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total).slice(0, 10)
+})
+
+const rangeBuckets = computed(() => {
+  const from = rangeFrom.value
+  const to   = rangeTo.value
+  if (!from || !to || from > to) return []
+  const dayCount = Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86400000) + 1
+  if (dayCount <= 62) {
+    const buckets: { label: string; key: string; in: number; out: number }[] = []
+    const d   = new Date(from + 'T00:00:00')
+    const end = new Date(to   + 'T00:00:00')
+    while (d <= end) {
+      const key = d.toISOString().slice(0, 10)
+      const txs = rangeTxs.value.filter(t => t.date === key)
+      buckets.push({
+        label: `${d.getDate()}/${d.getMonth() + 1}`,
+        key,
+        in:  txs.filter(t => t.type === 'in').reduce((s, t) => s + t.amount, 0),
+        out: txs.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0),
+      })
+      d.setDate(d.getDate() + 1)
+    }
+    return buckets
+  } else {
+    const map = new Map<string, { in: number; out: number }>()
+    for (const t of rangeTxs.value) {
+      const key   = t.date.slice(0, 7)
+      const entry = map.get(key) ?? { in: 0, out: 0 }
+      if (t.type === 'in') entry.in += t.amount; else entry.out += t.amount
+      map.set(key, entry)
+    }
+    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([key, v]) => ({
+      label: monthKeyShort(key), key, in: v.in, out: v.out,
+    }))
+  }
+})
+
 // ── Canvas refs ────────────────────────────────────────────────
 const flowCanvas       = ref<HTMLCanvasElement | null>(null)
 const netCanvas        = ref<HTMLCanvasElement | null>(null)
@@ -288,6 +369,8 @@ const acctTrendCanvas  = ref<HTMLCanvasElement | null>(null)
 const acctBarCanvas    = ref<HTMLCanvasElement | null>(null)
 const yearFlowCanvas   = ref<HTMLCanvasElement | null>(null)
 const yearNetCanvas    = ref<HTMLCanvasElement | null>(null)
+const rangeChartCanvas = ref<HTMLCanvasElement | null>(null)
+const itemsDonutCanvas = ref<HTMLCanvasElement | null>(null)
 
 // ── Chart management ───────────────────────────────────────────
 const charts: Chart[] = []
@@ -321,7 +404,7 @@ function buildOverall(): void {
       onHover: (_e: unknown, elements: { index: number }[]) => {
         if (flowCanvas.value) flowCanvas.value.style.cursor = elements.length ? 'pointer' : 'default'
       },
-      plugins: { legend: { labels: { color: tc } }, tooltip: { callbacks: { label: ctx => ` ${formatMoney(ctx.parsed.y)}` } } },
+      plugins: { legend: { labels: { color: tc } }, tooltip: { callbacks: { label: ctx => ` ${formatMoney(ctx.parsed.y ?? 0)}` } } },
       scales: {
         x: { ticks: { color: tc }, grid: { color: gc } },
         y: { beginAtZero: true, ticks: { color: tc, callback: money }, grid: { color: gc } },
@@ -353,7 +436,7 @@ function buildOverall(): void {
       onHover: (_e: unknown, elements: { index: number }[]) => {
         if (netCanvas.value) netCanvas.value.style.cursor = elements.length ? 'pointer' : 'default'
       },
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${formatMoney(ctx.parsed.y)}` } } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${formatMoney(ctx.parsed.y ?? 0)}` } } },
       scales: {
         x: { ticks: { color: tc }, grid: { color: gc } },
         y: { ticks: { color: tc, callback: money }, grid: { color: gc } },
@@ -403,7 +486,7 @@ function buildMonthly(): void {
       onHover: (_e: unknown, elements: { index: number }[]) => {
         if (dailyCanvas.value) dailyCanvas.value.style.cursor = elements.length ? 'pointer' : 'default'
       },
-      plugins: { legend: { labels: { color: tc } }, tooltip: { callbacks: { label: ctx => ` ${formatMoney(ctx.parsed.y)}` } } },
+      plugins: { legend: { labels: { color: tc } }, tooltip: { callbacks: { label: ctx => ` ${formatMoney(ctx.parsed.y ?? 0)}` } } },
       scales: {
         x: { ticks: { color: tc, font: { size: 10 } }, grid: { color: gc } },
         y: { beginAtZero: true, ticks: { color: tc, callback: money }, grid: { color: gc } },
@@ -430,7 +513,7 @@ function buildMonthly(): void {
         onHover: (_e: unknown, elements: { index: number }[]) => {
           if (monthSpendCanvas.value) monthSpendCanvas.value.style.cursor = elements.length ? 'pointer' : 'default'
         },
-        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${formatMoney(ctx.parsed.x)}` } } },
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${formatMoney(ctx.parsed.x ?? 0)}` } } },
         scales: {
           x: { beginAtZero: true, ticks: { color: tc, callback: money }, grid: { color: gc } },
           y: { ticks: { color: tc }, grid: { color: gc } },
@@ -467,7 +550,7 @@ function buildAccounts(): void {
       responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
       plugins: {
         legend: { position: 'bottom', labels: { color: tc, boxWidth: 12, padding: 12 } },
-        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${formatMoney(ctx.parsed.y)}` } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${formatMoney(ctx.parsed.y ?? 0)}` } },
       },
       scales: {
         x: { ticks: { color: tc }, grid: { color: gc } },
@@ -499,7 +582,7 @@ function buildAccounts(): void {
       },
       plugins: {
         legend: { position: 'bottom', labels: { color: tc } },
-        tooltip: { callbacks: { label: ctx => ` ${formatMoney(ctx.parsed.x)}` } },
+        tooltip: { callbacks: { label: ctx => ` ${formatMoney(ctx.parsed.x ?? 0)}` } },
       },
       scales: {
         x: { beginAtZero: true, ticks: { color: tc, callback: money }, grid: { color: gc } },
@@ -535,7 +618,7 @@ function buildYear(): void {
       onHover: (_e: unknown, elements: { index: number }[]) => {
         if (yearFlowCanvas.value) yearFlowCanvas.value.style.cursor = elements.length ? 'pointer' : 'default'
       },
-      plugins: { legend: { labels: { color: tc } }, tooltip: { callbacks: { label: ctx => ` ${formatMoney(ctx.parsed.y)}` } } },
+      plugins: { legend: { labels: { color: tc } }, tooltip: { callbacks: { label: ctx => ` ${formatMoney(ctx.parsed.y ?? 0)}` } } },
       scales: {
         x: { ticks: { color: tc }, grid: { color: gc } },
         y: { beginAtZero: true, ticks: { color: tc, callback: money }, grid: { color: gc } },
@@ -566,7 +649,7 @@ function buildYear(): void {
       onHover: (_e: unknown, elements: { index: number }[]) => {
         if (yearNetCanvas.value) yearNetCanvas.value.style.cursor = elements.length ? 'pointer' : 'default'
       },
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${formatMoney(ctx.parsed.y)}` } } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${formatMoney(ctx.parsed.y ?? 0)}` } } },
       scales: {
         x: { ticks: { color: tc }, grid: { color: gc } },
         y: { ticks: { color: tc, callback: money }, grid: { color: gc } },
@@ -575,17 +658,70 @@ function buildYear(): void {
   }))
 }
 
+function buildItems(): void {
+  if (!itemsDonutCanvas.value || itemsData.value.length === 0) return
+  const tc   = textClr.value
+  const dark = isDark.value
+  const top  = itemsData.value.slice(0, 8)
+  charts.push(new Chart(itemsDonutCanvas.value, {
+    type: 'doughnut',
+    data: {
+      labels:   top.map(i => i.name),
+      datasets: [{
+        data:            top.map(i => i.activity),
+        backgroundColor: PALETTE.slice(0, top.length).map(c => c.replace('rgb(', 'rgba(').replace(')', ', 0.8)')),
+        borderColor:     dark ? '#27272a' : '#f4f4f5',
+        borderWidth: 3,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
+      plugins: {
+        legend: { position: 'right', labels: { color: tc, boxWidth: 12, padding: 10, font: { size: 11 } } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${formatMoney(ctx.parsed)}` } },
+      },
+    },
+  }))
+}
+
+function buildRange(): void {
+  if (!rangeChartCanvas.value || rangeBuckets.value.length === 0) return
+  const tc    = textClr.value
+  const gc    = gridClr.value
+  const money = (v: number | string) => formatMoney(Number(v))
+  const data  = rangeBuckets.value
+  charts.push(new Chart(rangeChartCanvas.value, {
+    type: 'bar',
+    data: {
+      labels:   data.map(b => b.label),
+      datasets: [
+        { label: 'In',  data: data.map(b => b.in),  backgroundColor: 'rgba(34,197,94,0.7)',   borderColor: 'rgb(34,197,94)',  borderWidth: 1, borderRadius: 4 },
+        { label: 'Out', data: data.map(b => b.out), backgroundColor: 'rgba(239,68,68,0.65)', borderColor: 'rgb(239,68,68)', borderWidth: 1, borderRadius: 4 },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 200 },
+      plugins: { legend: { labels: { color: tc } }, tooltip: { callbacks: { label: ctx => ` ${formatMoney(ctx.parsed.y ?? 0)}` } } },
+      scales: {
+        x: { ticks: { color: tc, maxRotation: 45, autoSkip: true, maxTicksLimit: 20 }, grid: { color: gc } },
+        y: { beginAtZero: true, ticks: { color: tc, callback: money }, grid: { color: gc } },
+      },
+    },
+  }))
+}
+
 function buildBreakdown(): void {
-  if (breakdownSubTab.value === 'year')     { buildYear() }
+  if (breakdownSubTab.value === 'year')          { buildYear() }
   else if (breakdownSubTab.value === 'accounts') { buildAccounts() }
-  else                                      { buildMonthly() }
+  else if (breakdownSubTab.value === 'range')    { buildRange() }
+  else                                           { buildMonthly() }
 }
 
 function buildTab(tab: Tab): void {
   destroyAll()
   if (tab === 'overall')   buildOverall()
   if (tab === 'breakdown') buildBreakdown()
-  if (tab === 'items')     return // no charts on items tab
+  if (tab === 'items')     nextTick(() => buildItems())
 }
 
 onMounted(() => nextTick(() => buildTab(activeTab.value)))
@@ -598,6 +734,16 @@ watch([yearlyFlow, yearlyNet, totalIn, totalOut, isDark], () => {
 })
 watch([yearViewMonthlyFlow, accountTrend, accountStats, dailySpending, monthTopSpending, isDark], () => {
   if (activeTab.value === 'breakdown') { destroyAll(); nextTick(() => buildBreakdown()) }
+})
+
+watch([rangeBuckets, isDark], () => {
+  if (activeTab.value === 'breakdown' && breakdownSubTab.value === 'range') {
+    destroyAll(); nextTick(() => buildRange())
+  }
+})
+
+watch([itemsData, isDark], () => {
+  if (activeTab.value === 'items') { destroyAll(); nextTick(() => buildItems()) }
 })
 
 watch(breakdownSubTab, () => {
@@ -719,6 +865,7 @@ watch(yearViewYear, y => {
           <button role="tab" class="bdown-tab" :class="{ 'bdown-tab--active': breakdownSubTab === 'year' }"     @click="breakdownSubTab = 'year'">Year</button>
           <button role="tab" class="bdown-tab" :class="{ 'bdown-tab--active': breakdownSubTab === 'accounts' }" @click="breakdownSubTab = 'accounts'">Accounts</button>
           <button role="tab" class="bdown-tab" :class="{ 'bdown-tab--active': breakdownSubTab === 'month' }"    @click="breakdownSubTab = 'month'">Monthly</button>
+          <button role="tab" class="bdown-tab" :class="{ 'bdown-tab--active': breakdownSubTab === 'range' }"    @click="breakdownSubTab = 'range'">Range</button>
         </nav>
       </div>
 
@@ -961,42 +1108,159 @@ watch(yearViewYear, y => {
         </div>
       </template>
 
+      <!-- ── Range sub-tab ──────────────────────────────────────── -->
+      <template v-if="breakdownSubTab === 'range'">
+        <div class="bdown-range-controls">
+          <div class="bdown-range-field">
+            <label class="bdown-range-label">From</label>
+            <input type="date" v-model="rangeFrom" class="bdown-range-input" :max="rangeTo" />
+          </div>
+          <div class="bdown-range-field">
+            <label class="bdown-range-label">To</label>
+            <input type="date" v-model="rangeTo" class="bdown-range-input" :min="rangeFrom" />
+          </div>
+          <span v-if="rangeTxs.length > 0" class="bdown-range-count">{{ rangeTxs.length }} transactions</span>
+        </div>
+        <div v-if="rangeTxs.length === 0" class="rpt-empty rpt-empty-lg">No transactions in this date range.</div>
+        <template v-else>
+          <div class="reports-stats">
+            <div class="reports-stat-card">
+              <span class="reports-stat-label">Money In</span>
+              <span class="reports-stat-value money-positive">{{ formatMoney(rangeIn) }}</span>
+            </div>
+            <div class="reports-stat-card">
+              <span class="reports-stat-label">Money Out</span>
+              <span class="reports-stat-value money-negative">{{ formatMoney(rangeOut) }}</span>
+            </div>
+            <div class="reports-stat-card">
+              <span class="reports-stat-label">Net</span>
+              <span class="reports-stat-value" :class="rangeNet >= 0 ? 'money-positive' : 'money-negative'">{{ formatMoney(rangeNet) }}</span>
+            </div>
+            <div class="reports-stat-card">
+              <span class="reports-stat-label">Transactions</span>
+              <span class="reports-stat-value">{{ rangeTxs.length }}</span>
+            </div>
+          </div>
+          <div class="reports-grid">
+            <div class="reports-card reports-card-span3">
+              <h3 class="reports-card-title">Activity</h3>
+              <div class="reports-chart-wrap" style="height:240px"><canvas ref="rangeChartCanvas" /></div>
+            </div>
+            <div class="reports-card">
+              <h3 class="reports-card-title">Top Spending</h3>
+              <div v-if="rangeTopOut.length === 0" class="rpt-empty">No outgoing in range.</div>
+              <table v-else class="rpt-table">
+                <thead><tr><th>Name</th><th class="rpt-num">Total</th></tr></thead>
+                <tbody>
+                  <tr v-for="(row, i) in rangeTopOut" :key="row.name" class="rpt-row-clickable" @click="goTx({ name: row.name })">
+                    <td><span class="rpt-rank">{{ i + 1 }}</span>{{ row.name }}</td>
+                    <td class="rpt-num money-negative">{{ formatMoney(row.total) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="reports-card">
+              <h3 class="reports-card-title">Top Income</h3>
+              <div v-if="rangeTopIn.length === 0" class="rpt-empty">No income in range.</div>
+              <table v-else class="rpt-table">
+                <thead><tr><th>Name</th><th class="rpt-num">Total</th></tr></thead>
+                <tbody>
+                  <tr v-for="(row, i) in rangeTopIn" :key="row.name" class="rpt-row-clickable" @click="goTx({ name: row.name })">
+                    <td><span class="rpt-rank">{{ i + 1 }}</span>{{ row.name }}</td>
+                    <td class="rpt-num money-positive">{{ formatMoney(row.total) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </template>
+      </template>
+
     </template>
 
     <!-- ITEMS -->
     <template v-if="activeTab === 'items'">
+      <!-- stat bar -->
       <div class="reports-stats">
         <div class="reports-stat-card">
-          <span class="reports-stat-label">Total Spent</span>
+          <span class="reports-stat-label">Total Spent (Items)</span>
           <span class="reports-stat-value money-negative">{{ formatMoney(itemsTotalSpent) }}</span>
         </div>
         <div class="reports-stat-card">
           <span class="reports-stat-label">Unassigned Spend</span>
           <span class="reports-stat-value" :class="itemsUnassigned > 0 ? 'money-negative' : 'rpt-muted'">{{ formatMoney(itemsUnassigned) }}</span>
         </div>
+        <div class="reports-stat-card">
+          <span class="reports-stat-label">Items with Activity</span>
+          <span class="reports-stat-value">{{ itemsData.length }}</span>
+        </div>
+        <div class="reports-stat-card">
+          <span class="reports-stat-label">Largest Single Item</span>
+          <span class="reports-stat-value money-negative">{{ itemsData.length ? formatMoney(itemsData[0].activity) : '—' }}</span>
+        </div>
       </div>
+
       <div v-if="itemsData.length === 0" class="rpt-empty rpt-empty-lg">
         No spending recorded against budget items yet.
       </div>
-      <div v-else class="reports-grid">
-        <div class="reports-card reports-card-span3">
-          <h3 class="reports-card-title">Item Breakdown (All Time)</h3>
-          <table class="rpt-table">
-            <thead>
-              <tr>
-                <th>Item</th>
-                <th class="rpt-num">Spent</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="item in itemsData" :key="item.id">
-                <td>{{ item.name }}</td>
-                <td class="rpt-num">{{ formatMoney(item.activity) }}</td>
-              </tr>
-            </tbody>
-          </table>
+
+      <template v-else>
+        <div class="reports-grid">
+          <!-- Doughnut chart -->
+          <div class="reports-card reports-card-span2">
+            <h3 class="reports-card-title">Spend by Item</h3>
+            <div class="reports-chart-wrap" style="height:280px">
+              <canvas ref="itemsDonutCanvas" />
+            </div>
+          </div>
+
+          <!-- Top items ranked list -->
+          <div class="reports-card">
+            <h3 class="reports-card-title">Top Items</h3>
+            <div class="items-rank-list">
+              <div
+                v-for="(item, i) in itemsData.slice(0, 8)"
+                :key="item.id"
+                class="items-rank-row rpt-row-clickable"
+                @click="goTx({ name: item.name })"
+              >
+                <span class="items-rank-badge" :style="{ background: PALETTE[i % PALETTE.length].replace('rgb(', 'rgba(').replace(')', ', 0.15)'), color: PALETTE[i % PALETTE.length] }">{{ i + 1 }}</span>
+                <span class="items-rank-name">{{ item.name }}</span>
+                <span class="items-rank-amount money-negative">{{ formatMoney(item.activity) }}</span>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+
+        <!-- Full breakdown bar rows -->
+        <div class="reports-card reports-card-span3" style="margin-top:0">
+          <h3 class="reports-card-title">All Items — Spend vs Total (All Time)</h3>
+          <div class="items-bar-list">
+            <div
+              v-for="(item, i) in itemsData"
+              :key="item.id"
+              class="items-bar-row rpt-row-clickable"
+              @click="goTx({ name: item.name })"
+            >
+              <div class="items-bar-meta">
+                <span class="items-bar-dot" :style="{ background: PALETTE[i % PALETTE.length] }" />
+                <span class="items-bar-name">{{ item.name }}</span>
+                <span class="items-bar-pct">{{ itemsTotalSpent > 0 ? Math.round((item.activity / itemsTotalSpent) * 100) : 0 }}%</span>
+              </div>
+              <div class="items-bar-track">
+                <div
+                  class="items-bar-fill"
+                  :style="{
+                    width: itemsTotalSpent > 0 ? Math.round((item.activity / itemsTotalSpent) * 100) + '%' : '0%',
+                    background: PALETTE[i % PALETTE.length],
+                  }"
+                />
+              </div>
+              <span class="items-bar-amount money-negative">{{ formatMoney(item.activity) }}</span>
+            </div>
+          </div>
+        </div>
+      </template>
     </template>
 
   </div>

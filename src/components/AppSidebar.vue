@@ -19,6 +19,12 @@ const emit = defineEmits<{ navigate: [page: string] }>()
     <!-- Nav -->
     <nav class="flex-1 px-3 py-4 flex flex-col gap-1">
       <a href="#"
+        :class="['flex items-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-widest transition-colors', props.currentPage === 'dashboard' ? 'bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900' : 'text-zinc-500 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700']"
+        @click.prevent="emit('navigate', 'dashboard')">
+        <i class="pi pi-home text-xs" />
+        Dashboard
+      </a>
+      <a href="#"
         :class="['flex items-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-widest transition-colors', props.currentPage === 'template' ? 'bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900' : 'text-zinc-500 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700']"
         @click.prevent="emit('navigate', 'template')">
         <i class="pi pi-table text-xs" />
@@ -47,6 +53,12 @@ const emit = defineEmits<{ navigate: [page: string] }>()
         @click.prevent="emit('navigate', 'reports')">
         <i class="pi pi-chart-bar text-xs" />
         Reports
+      </a>
+      <a href="#"
+        :class="['flex items-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-widest transition-colors', props.currentPage === 'savings' ? 'bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900' : 'text-zinc-500 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700']"
+        @click.prevent="emit('navigate', 'savings')">
+        <i class="pi pi-flag text-xs" />
+        Savings
       </a>
       <a href="#"
         :class="['flex items-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-widest transition-colors', props.currentPage === 'settings' ? 'bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900' : 'text-zinc-500 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700']"

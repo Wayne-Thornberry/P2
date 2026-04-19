@@ -43,7 +43,6 @@ function detect12h(locale: string): boolean {
 // ── Store ──────────────────────────────────────────────────────
 export const useSettingsStore = defineStore('settings', () => {
   const _locale      = Intl.DateTimeFormat().resolvedOptions().locale
-                    || navigator.languages?.[0]
                     || navigator.language
                     || 'en-IE'
   const _prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? true
@@ -59,21 +58,36 @@ export const useSettingsStore = defineStore('settings', () => {
     } catch { return null }
   })()
 
-  const theme     = ref<'dark' | 'light' | 'midnight' | 'forest' | 'purple'>(_saved?.theme ?? (_prefersDark ? 'dark' : 'light'))
+  const theme     = ref<'dark' | 'light' | 'midnight' | 'forest' | 'purple' | 'slate' | 'rose' | 'teal'>(_saved?.theme ?? (_prefersDark ? 'dark' : 'light'))
   const locale    = ref<string>(_saved?.locale ?? _locale)
   const currency  = ref<string>(_saved?.currency ?? detectCurrency(_locale))
   const dateStyle = ref<'short' | 'medium' | 'long' | 'iso'>(_saved?.dateStyle ?? 'medium')
   const timeStyle = ref<'12h' | '24h'>(_saved?.timeStyle ?? (detect12h(_locale) ? '12h' : '24h'))
 
+  /**
+   * When set, Total Funds = openingBalance + sum of transactions on/after balanceCutoffDate.
+   * When empty string, all transactions are summed (default behaviour).
+   */
+  const balanceCutoffDate = ref<string>(_saved?.balanceCutoffDate ?? '')
+  const openingBalance    = ref<number>(_saved?.openingBalance ?? 0)
+
+  let _themeTransitionTimer: ReturnType<typeof setTimeout> | undefined
+
   // Apply theme immediately and reactively
   watchEffect(() => {
     const t = theme.value
+    clearTimeout(_themeTransitionTimer)
+    document.documentElement.classList.add('theme-transitioning')
     document.documentElement.classList.toggle('dark', t === 'dark' || t === 'midnight' || t === 'forest' || t === 'purple')
     document.documentElement.classList.toggle('theme-dark', t === 'dark')
     document.documentElement.classList.toggle('theme-light', t === 'light')
     document.documentElement.classList.toggle('theme-midnight', t === 'midnight')
     document.documentElement.classList.toggle('theme-forest', t === 'forest')
     document.documentElement.classList.toggle('theme-purple', t === 'purple')
+    document.documentElement.classList.toggle('theme-slate', t === 'slate')
+    document.documentElement.classList.toggle('theme-rose', t === 'rose')
+    document.documentElement.classList.toggle('theme-teal', t === 'teal')
+    _themeTransitionTimer = setTimeout(() => document.documentElement.classList.remove('theme-transitioning'), 300)
   })
 
   // Persist settings to localStorage whenever any setting changes
@@ -84,6 +98,8 @@ export const useSettingsStore = defineStore('settings', () => {
       currency: currency.value,
       dateStyle: dateStyle.value,
       timeStyle: timeStyle.value,
+      balanceCutoffDate: balanceCutoffDate.value,
+      openingBalance: openingBalance.value,
     }))
   })
 
@@ -118,11 +134,19 @@ export const useSettingsStore = defineStore('settings', () => {
   function formatCreatedAt(isoString: string): string {
     const d = new Date(isoString)
     try {
+      if (dateStyle.value === 'iso') {
+        // ISO date + HH:MM
+        const pad = (n: number) => String(n).padStart(2, '0')
+        const h = timeStyle.value === '24h'
+          ? pad(d.getHours())
+          : String(d.getHours() % 12 || 12)
+        const m = pad(d.getMinutes())
+        const ampm = timeStyle.value === '12h' ? (d.getHours() < 12 ? ' AM' : ' PM') : ''
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${h}:${m}${ampm}`
+      }
       return d.toLocaleString(locale.value, {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
+        dateStyle: dateStyle.value as 'short' | 'medium' | 'long',
+        timeStyle: 'short',
         hour12: timeStyle.value === '12h',
       })
     } catch {
@@ -130,5 +154,5 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
-  return { theme, locale, currency, dateStyle, timeStyle, formatMoney, formatDate, formatCreatedAt }
+  return { theme, locale, currency, dateStyle, timeStyle, balanceCutoffDate, openingBalance, formatMoney, formatDate, formatCreatedAt }
 })

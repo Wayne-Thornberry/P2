@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import type { Transaction } from '../types/transaction'
 import { generateSeedTransactions } from '../data/transactionSeedData'
+import { useSettingsStore } from './settingsStore'
 
 let _nextId = 500
 
@@ -27,6 +28,7 @@ export const useTransactionStore = defineStore('transactions', () => {
   function addTransaction(t: Omit<Transaction, 'id' | 'createdAt'>): void {
     transactions.value.unshift({
       ...t,
+      notes: t.notes?.trim() || undefined,
       id: _nextId++,
       createdAt: new Date().toISOString(),
     })
@@ -70,10 +72,18 @@ export const useTransactionStore = defineStore('transactions', () => {
       .reduce((sum, t) => sum + (t.type === 'out' ? t.amount : -t.amount), 0)
   }
 
-  // Running balance across all accounts (all-time), rounded to avoid float residuals
-  const totalFunds = computed(() =>
-    Math.round(transactions.value.reduce((sum, t) => sum + (t.type === 'in' ? t.amount : -t.amount), 0) * 100) / 100
-  )
+  // Running balance across all accounts, respecting optional balance cutoff setting.
+  // When a cutoff date is set: totalFunds = openingBalance + sum of transactions on/after that date.
+  // When no cutoff: all-time sum (original behaviour).
+  const totalFunds = computed(() => {
+    const settings = useSettingsStore()
+    const cutoff = settings.balanceCutoffDate
+    const txs = cutoff
+      ? transactions.value.filter(t => t.date >= cutoff)
+      : transactions.value
+    const sum = Math.round(txs.reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0) * 100) / 100
+    return cutoff ? Math.round((settings.openingBalance + sum) * 100) / 100 : sum
+  })
 
   function addOpeningBalance(accountId: string, amount: number, date: string): void {
     if (amount === 0) return

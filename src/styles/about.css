@@ -1,0 +1,260 @@
+/* ── About page ──────────────────────────────────────────────── */
+
+.about-page {
+  max-width: 52rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+/* Hero */
+.about-hero {
+  padding: 2rem 0 1rem;
+  border-bottom: 2px solid var(--color-zinc-300);
+}
+
+.dark .about-hero {
+  border-bottom-color: var(--color-zinc-700);
+}
+
+.about-title {
+  font-size: 2.5rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: var(--color-zinc-900);
+  line-height: 1;
+  margin: 0 0 0.5rem;
+}
+
+.dark .about-title {
+  color: var(--color-zinc-100);
+}
+
+.about-tagline {
+  font-size: 1rem;
+  color: var(--color-zinc-500);
+  margin: 0;
+}
+
+/* Sections */
+.about-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.about-section-title {
+  font-size: 0.65rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-zinc-800);
+  background-color: var(--color-zinc-200);
+  border-bottom: 2px solid var(--color-zinc-300);
+  padding: 0.55rem 1rem;
+  margin: 0;
+}
+
+.dark .about-section-title {
+  color: var(--color-zinc-200);
+  background-color: var(--color-zinc-700);
+  border-bottom-color: var(--color-zinc-600);
+}
+
+.about-body {
+  font-size: 0.85rem;
+  line-height: 1.7;
+  color: var(--color-zinc-700);
+  margin: 0;
+  padding: 0 1rem;
+}
+
+.dark .about-body {
+  color: var(--color-zinc-300);
+}
+
+.about-body strong {
+  color: var(--color-zinc-900);
+}
+
+.dark .about-body strong {
+  color: var(--color-zinc-100);
+}
+
+/* Steps */
+.about-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.about-step {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--color-zinc-700);
+}
+
+.dark .about-step {
+  color: var(--color-zinc-300);
+}
+
+.about-step strong {
+  color: var(--color-zinc-900);
+}
+
+.dark .about-step strong {
+  color: var(--color-zinc-100);
+}
+
+.about-step em {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--color-zinc-900);
+}
+
+.dark .about-step em {
+  color: var(--color-zinc-200);
+}
+
+.about-step-num {
+  flex: 0 0 1.75rem;
+  height: 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 900;
+  background: var(--color-zinc-900);
+  color: var(--color-zinc-100);
+  border-radius: 0;
+  margin-top: 0.05rem;
+}
+
+.dark .about-step-num {
+  background: var(--color-zinc-200);
+  color: var(--color-zinc-900);
+}
+
+/* Features grid */
+.about-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.75rem;
+  padding: 0 1rem;
+}
+
+.about-feature {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border: 2px solid var(--color-zinc-200);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.dark .about-feature {
+  border-color: var(--color-zinc-700);
+}
+
+.about-feature-icon {
+  font-size: 1.1rem;
+  margin-top: 0.1rem;
+  color: var(--color-zinc-500);
+  flex-shrink: 0;
+}
+
+.about-feature strong {
+  display: block;
+  font-weight: 700;
+  color: var(--color-zinc-900);
+  margin-bottom: 0.15rem;
+}
+
+.dark .about-feature strong {
+  color: var(--color-zinc-100);
+}
+
+.about-feature p {
+  margin: 0;
+  color: var(--color-zinc-500);
+}
+
+/* Tech stack */
+.about-stack {
+  display: flex;
+  flex-direction: column;
+  padding: 0 1rem;
+  border: 2px solid var(--color-zinc-200);
+}
+
+.dark .about-stack {
+  border-color: var(--color-zinc-700);
+}
+
+.about-stack-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--color-zinc-200);
+  font-size: 0.82rem;
+}
+
+.about-stack-item:last-child {
+  border-bottom: none;
+}
+
+.dark .about-stack-item {
+  border-bottom-color: var(--color-zinc-700);
+}
+
+.about-stack-badge {
+  flex: 0 0 9rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-zinc-900);
+  background: var(--color-zinc-200);
+  padding: 0.2rem 0.5rem;
+  text-align: center;
+}
+
+.dark .about-stack-badge {
+  background: var(--color-zinc-700);
+  color: var(--color-zinc-200);
+}
+
+.about-stack-desc {
+  color: var(--color-zinc-600);
+}
+
+.dark .about-stack-desc {
+  color: var(--color-zinc-400);
+}
+
+code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.8em;
+  background: var(--color-zinc-200);
+  padding: 0.1em 0.3em;
+}
+
+.dark code {
+  background: var(--color-zinc-700);
+  color: var(--color-zinc-300);
+}
+
+/* Seahorse */
+.about-seahorse {
+  text-align: center;
+  font-size: 3.5rem;
+  padding: 2rem 0 3rem;
+  line-height: 1;
+}

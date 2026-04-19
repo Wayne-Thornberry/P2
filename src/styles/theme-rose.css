@@ -1,0 +1,90 @@
+/*
+ * Clearbook "Rose" Theme
+ * Crisp white base with the faintest warm blush tint.
+ * Color comes from the accent: rose #f43f5e.
+ * Applied when <html> has .theme-rose (light — no .dark class).
+ */
+
+/* ── 1. Zinc → warm white / blush ───────────────────────────── */
+
+.theme-rose {
+  --color-zinc-50:  oklch(0.990 0.005 15);    /* near-white, ghost of blush */
+  --color-zinc-100: oklch(0.971 0.010 12);    /* very light warm white      */
+  --color-zinc-200: oklch(0.926 0.018 10);    /* light warm border          */
+  --color-zinc-300: oklch(0.846 0.028 8);     /* muted border               */
+  --color-zinc-400: oklch(0.695 0.038 5);     /* placeholder / icon         */
+  --color-zinc-500: oklch(0.560 0.044 3);     /* secondary text             */
+  --color-zinc-600: oklch(0.432 0.038 1);     /* body text                  */
+  --color-zinc-700: oklch(0.320 0.030 358);   /* strong text                */
+  --color-zinc-800: oklch(0.222 0.022 356);   /* near-dark                  */
+  --color-zinc-900: oklch(0.152 0.015 354);   /* headings / primary text    */
+  --color-zinc-950: oklch(0.092 0.009 352);   /* deepest                    */
+}
+
+/* ── 2. Accent overrides (rose) ─────────────────────────────── */
+
+.theme-rose .month-picker-cell-active {
+  border-color: #f43f5e !important;
+  background-color: #f43f5e !important;
+  color: #fff !important;
+}
+
+.theme-rose .category-group-header {
+  border-left-color: #f43f5e;
+}
+
+.theme-rose .budget-add-cat-btn:hover {
+  border-color: #f43f5e;
+  color: #f43f5e;
+}
+
+.theme-rose .rpt-tab.active {
+  color: #f43f5e;
+  border-bottom-color: #f43f5e;
+}
+
+.theme-rose .p-datatable .budget-row-selected > td {
+  background-color: #fff1f2 !important;
+}
+
+.theme-rose .accounts-ob-panel {
+  border-top-color: #f43f5e;
+  background: #fff1f2;
+}
+.theme-rose .accounts-ob-header {
+  color: #e11d48;
+}
+
+.theme-rose .nav-item-active {
+  background-color: #fff1f2 !important;
+  color: #e11d48 !important;
+}
+.theme-rose .nav-item-active .nav-item-icon {
+  color: #e11d48 !important;
+}
+
+.theme-rose .tx-bulk-bar {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #9f1239;
+}
+
+.theme-rose .sg-linked-badge {
+  color: #e11d48;
+  background: #fff1f2;
+  border-color: #fecdd3;
+}
+
+.theme-rose .sg-btn--primary,
+.theme-rose .tx-add-btn,
+.theme-rose .tx-import-btn {
+  background: #f43f5e;
+  border-color: #f43f5e;
+  color: #fff;
+}
+.theme-rose .sg-btn--primary:hover,
+.theme-rose .tx-add-btn:hover,
+.theme-rose .tx-import-btn:hover {
+  background: #e11d48;
+  border-color: #e11d48;
+}

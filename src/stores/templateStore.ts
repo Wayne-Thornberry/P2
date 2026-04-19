@@ -24,7 +24,7 @@ export const useTemplateStore = defineStore('template', () => {
     // v2 format — migrate if entries are missing category (old v2 had category on globalItems)
     const rawEntries: Array<{ itemId: number; assigned: number; category?: string }> = _saved.entries
     const defCatMap = new Map<number, string>(
-      (budgetStore.globalItems as Array<BudgetItemDef & { category?: string }>).map(i => [i.id, (i as any).category ?? ''])
+      (budgetStore.globalItems as Array<BudgetItemDef & { category?: string }>).map(i => [i.id, i.category ?? ''])
     )
     _initEntries = rawEntries.map(e => ({
       itemId:   e.itemId,

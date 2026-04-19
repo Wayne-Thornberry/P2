@@ -217,7 +217,24 @@ function generateTransactions(): void {
   _flashMsg(msgTx, `${totalAdded} transaction${totalAdded !== 1 ? 's' : ''} added for ${label}.`)
 }
 
-// ── Locale options ────────────────────────────────────────────
+// ── Balance cutoff helpers ───────────────────────────────────
+const cutoffTransactionCount = computed(() => {
+  const c = settings.balanceCutoffDate
+  if (!c) return txnStore.transactions.length
+  return txnStore.transactions.filter(t => t.date >= c).length
+})
+
+const cutoffSumPreview = computed(() => {
+  const c = settings.balanceCutoffDate
+  const txs = c ? txnStore.transactions.filter(t => t.date >= c) : txnStore.transactions
+  const sum = Math.round(txs.reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0) * 100) / 100
+  return c ? Math.round((settings.openingBalance + sum) * 100) / 100 : sum
+})
+
+function clearCutoff(): void {
+  settings.balanceCutoffDate = ''
+  settings.openingBalance    = 0
+}
 const LOCALES = [
   { value: 'en-US', label: 'English (United States)' },
   { value: 'en-GB', label: 'English (United Kingdom)' },
@@ -370,6 +387,39 @@ const previewCreated  = computed(() => settings.formatCreatedAt(PREVIEW_ISO))
               </div>
               <span class="theme-card-label"><i class="pi pi-circle" /> Purple</span>
             </button>
+            <button
+              :class="['theme-card', settings.theme === 'slate' && 'theme-card-active']"
+              @click="settings.theme = 'slate'"
+            >
+              <div class="theme-card-swatch">
+                <div class="theme-card-band" style="background:#e8eaf0" />
+                <div class="theme-card-band" style="background:#f3f4f8" />
+                <div class="theme-card-accent" style="background:#6366f1" />
+              </div>
+              <span class="theme-card-label"><i class="pi pi-stop" /> Slate</span>
+            </button>
+            <button
+              :class="['theme-card', settings.theme === 'rose' && 'theme-card-active']"
+              @click="settings.theme = 'rose'"
+            >
+              <div class="theme-card-swatch">
+                <div class="theme-card-band" style="background:#fce4e8" />
+                <div class="theme-card-band" style="background:#fff5f6" />
+                <div class="theme-card-accent" style="background:#f43f5e" />
+              </div>
+              <span class="theme-card-label"><i class="pi pi-heart" /> Rose</span>
+            </button>
+            <button
+              :class="['theme-card', settings.theme === 'teal' && 'theme-card-active']"
+              @click="settings.theme = 'teal'"
+            >
+              <div class="theme-card-swatch">
+                <div class="theme-card-band" style="background:#d8f5f1" />
+                <div class="theme-card-band" style="background:#f0fdfa" />
+                <div class="theme-card-accent" style="background:#14b8a6" />
+              </div>
+              <span class="theme-card-label"><i class="pi pi-compass" /> Teal</span>
+            </button>
           </div>
         </div>
       </div>
@@ -482,6 +532,66 @@ const previewCreated  = computed(() => settings.formatCreatedAt(PREVIEW_ISO))
           <span class="preview-label">Date &amp; Time</span>
           <span class="preview-value">{{ previewCreated }}</span>
         </div>
+      </div>
+    </div>
+
+    <!-- Balance Cutoff ──────────────────────────────────────── -->
+    <div class="settings-section settings-section--full">
+      <h2 class="settings-section-title">Balance Cutoff</h2>
+      <p class="settings-section-hint">
+        If you have imported historical transactions that don't reflect your real current balance
+        (e.g. a data gap between years), set a cutoff date and enter your known opening balance
+        as of that date. <strong>Total Funds Available</strong> will then be calculated as:
+        <em>Opening Balance + sum of all transactions on or after the cutoff date</em>.
+        Leave blank to use the all-time total (default).
+      </p>
+
+      <div class="settings-row">
+        <div class="settings-label">
+          <span class="settings-label-text">Cutoff Date</span>
+          <span class="settings-label-hint">Only transactions on or after this date count toward Total Funds.</span>
+        </div>
+        <div class="settings-control settings-cutoff-row">
+          <input
+            type="date"
+            class="settings-input"
+            :value="settings.balanceCutoffDate"
+            @change="settings.balanceCutoffDate = ($event.target as HTMLInputElement).value"
+          />
+          <button v-if="settings.balanceCutoffDate" class="debug-btn debug-btn-danger" @click="clearCutoff">
+            <i class="pi pi-times text-xs" /> Clear Cutoff
+          </button>
+        </div>
+      </div>
+
+      <div class="settings-row" v-if="settings.balanceCutoffDate">
+        <div class="settings-label">
+          <span class="settings-label-text">Opening Balance</span>
+          <span class="settings-label-hint">Your known account balance as of the cutoff date (can be negative).</span>
+        </div>
+        <div class="settings-control">
+          <input
+            type="number"
+            step="0.01"
+            class="settings-input"
+            style="max-width:12rem"
+            :value="settings.openingBalance"
+            @change="settings.openingBalance = parseFloat(($event.target as HTMLInputElement).value) || 0"
+          />
+        </div>
+      </div>
+
+      <div v-if="settings.balanceCutoffDate" class="settings-cutoff-preview">
+        <i class="pi pi-info-circle" />
+        <span>
+          <strong>{{ cutoffTransactionCount }}</strong> transaction{{ cutoffTransactionCount === 1 ? '' : 's' }}
+          on or after {{ settings.balanceCutoffDate }}.
+          Calculated Total Funds: <strong :class="cutoffSumPreview >= 0 ? 'money-positive' : 'money-negative'">{{ settings.formatMoney(cutoffSumPreview) }}</strong>
+        </span>
+      </div>
+      <div v-else class="settings-cutoff-preview settings-cutoff-preview--off">
+        <i class="pi pi-info-circle" />
+        No cutoff set — all <strong>{{ txnStore.transactions.length }}</strong> transactions are included in Total Funds.
       </div>
     </div>
 

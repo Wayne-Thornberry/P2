@@ -1,5 +1,54 @@
 /* ── Shared assign panel / dialog styles ─────────────────────── */
 
+/* ── Assign dialog backdrop & shell ─────────────────────────── */
+.assign-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.assign-dialog {
+  background: white;
+  color: var(--color-zinc-900);
+  width: 100%;
+  max-width: 28rem;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+}
+
+.dark .assign-dialog {
+  background: var(--color-zinc-900);
+  color: var(--color-zinc-100);
+}
+
+/* ── Assign dialog transition ───────────────────────────────── */
+.assign-dialog-fade-enter-active,
+.assign-dialog-fade-leave-active {
+  transition: opacity 0.18s ease;
+}
+.assign-dialog-fade-enter-from,
+.assign-dialog-fade-leave-to {
+  opacity: 0;
+}
+.assign-dialog-fade-enter-active .assign-dialog,
+.assign-dialog-fade-leave-active .assign-dialog {
+  transition: transform 0.18s ease;
+}
+.assign-dialog-fade-enter-from .assign-dialog,
+.assign-dialog-fade-leave-to .assign-dialog {
+  transform: translateY(12px);
+}
+
+
+
 /* ── Bulk suggest banner ─────────────────────────────────────── */
 .assign-bulk-banner {
   background: #fefce8;
@@ -49,7 +98,7 @@
   letter-spacing: 0.06em;
   padding: 0.3rem 0.75rem;
   background: #f59e0b;
-  color: #1c1c1e;
+  color: var(--color-zinc-900);
   border: none;
   cursor: pointer;
   transition: background-color 0.12s;
@@ -84,12 +133,12 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.85rem 1rem 0.75rem;
-  border-bottom: 2px solid #e4e4e7;
+  border-bottom: 2px solid var(--color-zinc-200);
   flex-shrink: 0;
 }
 
 .dark .assign-dialog-header {
-  border-bottom-color: #3f3f46;
+  border-bottom-color: var(--color-zinc-700);
 }
 
 .assign-dialog-title {
@@ -107,19 +156,19 @@
   text-transform: none;
   letter-spacing: 0;
   font-size: 0.75rem;
-  color: #71717a;
+  color: var(--color-zinc-500);
   margin-left: 0.2rem;
 }
 
 .dark .assign-dialog-month {
-  color: #a1a1aa;
+  color: var(--color-zinc-400);
 }
 
 .assign-dialog-close {
   background: none;
   border: none;
   cursor: pointer;
-  color: #71717a;
+  color: var(--color-zinc-500);
   font-size: 0.85rem;
   padding: 0.3rem;
   display: flex;
@@ -127,8 +176,8 @@
   justify-content: center;
   transition: color 0.1s;
 }
-.assign-dialog-close:hover { color: #18181b; }
-.dark .assign-dialog-close:hover { color: #f4f4f5; }
+.assign-dialog-close:hover { color: var(--color-zinc-900); }
+.dark .assign-dialog-close:hover { color: var(--color-zinc-100); }
 
 /* ── Progress ───────────────────────────────────────────────── */
 .assign-dialog-progress-row {
@@ -136,11 +185,11 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.6rem 1rem 0.5rem;
-  border-bottom: 1px solid #e4e4e7;
+  border-bottom: 1px solid var(--color-zinc-200);
 }
 
 .dark .assign-dialog-progress-row {
-  border-bottom-color: #3f3f46;
+  border-bottom-color: var(--color-zinc-700);
 }
 
 .assign-dialog-progress-label {
@@ -148,22 +197,22 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #71717a;
+  color: var(--color-zinc-500);
   white-space: nowrap;
 }
 
 .dark .assign-dialog-progress-label {
-  color: #a1a1aa;
+  color: var(--color-zinc-400);
 }
 
 .assign-dialog-progress-bar-wrap {
   flex: 1;
   height: 4px;
-  background: #e4e4e7;
+  background: var(--color-zinc-200);
 }
 
 .dark .assign-dialog-progress-bar-wrap {
-  background: #3f3f46;
+  background: var(--color-zinc-700);
 }
 
 .assign-dialog-progress-bar {
@@ -175,13 +224,13 @@
 /* ── Transaction card ───────────────────────────────────────── */
 .assign-tx-card {
   padding: 1rem 1rem 0.85rem;
-  border-bottom: 1px solid #e4e4e7;
-  background: #f4f4f5;
+  border-bottom: 1px solid var(--color-zinc-200);
+  background: var(--color-zinc-100);
 }
 
 .dark .assign-tx-card {
-  background: #27272a;
-  border-bottom-color: #3f3f46;
+  background: var(--color-zinc-800);
+  border-bottom-color: var(--color-zinc-700);
 }
 
 .assign-tx-name {
@@ -200,11 +249,11 @@
 
 .assign-tx-date {
   font-size: 0.7rem;
-  color: #71717a;
+  color: var(--color-zinc-500);
 }
 
 .dark .assign-tx-date {
-  color: #a1a1aa;
+  color: var(--color-zinc-400);
 }
 
 .assign-tx-amount {
@@ -249,11 +298,11 @@
   font-weight: 900;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: #71717a;
+  color: var(--color-zinc-500);
 }
 
 .dark .assign-suggestions-label {
-  color: #a1a1aa;
+  color: var(--color-zinc-400);
 }
 
 .assign-suggestions-grid {
@@ -270,7 +319,7 @@
   gap: 0.15rem;
   padding: 0.55rem 0.7rem;
   background: none;
-  border: 2px solid #d4d4d8;
+  border: 2px solid var(--color-zinc-300);
   cursor: pointer;
   text-align: left;
   transition: border-color 0.12s, background-color 0.12s;
@@ -282,7 +331,7 @@
 }
 
 .dark .assign-suggestion-btn {
-  border-color: #52525b;
+  border-color: var(--color-zinc-600);
 }
 
 .dark .assign-suggestion-btn:hover {
@@ -293,35 +342,35 @@
 .assign-suggestion-name {
   font-size: 0.75rem;
   font-weight: 700;
-  color: #18181b;
+  color: var(--color-zinc-900);
   line-height: 1.2;
 }
 
 .dark .assign-suggestion-name {
-  color: #f4f4f5;
+  color: var(--color-zinc-100);
 }
 
 .assign-suggestion-cat {
   font-size: 0.6rem;
-  color: #71717a;
+  color: var(--color-zinc-500);
   font-weight: 500;
 }
 
 .dark .assign-suggestion-cat {
-  color: #a1a1aa;
+  color: var(--color-zinc-400);
 }
 
 /* ── Browse all ─────────────────────────────────────────────── */
 .assign-browse-row {
   padding: 0.5rem 1rem 0.75rem;
-  border-top: 1px solid #e4e4e7;
+  border-top: 1px solid var(--color-zinc-200);
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
 }
 
 .dark .assign-browse-row {
-  border-top-color: #3f3f46;
+  border-top-color: var(--color-zinc-700);
 }
 
 .assign-browse-label {
@@ -329,11 +378,11 @@
   font-weight: 900;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: #71717a;
+  color: var(--color-zinc-500);
 }
 
 .dark .assign-browse-label {
-  color: #a1a1aa;
+  color: var(--color-zinc-400);
 }
 
 .assign-browse-controls {
@@ -346,17 +395,17 @@
   flex: 1;
   font-size: 0.75rem;
   padding: 0.3rem 0.45rem;
-  border: 2px solid #d4d4d8;
+  border: 2px solid var(--color-zinc-300);
   background: #ffffff;
-  color: #18181b;
+  color: var(--color-zinc-900);
   outline: none;
   cursor: pointer;
 }
 
 .dark .assign-browse-select {
-  background: #3f3f46;
-  color: #f4f4f5;
-  border-color: #52525b;
+  background: var(--color-zinc-700);
+  color: var(--color-zinc-100);
+  border-color: var(--color-zinc-600);
 }
 
 .assign-browse-apply-btn {
@@ -365,8 +414,8 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
   padding: 0.3rem 0.8rem;
-  background: #18181b;
-  color: #f4f4f5;
+  background: var(--color-zinc-900);
+  color: var(--color-zinc-100);
   border: none;
   cursor: pointer;
   transition: background-color 0.12s;
@@ -374,7 +423,7 @@
 }
 
 .assign-browse-apply-btn:hover:not(:disabled) {
-  background: #3f3f46;
+  background: var(--color-zinc-700);
 }
 
 .assign-browse-apply-btn:disabled {
@@ -383,12 +432,12 @@
 }
 
 .dark .assign-browse-apply-btn {
-  background: #e4e4e7;
-  color: #18181b;
+  background: var(--color-zinc-200);
+  color: var(--color-zinc-900);
 }
 
 .dark .assign-browse-apply-btn:hover:not(:disabled) {
-  background: #f4f4f5;
+  background: var(--color-zinc-100);
 }
 
 /* ── Nav row ─────────────────────────────────────────────────── */
@@ -397,11 +446,11 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.65rem 1rem;
-  border-top: 2px solid #e4e4e7;
+  border-top: 2px solid var(--color-zinc-200);
 }
 
 .dark .assign-nav-row {
-  border-top-color: #3f3f46;
+  border-top-color: var(--color-zinc-700);
 }
 
 .assign-nav-btn,
@@ -414,29 +463,29 @@
   text-transform: uppercase;
   letter-spacing: 0.07em;
   padding: 0.3rem 0.75rem;
-  border: 2px solid #d4d4d8;
+  border: 2px solid var(--color-zinc-300);
   background: none;
-  color: #52525b;
+  color: var(--color-zinc-600);
   cursor: pointer;
   transition: border-color 0.12s, background-color 0.12s;
 }
 
 .assign-nav-btn:hover:not(:disabled),
 .assign-skip-btn:hover:not(:disabled) {
-  border-color: #a1a1aa;
-  background: #f4f4f5;
+  border-color: var(--color-zinc-400);
+  background: var(--color-zinc-100);
 }
 
 .dark .assign-nav-btn,
 .dark .assign-skip-btn {
-  border-color: #52525b;
-  color: #a1a1aa;
+  border-color: var(--color-zinc-600);
+  color: var(--color-zinc-400);
 }
 
 .dark .assign-nav-btn:hover:not(:disabled),
 .dark .assign-skip-btn:hover:not(:disabled) {
-  background: #27272a;
-  border-color: #71717a;
+  background: var(--color-zinc-800);
+  border-color: var(--color-zinc-500);
 }
 
 .assign-nav-btn:disabled,
@@ -468,11 +517,11 @@
 
 .assign-dialog-done-sub {
   font-size: 0.8rem;
-  color: #71717a;
+  color: var(--color-zinc-500);
 }
 
 .dark .assign-dialog-done-sub {
-  color: #a1a1aa;
+  color: var(--color-zinc-400);
 }
 
 .assign-dialog-done-btn {
@@ -482,22 +531,22 @@
   text-transform: uppercase;
   letter-spacing: 0.07em;
   padding: 0.4rem 1.5rem;
-  background: #18181b;
-  color: #f4f4f5;
+  background: var(--color-zinc-900);
+  color: var(--color-zinc-100);
   border: none;
   cursor: pointer;
   transition: background-color 0.12s;
 }
 
 .assign-dialog-done-btn:hover {
-  background: #3f3f46;
+  background: var(--color-zinc-700);
 }
 
 .dark .assign-dialog-done-btn {
-  background: #e4e4e7;
-  color: #18181b;
+  background: var(--color-zinc-200);
+  color: var(--color-zinc-900);
 }
 
 .dark .assign-dialog-done-btn:hover {
-  background: #f4f4f5;
+  background: var(--color-zinc-100);
 }

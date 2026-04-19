@@ -46,7 +46,7 @@ export function useBudgetDrag(
     if (!row) return
     const idx = row.getAttribute('data-p-index')
     if (idx !== null) {
-      draggingItem.value = tableItems.value[parseInt(idx)] ?? null
+      draggingItem.value = tableItems.value[parseInt(idx, 10)] ?? null
     }
   }
 

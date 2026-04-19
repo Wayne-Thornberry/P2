@@ -12,4 +12,5 @@ export interface Transaction {
   type: 'in' | 'out'
   itemId: number | null   // null = N/A
   accountId: string | null
+  notes?: string          // optional memo
 }

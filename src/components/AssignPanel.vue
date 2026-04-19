@@ -124,7 +124,7 @@ function dismissBulkSuggest(): void {
 
 function assignFromBrowse(): void {
   if (!browseItemId.value) return
-  assign(parseInt(browseItemId.value))
+  assign(parseInt(browseItemId.value, 10))
 }
 
 function skip(): void {

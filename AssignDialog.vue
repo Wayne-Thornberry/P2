@@ -4,6 +4,7 @@ import type { Transaction } from '../types/transaction'
 import type { BudgetItem } from '../types/budget'
 import { useTransactionStore } from '../stores/transactionStore'
 import { useBudgetStore } from '../stores/budgetStore'
+import { useMonthStore } from '../stores/monthStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { suggestTopItems } from '../utils/autoCategory'
 
@@ -19,6 +20,7 @@ const emit = defineEmits<{
 
 const txStore     = useTransactionStore()
 const budgetStore = useBudgetStore()
+const monthStore  = useMonthStore()
 const settings    = useSettingsStore()
 
 // ── Unassigned list for this month ────────────────────────────
@@ -86,7 +88,7 @@ function assign(itemId: number): void {
 
 function assignFromBrowse(): void {
   if (!browseItemId.value) return
-  assign(parseInt(browseItemId.value, 10))
+  assign(parseInt(browseItemId.value))
 }
 
 function skip(): void {

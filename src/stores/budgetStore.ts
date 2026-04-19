@@ -35,10 +35,10 @@ export const useBudgetStore = defineStore('budget', () => {
     const oldCatMap = new Map<number, string>() // id → category from v1 items
     const newEntries: Record<number, Record<number, BudgetMonthEntry[]>> = {}
     for (const [yearStr, yearData] of Object.entries(_saved.monthlyItems as Record<number, Record<number, BudgetItem[]>>)) {
-      const year = parseInt(yearStr)
+      const year = parseInt(yearStr, 10)
       newEntries[year] = {}
       for (const [monthStr, monthItems] of Object.entries(yearData as Record<number, BudgetItem[]>)) {
-        const month = parseInt(monthStr)
+        const month = parseInt(monthStr, 10)
         newEntries[year][month] = []
         for (const item of monthItems as BudgetItem[]) {
           defMap.set(item.id, { id: item.id, name: item.name })
@@ -67,10 +67,10 @@ export const useBudgetStore = defineStore('budget', () => {
     const rawEntries = _saved.monthlyEntries as Record<number, Record<number, Array<{ itemId: number; assigned: number; category?: string }>>>
     const migratedEntries: Record<number, Record<number, BudgetMonthEntry[]>> = {}
     for (const [yearStr, yearData] of Object.entries(rawEntries)) {
-      const year = parseInt(yearStr)
+      const year = parseInt(yearStr, 10)
       migratedEntries[year] = {}
       for (const [monthStr, monthArr] of Object.entries(yearData)) {
-        const month = parseInt(monthStr)
+        const month = parseInt(monthStr, 10)
         migratedEntries[year][month] = monthArr.map(e => ({
           itemId:   e.itemId,
           assigned: e.assigned,
@@ -219,6 +219,15 @@ export const useBudgetStore = defineStore('budget', () => {
     checkOrphan(id)
   }
 
+  /** Remove all items with the given category from the active month only. */
+  function deleteCategory(category: string): void {
+    const entries = _activeEntries()
+    const removedIds = entries.filter(e => e.category === category).map(e => e.itemId)
+    const remaining  = entries.filter(e => e.category !== category)
+    entries.splice(0, entries.length, ...remaining)
+    for (const id of removedIds) checkOrphan(id)
+  }
+
   /** Nuclear: remove from every month + template + globalItems + unassign transactions. */
   function deleteItemGlobally(id: number): void {
     for (const yearData of Object.values(monthlyEntries.value)) {
@@ -260,20 +269,52 @@ export const useBudgetStore = defineStore('budget', () => {
     monthlyEntries.value[y]![m] = JSON.parse(JSON.stringify(templateStore.entries))
   }
 
+  /**
+   * Copy all budget entries from the specified source month into the active month.
+   * Assigned amounts are zeroed out — only the item/category structure is copied.
+   * The active month must be empty before calling this.
+   */
+  function populateFromMonth(sourceYear: number, sourceMonth: number): void {
+    const source = monthlyEntries.value[sourceYear]?.[sourceMonth]
+    if (!source) return
+    const y = monthStore.activeYear
+    const m = monthStore.activeMonth
+    monthlyEntries.value[y] ??= {}
+    monthlyEntries.value[y]![m] = JSON.parse(JSON.stringify(source))
+  }
+
+  /** All year+month combinations that have at least one entry, sorted newest first. */
+  const monthsWithData = computed<Array<{ year: number; month: number; label: string }>>(() => {
+    const result: Array<{ year: number; month: number; label: string }> = []
+    const ay = monthStore.activeYear
+    const am = monthStore.activeMonth
+    for (const [yearStr, yearData] of Object.entries(monthlyEntries.value)) {
+      const year = parseInt(yearStr, 10)
+      for (const [monthStr, entries] of Object.entries(yearData)) {
+        const month = parseInt(monthStr, 10)
+        if (year === ay && month === am) continue // exclude current month
+        if ((entries as BudgetMonthEntry[]).length === 0) continue
+        const label = new Date(year, month - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+        result.push({ year, month, label })
+      }
+    }
+    return result.sort((a, b) => b.year !== a.year ? b.year - a.year : b.month - a.month)
+  })
+
   function $import(raw: unknown): void {
     const d = raw as Record<string, unknown>
     if (Array.isArray(d?.globalItems) && d?.monthlyEntries) {
       // v2 import: strip any legacy category off globalItems, move to entries
-      const savedDefs: Array<{ id: number; name: string; category?: string }> = d.globalItems as any[]
+      const savedDefs: Array<{ id: number; name: string; category?: string }> = d.globalItems as Array<{ id: number; name: string; category?: string }>
       const defCatMap = new Map<number, string>(savedDefs.map(i => [i.id, i.category ?? '']))
       globalItems.value = savedDefs.map(i => ({ id: i.id, name: i.name }))
       const rawEntries = d.monthlyEntries as Record<number, Record<number, Array<{ itemId: number; assigned: number; category?: string }>>>
       const migratedEntries: Record<number, Record<number, BudgetMonthEntry[]>> = {}
       for (const [yearStr, yearData] of Object.entries(rawEntries)) {
-        const year = parseInt(yearStr)
+        const year = parseInt(yearStr, 10)
         migratedEntries[year] = {}
         for (const [monthStr, monthArr] of Object.entries(yearData)) {
-          const month = parseInt(monthStr)
+          const month = parseInt(monthStr, 10)
           migratedEntries[year][month] = monthArr.map(e => ({
             itemId:   e.itemId,
             assigned: e.assigned,
@@ -289,10 +330,10 @@ export const useBudgetStore = defineStore('budget', () => {
       const defMap = new Map<number, BudgetItemDef>()
       const newEntries: Record<number, Record<number, BudgetMonthEntry[]>> = {}
       for (const [yearStr, yearData] of Object.entries(monthly)) {
-        const year = parseInt(yearStr)
+        const year = parseInt(yearStr, 10)
         newEntries[year] = {}
         for (const [monthStr, monthItems] of Object.entries(yearData)) {
-          const month = parseInt(monthStr)
+          const month = parseInt(monthStr, 10)
           for (const item of monthItems) defMap.set(item.id, { id: item.id, name: item.name })
           newEntries[year][month] = monthItems.map(item => ({ itemId: item.id, assigned: item.assigned, category: item.category }))
         }
@@ -317,9 +358,12 @@ export const useBudgetStore = defineStore('budget', () => {
     addItem,
     addExistingItem,
     deleteItem,
+    deleteCategory,
     deleteItemGlobally,
     loadSeedData,
     populateFromTemplate,
+    populateFromMonth,
+    monthsWithData,
     $import,
   }
 })

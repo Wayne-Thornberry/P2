@@ -1,0 +1,90 @@
+/*
+ * Clearbook "Teal" Theme
+ * Clean white base with the faintest cool aqua tint.
+ * Color comes from the accent: teal #14b8a6.
+ * Applied when <html> has .theme-teal (light — no .dark class).
+ */
+
+/* ── 1. Zinc → cool white / aqua tint ───────────────────────── */
+
+.theme-teal {
+  --color-zinc-50:  oklch(0.989 0.006 192);   /* near-white, ghost of aqua  */
+  --color-zinc-100: oklch(0.966 0.013 190);   /* very light cool white      */
+  --color-zinc-200: oklch(0.916 0.024 188);   /* light aqua border          */
+  --color-zinc-300: oklch(0.832 0.036 185);   /* muted border               */
+  --color-zinc-400: oklch(0.682 0.048 182);   /* placeholder / icon         */
+  --color-zinc-500: oklch(0.548 0.056 180);   /* secondary text             */
+  --color-zinc-600: oklch(0.422 0.050 178);   /* body text                  */
+  --color-zinc-700: oklch(0.312 0.040 176);   /* strong text                */
+  --color-zinc-800: oklch(0.216 0.030 174);   /* near-dark                  */
+  --color-zinc-900: oklch(0.148 0.020 172);   /* headings / primary text    */
+  --color-zinc-950: oklch(0.090 0.012 170);   /* deepest                    */
+}
+
+/* ── 2. Accent overrides (teal) ─────────────────────────────── */
+
+.theme-teal .month-picker-cell-active {
+  border-color: #14b8a6 !important;
+  background-color: #14b8a6 !important;
+  color: #fff !important;
+}
+
+.theme-teal .category-group-header {
+  border-left-color: #14b8a6;
+}
+
+.theme-teal .budget-add-cat-btn:hover {
+  border-color: #14b8a6;
+  color: #14b8a6;
+}
+
+.theme-teal .rpt-tab.active {
+  color: #14b8a6;
+  border-bottom-color: #14b8a6;
+}
+
+.theme-teal .p-datatable .budget-row-selected > td {
+  background-color: #f0fdfa !important;
+}
+
+.theme-teal .accounts-ob-panel {
+  border-top-color: #14b8a6;
+  background: #f0fdfa;
+}
+.theme-teal .accounts-ob-header {
+  color: #0d9488;
+}
+
+.theme-teal .nav-item-active {
+  background-color: #f0fdfa !important;
+  color: #0d9488 !important;
+}
+.theme-teal .nav-item-active .nav-item-icon {
+  color: #0d9488 !important;
+}
+
+.theme-teal .tx-bulk-bar {
+  background: #f0fdfa;
+  border-color: #99f6e4;
+  color: #115e59;
+}
+
+.theme-teal .sg-linked-badge {
+  color: #0d9488;
+  background: #f0fdfa;
+  border-color: #99f6e4;
+}
+
+.theme-teal .sg-btn--primary,
+.theme-teal .tx-add-btn,
+.theme-teal .tx-import-btn {
+  background: #14b8a6;
+  border-color: #14b8a6;
+  color: #fff;
+}
+.theme-teal .sg-btn--primary:hover,
+.theme-teal .tx-add-btn:hover,
+.theme-teal .tx-import-btn:hover {
+  background: #0d9488;
+  border-color: #0d9488;
+}

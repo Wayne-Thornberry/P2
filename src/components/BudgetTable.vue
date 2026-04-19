@@ -25,7 +25,9 @@ const emit = defineEmits<{
   addItem: [name: string, category: string]
   addExistingItem: [itemId: number, category: string]
   viewItemTransactions: [itemId: number, yearMonth: string]
-}>()
+  deleteItem: [id: number]
+  deleteCategory: [category: string]
+}>() 
 
 const itemsRef = toRef(props, 'items')
 
@@ -96,7 +98,7 @@ function onSelectExistingItem(event: Event): void {
     ;(event.target as HTMLSelectElement).value = ''
     return
   }
-  emit('addExistingItem', parseInt(value), pendingCategory.value!)
+  emit('addExistingItem', parseInt(value, 10), pendingCategory.value!)
   pendingCategory.value = null
   pendingName.value     = ''
 }
@@ -157,7 +159,7 @@ function toggleGroup(category: string): void {
 function formatMoney(v: number): string { return settings.formatMoney(v) }
 
 // ── Money input behaviour ──────────────────────────────────────────
-const { moneyFocus, moneyBlur } = useMoneyInput()
+const { moneyFocus } = useMoneyInput()
 
 /** Blur handler for the cell editor: normalise display then update the data object. */
 function moneyEditorBlur(e: FocusEvent, data: Record<string, unknown>, field: string) {
@@ -341,7 +343,14 @@ function onCellEditComplete(event: { data: BudgetItem; newData: BudgetItem; fiel
       <Column columnKey="name" field="name" header="Category">
         <template #body="{ data }">
           <div class="item-name-cell">
-            <span>{{ data.name }}</span>
+            <div class="item-name-row">
+              <span>{{ data.name }}</span>
+              <button
+                class="item-delete-btn"
+                title="Remove item from this month"
+                @click.stop="emit('deleteItem', data.id)"
+              ><i class="pi pi-trash" /></button>
+            </div>
             <div class="item-bar" :class="{ 'item-bar--over': spendPct(data) >= 100 }">
               <div v-if="barFillWidth(spendPct(data)) > 0" class="item-bar-fill" :style="{ width: barFillWidth(spendPct(data)) + '%', background: barFillColor(spendPct(data)) }" />
             </div>
@@ -460,6 +469,11 @@ function onCellEditComplete(event: { data: BudgetItem; newData: BudgetItem; fiel
               {{ formatMoney(categoryTotal(data.category, 'available')) }}
             </span>
           </div>
+          <button
+            class="category-delete-btn"
+            title="Remove this category and all its items from this month"
+            @click.stop="emit('deleteCategory', data.category)"
+          ><i class="pi pi-trash" /></button>
           <!-- Full-width bar pinned to bottom of the row -->
           <div class="category-bar" :class="{ 'item-bar--over': catSpendPct(data.category) >= 100 }">
             <div

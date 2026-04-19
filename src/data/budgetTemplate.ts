@@ -45,7 +45,3 @@ export const BUDGET_TEMPLATE: BudgetItem[] = [
   { id: 3701, category: 'Savings',              name: 'Emergency Fund',        assigned: 200,  activity: 0 },
   { id: 3702, category: 'Savings',              name: 'Savings Goal',          assigned: 200,  activity: 0 },
 ]
-
-export function getTemplateCopy(): BudgetItem[] {
-  return JSON.parse(JSON.stringify(BUDGET_TEMPLATE)) as BudgetItem[]
-}

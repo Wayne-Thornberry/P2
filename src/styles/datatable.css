@@ -11,10 +11,10 @@
 
 /* Header row */
 .p-datatable .p-datatable-thead > tr > th {
-  background-color: #e4e4e7;
-  color: #27272a;
-  border-bottom: 2px solid #a1a1aa;
-  border-right: 1px solid #a1a1aa;
+  background-color: var(--color-zinc-200);
+  color: var(--color-zinc-800);
+  border-bottom: 2px solid var(--color-zinc-400);
+  border-right: 1px solid var(--color-zinc-400);
   font-size: 0.7rem;
   font-weight: 900;
   text-transform: uppercase;
@@ -25,10 +25,10 @@
   border-right: none;
 }
 .dark .p-datatable .p-datatable-thead > tr > th {
-  background-color: #52525b;
-  color: #e4e4e7;
-  border-bottom-color: #71717a;
-  border-right-color: #71717a;
+  background-color: var(--color-zinc-600);
+  color: var(--color-zinc-200);
+  border-bottom-color: var(--color-zinc-500);
+  border-right-color: var(--color-zinc-500);
 }
 .dark .p-datatable .p-datatable-thead > tr > th:last-child {
   border-right: none;
@@ -37,35 +37,35 @@
 /* Body rows */
 .p-datatable .p-datatable-tbody > tr {
   background-color: #ffffff;
-  border-bottom: 1px solid #e4e4e7;
+  border-bottom: 1px solid var(--color-zinc-200);
 }
 .dark .p-datatable .p-datatable-tbody > tr {
-  background-color: #27272a;
-  border-bottom-color: #3f3f46;
+  background-color: var(--color-zinc-800);
+  border-bottom-color: var(--color-zinc-700);
 }
 .p-datatable .p-datatable-tbody > tr:hover {
-  background-color: #e4e4e7 !important;
+  background-color: var(--color-zinc-200) !important;
 }
 .dark .p-datatable .p-datatable-tbody > tr:hover {
-  background-color: #52525b !important;
+  background-color: var(--color-zinc-600) !important;
 }
 .p-datatable .p-datatable-tbody > tr > td {
   padding: 0.625rem 1rem;
   font-size: 0.875rem;
-  border-right: 1px solid #e4e4e7;
-  color: #18181b;
+  border-right: 1px solid var(--color-zinc-200);
+  color: var(--color-zinc-900);
 }
 .dark .p-datatable .p-datatable-tbody > tr > td {
-  border-right-color: #3f3f46;
-  color: #f4f4f5;
+  border-right-color: var(--color-zinc-700);
+  color: var(--color-zinc-100);
 }
 
 /* Column resize handle */
 .p-datatable .p-datatable-column-resize-indicator {
-  border-left: 2px solid #a1a1aa;
+  border-left: 2px solid var(--color-zinc-400);
 }
 .dark .p-datatable .p-datatable-column-resize-indicator {
-  border-left-color: #71717a;
+  border-left-color: var(--color-zinc-500);
 }
 .p-datatable .p-resizable-column .p-column-resizer {
   width: 6px;

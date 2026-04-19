@@ -92,7 +92,7 @@ function onSelectExistingForTemplate(event: Event): void {
     ;(event.target as HTMLSelectElement).value = ''
     return
   }
-  store.addExistingItem(parseInt(value), addingCat.value!, 0)
+  store.addExistingItem(parseInt(value, 10), addingCat.value!, 0)
   addingCat.value = null
 }
 
