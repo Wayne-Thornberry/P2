@@ -39,8 +39,8 @@ const sebAdapter: CsvAdapter = {
       if (isNaN(rawAmt) || rawAmt === 0) continue;
       const amount = Math.abs(rawAmt);
       const type: 'in' | 'out' = rawAmt > 0 ? 'in' : 'out';
-      const balance = balanceCol >= 0 ? parseAmount(cols[balanceCol] ?? '') : NaN;
-      rows.push({ isoDate, yearMonth: isoDate.slice(0, 7), details, amount, type, balance: isNaN(balance) ? null : balance });
+      // Ignore CSV balance column for SEB; always set balance: null
+      rows.push({ isoDate, yearMonth: isoDate.slice(0, 7), details, amount, type, balance: null });
     }
     return rows;
   },
