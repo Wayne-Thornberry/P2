@@ -83,8 +83,6 @@ watch(() => props.focusSearch, (v) => { if (v) nextTick(() => searchInputRef.val
 onMounted(() => { if (props.focusSearch) nextTick(() => searchInputRef.value?.focus()) })
 
 // ── Column resize ───────────────────────────────────────────
-const tableRef = ref<HTMLTableElement | null>(null)
-
 // px widths; null = use CSS default (column not yet resized)
 const colWidths = ref<Record<string, number | null>>({
   check: null, date: null, name: null, in: null, out: null,
@@ -588,10 +586,6 @@ const selAvg     = computed<number | null>(() => selectedTransactions.value.leng
 const displayIn     = computed(() => selectedCount.value > 0 ? selIn.value    : pageIn.value)
 const displayOut    = computed(() => selectedCount.value > 0 ? selOut.value   : pageOut.value)
 const displayNet    = computed(() => selectedCount.value > 0 ? selNet.value   : pageNet.value)
-const displayMaxIn  = computed<number | null>(() => selectedCount.value > 0 ? selMaxIn.value  : pageMaxIn.value)
-const displayMinIn  = computed<number | null>(() => selectedCount.value > 0 ? selMinIn.value  : pageMinIn.value)
-const displayMaxOut = computed<number | null>(() => selectedCount.value > 0 ? selMaxOut.value : pageMaxOut.value)
-const displayMinOut = computed<number | null>(() => selectedCount.value > 0 ? selMinOut.value : pageMinOut.value)
 const displayAvg    = computed<number | null>(() => selectedCount.value > 0 ? selAvg.value    : pageAvg.value)
 
 // Filter to exact amount (called from summary bar stat clicks)
@@ -918,7 +912,7 @@ const historyExpanded = ref(false)
           <i class="pi pi-upload" />
           <span>Drop CSV to import transactions</span>
         </div>
-        <table class="tx-table" ref="tableRef">
+        <table class="tx-table">
           <colgroup>
             <col :style="colStyle('check')" />
             <col :style="colStyle('date')" />
@@ -1164,11 +1158,9 @@ const historyExpanded = ref(false)
               <td class="tx-col-item">
                 <select v-model="pending.itemIdStr" class="tx-select">
                   <option value="">None</option>
-                  <optgroup v-for="cat in budgetItemCategories" :key="cat" :label="cat">
-                    <option v-for="item in (budgetItemsByCategory.get(cat) ?? [])" :key="item.id" :value="String(item.id)">
-                      {{ item.name }}
-                    </option>
-                  </optgroup>
+                  <option v-for="item in budgetItemsSorted" :key="item.id" :value="String(item.id)">
+                    {{ item.name }}
+                  </option>
                 </select>
               </td>
               <td class="tx-col-account">

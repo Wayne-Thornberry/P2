@@ -104,10 +104,6 @@ function getAccountName(id: string | null): string {
   return accountStore.accounts.find(a => a.id === id)?.name ?? id
 }
 
-function getBudgetItemName(id: number | null): string {
-  if (id === null) return '—'
-  return budgetStore.items.find(i => i.id === id)?.name ?? '—'
-}
 </script>
 
 <template>
