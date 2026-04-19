@@ -51,7 +51,7 @@ function submitEdit(): void {
   const id  = editingGoalId.value
   const amt = parseFloat(editTarget.value)
   if (!id || isNaN(amt) || amt <= 0) return
-  store.updateGoal(id, { name: editName.value, targetAmount: amt, deadline: editDeadline.value || undefined, linkedAccountId: editLinkedAccountId.value || undefined })
+  store.updateGoal(id, { name: editName.value, targetAmount: amt, deadline: editDeadline.value || undefined, linkedAccountId: editLinkedAccountId.value })
   editingGoalId.value = null
 }
 

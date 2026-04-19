@@ -2,6 +2,7 @@
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useTransactionStore } from '../stores/transactionStore'
 import { useAccountStore } from '../stores/accountStore'
+import { useSettingsStore } from '../stores/settingsStore'
 import type { Transaction } from '../types/transaction'
 
 const emit = defineEmits<{
@@ -10,6 +11,7 @@ const emit = defineEmits<{
 
 const txStore = useTransactionStore()
 const acctStore = useAccountStore()
+const settings = useSettingsStore()
 
 const query = ref('')
 const focused = ref(false)
@@ -41,16 +43,12 @@ function accountName(accountId: string | null): string {
 }
 
 function formatDate(d: string): string {
-  // YYYY-MM-DD → Apr 19
-  const parts = d.split('-')
-  if (parts.length !== 3) return d
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  return `${months[parseInt(parts[1]) - 1]} ${parseInt(parts[2])}`
+  return settings.formatDate(d)
 }
 
 function formatAmount(tx: Transaction): string {
   const sign = tx.type === 'in' ? '+' : '-'
-  return `${sign}$${tx.amount.toFixed(2)}`
+  return `${sign}${settings.formatMoney(tx.amount)}`
 }
 
 function selectResult(tx: Transaction): void {

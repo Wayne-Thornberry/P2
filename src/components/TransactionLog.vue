@@ -1253,13 +1253,15 @@ const historyExpanded = ref(false)
               <i class="pi pi-chevron-left" />
             </button>
             <!-- Surrounding page numbers -->
-            <button
-              v-for="n in visiblePageNumbers"
-              :key="n"
-              class="tx-page-btn tx-page-btn--num"
-              :class="{ 'tx-page-btn--active': n === page }"
-              @click="goToPage(n)"
-            >{{ n }}</button>
+            <div class="tx-page-numbers">
+              <button
+                v-for="n in visiblePageNumbers"
+                :key="n"
+                class="tx-page-btn tx-page-btn--num"
+                :class="{ 'tx-page-btn--active': n === page }"
+                @click="goToPage(n)"
+              >{{ n }}</button>
+            </div>
             <!-- Next page -->
             <button class="tx-page-btn" :disabled="page >= totalPages" @click="goToPage(page + 1)" title="Next page">
               <i class="pi pi-chevron-right" />

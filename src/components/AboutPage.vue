@@ -5,6 +5,7 @@
     <div class="about-hero">
       <h1 class="about-title">Clearbook</h1>
       <p class="about-tagline">A personal budget tracker that keeps your finances clear.</p>
+      <span class="about-version">v1.0.0</span>
     </div>
 
     <!-- Purpose -->
@@ -113,8 +114,8 @@
         <div class="about-feature">
           <i class="pi pi-palette about-feature-icon" />
           <div>
-            <strong>Five themes</strong>
-            <p>Dark, Light, Midnight, Forest, and Purple — pick what suits you.</p>
+            <strong>Six themes</strong>
+            <p>Light, Dark, Midnight, Forest, Purple, Rose, Slate, and Teal — pick what suits you.</p>
           </div>
         </div>
         <div class="about-feature">

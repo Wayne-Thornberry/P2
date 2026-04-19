@@ -36,6 +36,23 @@
   margin: 0;
 }
 
+.about-version {
+  display: inline-block;
+  margin-top: 0.6rem;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-family: monospace;
+  background: var(--color-zinc-200);
+  color: var(--color-zinc-600);
+  border-radius: 9999px;
+}
+
+.dark .about-version {
+  background: var(--color-zinc-700);
+  color: var(--color-zinc-300);
+}
+
 /* Sections */
 .about-section {
   display: flex;

@@ -831,6 +831,14 @@
   cursor: default;
 }
 
+.tx-page-numbers {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 16rem;
+}
+
 .tx-page-btn--num {
   min-width: 1.75rem;
   width: auto;
