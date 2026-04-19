@@ -453,7 +453,7 @@ function parseSingleCsvFile(text: string, fileName: string, forcedAdapterId?: st
   // For SEB, pass raw lines; for others, split with parseCsvLine (comma)
   const dataLines = adapter.id === 'seb'
     ? dataRawLines
-    : dataRawLines.map(parseCsvLine)
+    : dataRawLines.map(line => parseCsvLine(line));
 
   // Parse in the adapter's native file order (needed for balance calculations).
   const rawRows = adapter.parse(headers, dataLines)
