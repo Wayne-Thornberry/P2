@@ -1,3 +1,47 @@
+// ── SEB (Swedish bank) ───────────────────────────────────────────────
+// Columns: Booking date, Value date, Voucher number, Text, Amount, Balance
+// Only use Booking date, Text, Amount, Balance. Ignore Value date, Voucher number.
+// Amount: negative = out, positive = in. Opening balance = last row's balance.
+
+const sebAdapter: CsvAdapter = {
+  id: 'seb',
+  name: 'SEB (Sweden)',
+  rowOrder: 'oldest-first',
+  detect(headers) {
+    const hs = headers.map(h => h.toLowerCase().trim())
+    let score = 0
+    if (hs.includes('booking date')) score += 0.3
+    if (hs.includes('text')) score += 0.2
+    if (hs.includes('amount')) score += 0.2
+    if (hs.includes('balance')) score += 0.2
+    if (hs.includes('voucher number')) score += 0.1
+    return score
+  },
+  parse(headers, lines) {
+    const idx = (pat: RegExp) => headers.findIndex(h => pat.test(h.trim()))
+    const dateCol    = idx(/^booking date$/i)
+    const detailCol  = idx(/^text$/i)
+    const amountCol  = idx(/^amount$/i)
+    const balanceCol = idx(/^balance$/i)
+    if (dateCol < 0 || detailCol < 0 || amountCol < 0) return []
+
+    const rows: ParsedRow[] = []
+    for (const cols of lines) {
+      if (cols.length <= amountCol) continue
+      const isoDate = parseDate(cols[dateCol]?.trim() ?? '')
+      if (!isoDate) continue
+      const details = cols[detailCol]?.trim() ?? ''
+      if (!details) continue
+      const rawAmt = parseAmount(cols[amountCol] ?? '')
+      if (isNaN(rawAmt) || rawAmt === 0) continue
+      const amount = Math.abs(rawAmt)
+      const type: 'in' | 'out' = rawAmt > 0 ? 'in' : 'out'
+      const balance = balanceCol >= 0 ? parseAmount(cols[balanceCol] ?? '') : NaN
+      rows.push({ isoDate, yearMonth: isoDate.slice(0, 7), details, amount, type, balance: isNaN(balance) ? null : balance })
+    }
+    return rows
+  },
+}
 // ── Shared types ─────────────────────────────────────────────────────
 
 export type ParsedRow = {
@@ -284,6 +328,7 @@ const genericAdapter: CsvAdapter = {
 export const CSV_ADAPTERS: readonly CsvAdapter[] = [
   boiAdapter,
   revolutAdapter,
+  sebAdapter,
   // Add more adapters here, e.g. aibAdapter, permanentTsbAdapter, …
   genericAdapter, // Must remain last — lowest-confidence fallback
 ]
