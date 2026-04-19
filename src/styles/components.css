@@ -1,0 +1,94 @@
+/* ── Inputs ──────────────────────────────────────────────────── */
+
+/* Hide spinner arrows on any number input that slips through */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { display: none; }
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+
+.p-inputtext,
+.p-select,
+.p-inputnumber-input {
+  font-size: 0.875rem;
+  border: 2px solid #a1a1aa;
+  background-color: #ffffff;
+  color: #18181b;
+  padding: 0.25rem 0.5rem;
+}
+.dark .p-inputtext,
+.dark .p-select,
+.dark .p-inputnumber-input {
+  border-color: #71717a;
+  background-color: #27272a;
+  color: #f4f4f5;
+}
+.p-inputtext:focus,
+.p-select:focus-within,
+.p-inputnumber-input:focus {
+  border-color: #18181b;
+  outline: none;
+  box-shadow: none;
+}
+.dark .p-inputtext:focus,
+.dark .p-select:focus-within,
+.dark .p-inputnumber-input:focus {
+  border-color: #f4f4f5;
+}
+
+/* Select dropdown */
+.p-select-overlay {
+  background-color: #ffffff;
+  border: 2px solid #a1a1aa;
+}
+.dark .p-select-overlay {
+  background-color: #27272a;
+  border-color: #71717a;
+}
+.p-select-option {
+  color: #18181b;
+}
+.dark .p-select-option {
+  color: #f4f4f5;
+}
+.p-select-option:hover,
+.p-select-option.p-focus {
+  background-color: #e4e4e7;
+}
+.dark .p-select-option:hover,
+.dark .p-select-option.p-focus {
+  background-color: #52525b;
+}
+
+/* ── Tags ────────────────────────────────────────────────────── */
+.p-tag {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.15rem 0.4rem;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────── */
+.p-button {
+  border: 2px solid transparent;
+  transition: background-color 0.1s, color 0.1s, border-color 0.1s;
+}
+
+/* ── Checkbox ────────────────────────────────────────────────── */
+.p-checkbox .p-checkbox-box {
+  border: 2px solid #a1a1aa;
+  background: #ffffff;
+  width: 1rem;
+  height: 1rem;
+}
+.dark .p-checkbox .p-checkbox-box {
+  border-color: #71717a;
+  background: #27272a;
+}
+.p-checkbox.p-checkbox-checked .p-checkbox-box {
+  background: #18181b;
+  border-color: #18181b;
+}
+.dark .p-checkbox.p-checkbox-checked .p-checkbox-box {
+  background: #f4f4f5;
+  border-color: #f4f4f5;
+}

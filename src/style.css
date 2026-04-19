@@ -1,0 +1,20 @@
+@import "tailwindcss";
+@plugin "tailwindcss-primeui";
+
+/* Tie dark: to the .dark class, not prefers-color-scheme */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@import "./styles/base.css";
+@import "./styles/datatable.css";
+@import "./styles/components.css";
+@import "./styles/budget.css";
+@import "./styles/transactions.css";
+@import "./styles/settings.css";
+@import "./styles/reports.css";
+@import "./styles/template.css";
+@import "./styles/assign.css";
+@import "./styles/theme-dark.css";
+@import "./styles/theme-light.css";
+@import "./styles/theme-midnight.css";
+@import "./styles/theme-forest.css";
+@import "./styles/theme-purple.css";

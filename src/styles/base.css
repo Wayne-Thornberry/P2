@@ -1,0 +1,17 @@
+/* Zero all PrimeVue border radii */
+:root {
+  --p-border-radius-none: 0;
+  --p-border-radius-xs: 0;
+  --p-border-radius-sm: 0;
+  --p-border-radius-md: 0;
+  --p-border-radius-lg: 0;
+  --p-border-radius-xl: 0;
+  --p-border-radius-2xl: 0;
+  --p-border-radius-3xl: 0;
+  --p-border-radius-full: 0;
+}
+
+[class*="p-"],
+[class*="p-"] * {
+  border-radius: 0 !important;
+}

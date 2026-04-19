@@ -1,0 +1,74 @@
+/* ── DataTable container ──────────────────────────────────────── */
+.table-wrapper {
+  border: none;
+}
+.table-wrapper .p-datatable {
+  border: none;
+}
+.p-datatable {
+  border: none;
+}
+
+/* Header row */
+.p-datatable .p-datatable-thead > tr > th {
+  background-color: #e4e4e7;
+  color: #27272a;
+  border-bottom: 2px solid #a1a1aa;
+  border-right: 1px solid #a1a1aa;
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 0.75rem 1rem;
+}
+.p-datatable .p-datatable-thead > tr > th:last-child {
+  border-right: none;
+}
+.dark .p-datatable .p-datatable-thead > tr > th {
+  background-color: #52525b;
+  color: #e4e4e7;
+  border-bottom-color: #71717a;
+  border-right-color: #71717a;
+}
+.dark .p-datatable .p-datatable-thead > tr > th:last-child {
+  border-right: none;
+}
+
+/* Body rows */
+.p-datatable .p-datatable-tbody > tr {
+  background-color: #ffffff;
+  border-bottom: 1px solid #e4e4e7;
+}
+.dark .p-datatable .p-datatable-tbody > tr {
+  background-color: #27272a;
+  border-bottom-color: #3f3f46;
+}
+.p-datatable .p-datatable-tbody > tr:hover {
+  background-color: #e4e4e7 !important;
+}
+.dark .p-datatable .p-datatable-tbody > tr:hover {
+  background-color: #52525b !important;
+}
+.p-datatable .p-datatable-tbody > tr > td {
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  border-right: 1px solid #e4e4e7;
+  color: #18181b;
+}
+.dark .p-datatable .p-datatable-tbody > tr > td {
+  border-right-color: #3f3f46;
+  color: #f4f4f5;
+}
+
+/* Column resize handle */
+.p-datatable .p-datatable-column-resize-indicator {
+  border-left: 2px solid #a1a1aa;
+}
+.dark .p-datatable .p-datatable-column-resize-indicator {
+  border-left-color: #71717a;
+}
+.p-datatable .p-resizable-column .p-column-resizer {
+  width: 6px;
+  right: 0;
+  cursor: col-resize;
+}

@@ -1,0 +1,547 @@
+/* ── Reports Page ──────────────────────────────────────────────── */
+
+.reports-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  max-width: 1400px;
+  width: 100%;
+}
+
+/* ── Report Tabs ───────────────────────────────────────────────── */
+.rpt-tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 2px solid #d4d4d8;
+  padding-bottom: 0;
+}
+
+.dark .rpt-tabs {
+  border-color: #3f3f46;
+}
+
+.rpt-tab {
+  padding: 0.5rem 1.1rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  color: #71717a;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.rpt-tab:hover {
+  color: #3f3f46;
+}
+
+.dark .rpt-tab {
+  color: #71717a;
+}
+
+.dark .rpt-tab:hover {
+  color: #d4d4d8;
+}
+
+.rpt-tab.active {
+  color: #18181b;
+  border-bottom-color: #18181b;
+}
+
+.dark .rpt-tab.active {
+  color: #f4f4f5;
+  border-bottom-color: #f4f4f5;
+}
+
+/* ── Filter bar (month selector) ───────────────────────────────── */
+.rpt-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.rpt-filter-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #71717a;
+}
+
+.dark .rpt-filter-label {
+  color: #a1a1aa;
+}
+
+.rpt-select {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.82rem;
+  border: 1px solid #d4d4d8;
+  background: #ffffff;
+  color: #18181b;
+  cursor: pointer;
+  min-width: 200px;
+}
+
+.rpt-select.rpt-select-sm {
+  min-width: 90px;
+}
+
+.rpt-select:focus {
+  outline: none;
+  border-color: #71717a;
+}
+
+.dark .rpt-select {
+  background: #27272a;
+  border-color: #52525b;
+  color: #f4f4f5;
+}
+
+.rpt-filter-note {
+  font-size: 0.72rem;
+  color: #a1a1aa;
+  font-style: italic;
+}
+
+.dark .rpt-filter-note {
+  color: #71717a;
+}
+
+/* ── Section headings (Breakdown tab dividers) ─────────────────── */
+.rpt-section-heading {
+  font-size: 0.65rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #27272a;
+  background-color: #e4e4e7;
+  border-bottom: 2px solid #d4d4d8;
+  padding: 0.55rem 1rem;
+  margin: 1.25rem 0 0;
+}
+
+.dark .rpt-section-heading {
+  color: #e4e4e7;
+  background-color: #3f3f46;
+  border-bottom-color: #52525b;
+}
+
+/* ── Breakdown sub-tab strip ─────────────────────────────────── */
+.bdown-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.bdown-filter {
+  margin-bottom: 0 !important;
+  flex-shrink: 0;
+}
+
+.bdown-tabs {
+  display: flex;
+  gap: 0.25rem;
+  background: #f4f4f5;
+  border: 1px solid #e4e4e7;
+  border-radius: 0.5rem;
+  padding: 0.2rem;
+  flex-wrap: wrap;
+}
+
+.bdown-tabs--months {
+  margin-bottom: 0.5rem;
+}
+
+.dark .bdown-tabs {
+  background: #27272a;
+  border-color: #3f3f46;
+}
+
+.bdown-tab {
+  padding: 0.3rem 0.85rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: 0.35rem;
+  border: none;
+  background: transparent;
+  color: #52525b;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.dark .bdown-tab {
+  color: #a1a1aa;
+}
+
+.bdown-tab:hover {
+  background: #e4e4e7;
+  color: #18181b;
+}
+
+.dark .bdown-tab:hover {
+  background: #3f3f46;
+  color: #f4f4f5;
+}
+
+.bdown-tab--active {
+  background: #ffffff;
+  color: #18181b;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+}
+
+.dark .bdown-tab--active {
+  background: #3f3f46;
+  color: #f4f4f5;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+}
+
+.rpt-section-note {
+  font-size: 0.72rem;
+  color: #71717a;
+  padding: 0 0.25rem;
+  margin: 0.25rem 0 0;
+}
+
+/* ── Data tables ───────────────────────────────────────────────── */
+.rpt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.rpt-table th {
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #71717a;
+  border-bottom: 1px solid #e4e4e7;
+  white-space: nowrap;
+}
+
+.dark .rpt-table th {
+  color: #a1a1aa;
+  border-bottom-color: #3f3f46;
+}
+
+.rpt-table td {
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid #f4f4f5;
+  color: #18181b;
+  vertical-align: middle;
+}
+
+.dark .rpt-table td {
+  border-bottom-color: #3f3f46;
+  color: #f4f4f5;
+}
+
+.rpt-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.rpt-table tbody tr:hover td {
+  background: #fafafa;
+}
+
+.dark .rpt-table tbody tr:hover td {
+  background: #2d2d30;
+}
+
+.rpt-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.rpt-muted {
+  color: #71717a;
+  font-size: 0.78rem;
+}
+
+.dark .rpt-muted {
+  color: #a1a1aa;
+}
+
+/* Rank badge in top-N tables */
+.rpt-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  font-size: 0.6rem;
+  font-weight: 800;
+  background: #e4e4e7;
+  color: #52525b;
+  margin-right: 0.5rem;
+  flex-shrink: 0;
+}
+
+.dark .rpt-rank {
+  background: #3f3f46;
+  color: #a1a1aa;
+}
+
+/* ── Empty states ──────────────────────────────────────────────── */
+.rpt-empty {
+  color: #a1a1aa;
+  font-size: 0.82rem;
+  padding: 0.5rem 0.6rem;
+}
+
+.dark .rpt-empty {
+  color: #71717a;
+}
+
+.rpt-empty-lg {
+  padding: 3rem 1rem;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.rpt-empty-chart {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 240px;
+}
+
+/* ── Progress bars ─────────────────────────────────────────────── */
+.rpt-bar-col {
+  width: 160px;
+}
+
+.rpt-bar-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.rpt-bar-wrap {
+  flex: 1;
+  height: 6px;
+  background: #e4e4e7;
+  border-radius: 3px;
+  overflow: hidden;
+  min-width: 60px;
+}
+
+.dark .rpt-bar-wrap {
+  background: #3f3f46;
+}
+
+.rpt-bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.rpt-bar-pct {
+  font-size: 0.7rem;
+  color: #71717a;
+  min-width: 30px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.dark .rpt-bar-pct {
+  color: #a1a1aa;
+}
+
+/* ── Category dot ──────────────────────────────────────────────── */
+.rpt-cat-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 0.4rem;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+/* ── Clickable table rows ──────────────────────────────────────── */
+.rpt-row-clickable {
+  cursor: pointer;
+}
+
+.rpt-row-clickable:hover td {
+  background: #fafafa;
+}
+
+.dark .rpt-row-clickable:hover td {
+  background: #2d2d30;
+}
+
+/* ── Chart hint text ───────────────────────────────────────────── */
+.rpt-chart-hint {
+  font-size: 0.65rem;
+  color: #a1a1aa;
+  margin: -0.2rem 0 0.2rem;
+}
+
+/* ── Summary banner ────────────────────────────────────────────── */
+.reports-stats {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.reports-stat-card {
+  flex: 1;
+  min-width: 130px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.9rem 1.1rem;
+  background: #ffffff;
+  border: 1px solid #d4d4d8;
+}
+
+.dark .reports-stat-card {
+  background: #27272a;
+  border-color: #3f3f46;
+}
+
+/* Clickable stat card variant */
+button.rpt-stat-link {
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+button.rpt-stat-link:hover {
+  background: #f4f4f5;
+  border-color: #a1a1aa;
+}
+
+.dark button.rpt-stat-link:hover {
+  background: #3f3f46;
+  border-color: #71717a;
+}
+
+.reports-stat-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #71717a;
+}
+
+.dark .reports-stat-label {
+  color: #a1a1aa;
+}
+
+.reports-stat-value {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #18181b;
+  letter-spacing: -0.02em;
+}
+
+.dark .reports-stat-value {
+  color: #f4f4f5;
+}
+
+/* ── Charts grid ───────────────────────────────────────────────── */
+.reports-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+
+.reports-card {
+  background: #ffffff;
+  border: 1px solid #d4d4d8;
+  padding: 1rem 1.1rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.dark .reports-card {
+  background: #27272a;
+  border-color: #3f3f46;
+}
+
+.reports-card-span2 {
+  grid-column: span 2;
+}
+
+.reports-card-span3 {
+  grid-column: span 3;
+}
+
+.reports-card-title {
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #71717a;
+  margin: 0;
+}
+
+.dark .reports-card-title {
+  color: #a1a1aa;
+}
+
+.reports-chart-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.reports-chart-wrap canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* ── Responsive collapse ───────────────────────────────────────── */
+@media (max-width: 900px) {
+  .reports-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reports-card-span2,
+  .reports-card-span3 {
+    grid-column: span 1;
+  }
+}
+
+/* Scrollable table wrapper so wide tables don't break layout */
+.reports-card {
+  overflow-x: auto;
+}
+
+@media (max-width: 640px) {
+  .bdown-header {
+    gap: 0.5rem;
+  }
+
+  .reports-stats {
+    gap: 0.5rem;
+  }
+
+  .reports-stat-card {
+    min-width: 100px;
+    padding: 0.6rem 0.75rem;
+  }
+
+  .rpt-table {
+    font-size: 0.75rem;
+  }
+
+  .rpt-table th,
+  .rpt-table td {
+    padding: 0.35rem 0.4rem;
+  }
+}

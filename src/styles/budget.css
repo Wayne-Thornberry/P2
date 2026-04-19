@@ -1,0 +1,1300 @@
+/* ── Budget page two-column layout ───────────────────────────── */
+.budget-layout {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+/* ── Assigned cell editor (replaces PrimeVue InputNumber) ─────── */
+.budget-money-editor {
+  width: 100%;
+  font-size: 0.875rem;
+  font-family: inherit;
+  border: 2px solid #a1a1aa;
+  background-color: #ffffff;
+  color: #18181b;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0;
+  outline: none;
+  box-sizing: border-box;
+}
+.budget-money-editor:focus {
+  border-color: #18181b;
+}
+.dark .budget-money-editor {
+  border-color: #71717a;
+  background-color: #27272a;
+  color: #f4f4f5;
+}
+.dark .budget-money-editor:focus {
+  border-color: #f4f4f5;
+}
+
+.budget-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.budget-right-panel {
+  width: 22rem;
+  flex-shrink: 0;
+}
+
+@media (max-width: 900px) {
+  .budget-layout {
+    flex-direction: column;
+  }
+  .budget-right-panel {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .budget-main {
+    overflow-x: auto;
+  }
+}
+
+/* ── Row drag cursor (whole row is draggable, no handle icon) ─── */
+.p-datatable .p-datatable-tbody > tr {
+  cursor: grab;
+}
+.p-datatable .p-datatable-tbody > tr:active {
+  cursor: grabbing;
+}
+
+/* ── Fund / Refund modal ─────────────────────────────────────── */
+.fund-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.fund-modal {
+  background: #ffffff;
+  border: 2px solid #d4d4d8;
+  padding: 1.5rem;
+  max-width: 400px;
+  width: calc(100% - 2rem);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.dark .fund-modal {
+  background: #27272a;
+  border-color: #52525b;
+}
+.fund-modal-refund {
+  border-color: #dc2626;
+}
+.dark .fund-modal-refund {
+  border-color: #f87171;
+}
+
+.fund-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #18181b;
+}
+.dark .fund-modal-header {
+  color: #f4f4f5;
+}
+.fund-modal-refund .fund-modal-header {
+  color: #b91c1c;
+}
+.dark .fund-modal-refund .fund-modal-header {
+  color: #f87171;
+}
+
+.fund-modal-title {
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.fund-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.fund-modal-desc {
+  font-size: 0.85rem;
+  color: #52525b;
+  line-height: 1.55;
+}
+.dark .fund-modal-desc {
+  color: #a1a1aa;
+}
+.fund-modal-warn {
+  color: #b91c1c;
+}
+.dark .fund-modal-warn {
+  color: #fca5a5;
+}
+
+.fund-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.fund-modal-label {
+  font-size: 0.65rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #71717a;
+}
+
+.fund-modal-amount {
+  font-size: 1.4rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: #18181b;
+}
+.dark .fund-modal-amount {
+  color: #f4f4f5;
+}
+
+.fund-modal-select {
+  border: 2px solid #d4d4d8;
+  background: #ffffff;
+  color: #18181b;
+  font-size: 0.8rem;
+  padding: 0.4rem 0.6rem;
+  outline: none;
+  cursor: pointer;
+}
+.fund-modal-select:focus {
+  border-color: #18181b;
+}
+.dark .fund-modal-select {
+  background: #3f3f46;
+  border-color: #52525b;
+  color: #f4f4f5;
+}
+.dark .fund-modal-select:focus {
+  border-color: #e4e4e7;
+}
+
+.fund-modal-account-bal {
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.fund-modal-no-accounts {
+  font-size: 0.8rem;
+  color: #a1a1aa;
+  font-style: italic;
+}
+
+.fund-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.fund-modal-btn {
+  font-size: 0.65rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.4rem 0.85rem;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+.fund-modal-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.fund-modal-btn-cancel {
+  background: none;
+  border-color: #d4d4d8;
+  color: #52525b;
+}
+.fund-modal-btn-cancel:hover:not(:disabled) {
+  border-color: #a1a1aa;
+  color: #18181b;
+}
+.dark .fund-modal-btn-cancel {
+  border-color: #52525b;
+  color: #a1a1aa;
+}
+.dark .fund-modal-btn-cancel:hover:not(:disabled) {
+  border-color: #a1a1aa;
+  color: #f4f4f5;
+}
+
+.fund-modal-btn-fund {
+  background: #18181b;
+  color: #f4f4f5;
+  border-color: #18181b;
+}
+.fund-modal-btn-fund:hover:not(:disabled) {
+  background: #27272a;
+}
+.dark .fund-modal-btn-fund {
+  background: #f4f4f5;
+  color: #18181b;
+  border-color: #f4f4f5;
+}
+.dark .fund-modal-btn-fund:hover:not(:disabled) {
+  background: #e4e4e7;
+}
+
+.fund-modal-btn-refund {
+  background: #dc2626;
+  color: #ffffff;
+  border-color: #dc2626;
+}
+.fund-modal-btn-refund:hover:not(:disabled) {
+  background: #b91c1c;
+}
+.dark .fund-modal-btn-refund {
+  background: #ef4444;
+  border-color: #ef4444;
+}
+.dark .fund-modal-btn-refund:hover:not(:disabled) {
+  background: #dc2626;
+}
+
+/* ── Month navigation under the funds card ───────────────────── */
+.budget-month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.budget-month-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 2px solid #d4d4d8;
+  background: none;
+  color: #52525b;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background-color 0.15s;
+}
+.budget-month-btn:hover {
+  border-color: #18181b;
+  color: #18181b;
+  background-color: #f4f4f5;
+}
+.dark .budget-month-btn {
+  border-color: #52525b;
+  color: #a1a1aa;
+}
+.dark .budget-month-btn:hover {
+  border-color: #e4e4e7;
+  color: #f4f4f5;
+  background-color: #27272a;
+}
+
+.budget-month-label {
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #18181b;
+  width: 10rem;
+  text-align: center;
+  user-select: none;
+}
+.dark .budget-month-label {
+  color: #f4f4f5;
+}
+
+.budget-month-label-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  border-radius: 2px;
+  transition: background-color 0.15s;
+}
+.budget-month-label-btn:hover {
+  background-color: #e4e4e7;
+}
+.dark .budget-month-label-btn:hover {
+  background-color: #3f3f46;
+}
+
+/* ── Month/year picker popover ──────────────────────────────── */
+.month-picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.month-picker {
+  background: #ffffff;
+  border: 2px solid #d4d4d8;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  padding: 1rem;
+  width: 16rem;
+  z-index: 201;
+}
+.dark .month-picker {
+  background: #27272a;
+  border-color: #52525b;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+
+.month-picker-year-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.month-picker-year {
+  font-size: 0.8rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #18181b;
+}
+.dark .month-picker-year {
+  color: #f4f4f5;
+}
+
+.month-picker-yr-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  background: none;
+  border: 2px solid #d4d4d8;
+  color: #52525b;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background-color 0.15s;
+}
+.month-picker-yr-btn:hover {
+  border-color: #18181b;
+  color: #18181b;
+  background-color: #f4f4f5;
+}
+.dark .month-picker-yr-btn {
+  border-color: #52525b;
+  color: #a1a1aa;
+}
+.dark .month-picker-yr-btn:hover {
+  border-color: #e4e4e7;
+  color: #f4f4f5;
+  background-color: #3f3f46;
+}
+
+.month-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.35rem;
+}
+
+.month-picker-cell {
+  padding: 0.4rem 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-align: center;
+  background: none;
+  border: 2px solid transparent;
+  color: #52525b;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s, background-color 0.12s;
+}
+.month-picker-cell:hover {
+  border-color: #d4d4d8;
+  background-color: #f4f4f5;
+  color: #18181b;
+}
+.dark .month-picker-cell {
+  color: #a1a1aa;
+}
+.dark .month-picker-cell:hover {
+  border-color: #52525b;
+  background-color: #3f3f46;
+  color: #f4f4f5;
+}
+
+.month-picker-cell-today {
+  color: #3b82f6;
+}
+.dark .month-picker-cell-today {
+  color: #60a5fa;
+}
+
+.month-picker-cell-active {
+  border-color: #18181b !important;
+  background-color: #18181b !important;
+  color: #f4f4f5 !important;
+}
+.dark .month-picker-cell-active {
+  border-color: #f4f4f5 !important;
+  background-color: #f4f4f5 !important;
+  color: #18181b !important;
+}
+
+/* ── View-transactions shortcut button ───────────────────────── */
+.budget-view-tx-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.65rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.4rem 0.85rem;
+  margin: 0 auto 1.25rem;
+  border: 2px solid #d4d4d8;
+  background: none;
+  color: #52525b;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background-color 0.15s;
+}
+
+.dark .budget-view-tx-btn {
+  border-color: #52525b;
+  color: #a1a1aa;
+}
+
+.budget-view-tx-btn:hover {
+  border-color: #18181b;
+  color: #18181b;
+  background-color: #f4f4f5;
+}
+
+.dark .budget-view-tx-btn:hover {
+  border-color: #e4e4e7;
+  color: #f4f4f5;
+  background-color: #27272a;
+}
+
+/* ── Add Category (below budget table) ───────────────────────── */
+.budget-add-category {
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+}
+
+.budget-add-cat-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #71717a;
+  background: none;
+  border: 1px dashed #d4d4d8;
+  padding: 0.3rem 0.75rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.budget-add-cat-btn:hover { color: #18181b; border-color: #a1a1aa; }
+.dark .budget-add-cat-btn { color: #71717a; border-color: #3f3f46; }
+.dark .budget-add-cat-btn:hover { color: #f4f4f5; border-color: #71717a; }
+
+.budget-add-cat-input {
+  font-size: 0.8rem;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid #18181b;
+  outline: none;
+  padding: 0.2rem 0.25rem;
+  color: #18181b;
+  min-width: 14rem;
+}
+.dark .budget-add-cat-input {
+  border-bottom-color: #f4f4f5;
+  color: #f4f4f5;
+}
+
+/* ── Template button (in month nav row) ──────────────────────── */
+.budget-template-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.6rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 0.25rem 0.6rem;
+  border: 2px solid #7c3aed;
+  color: #7c3aed;
+  background: none;
+  cursor: pointer;
+  transition: background-color 0.12s, color 0.12s;
+  margin-left: 0.5rem;
+}
+
+.budget-template-btn:hover {
+  background-color: #f5f3ff;
+}
+
+.dark .budget-template-btn {
+  border-color: #a78bfa;
+  color: #a78bfa;
+}
+
+.dark .budget-template-btn:hover {
+  background-color: #2e1065;
+}
+
+/* ── Empty-month prompt ──────────────────────────────────────── */
+.budget-empty-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 2.5rem 1.5rem;
+  margin-bottom: 1.25rem;
+  border: 2px dashed #d4d4d8;
+  background: #fafafa;
+  text-align: center;
+}
+
+.dark .budget-empty-prompt {
+  border-color: #52525b;
+  background: #1c1c1f;
+}
+
+.budget-empty-icon {
+  font-size: 2rem;
+  color: #a1a1aa;
+}
+
+.dark .budget-empty-icon {
+  color: #71717a;
+}
+
+.budget-empty-title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #3f3f46;
+  margin: 0;
+}
+
+.dark .budget-empty-title {
+  color: #d4d4d8;
+}
+
+.budget-empty-sub {
+  font-size: 0.75rem;
+  color: #71717a;
+  margin: 0;
+}
+
+.dark .budget-empty-sub {
+  color: #a1a1aa;
+}
+
+.budget-empty-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 0.45rem 1.1rem;
+  background: #7c3aed;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.12s;
+}
+
+.budget-empty-cta:hover {
+  background: #6d28d9;
+}
+
+
+.budget-funds-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+  max-width: 360px;
+  padding: 1.25rem 1.5rem;
+  margin: 0 auto 1.5rem;
+  border: none;
+  background-color: transparent;
+  text-align: center;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.budget-funds-card:hover {
+  opacity: 0.75;
+}
+
+.dark .budget-funds-card {
+  border-color: transparent;
+  background-color: transparent;
+}
+
+.dark .budget-funds-card:hover {
+  opacity: 0.75;
+}
+
+.budget-funds-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.budget-funds-card-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.65rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #71717a;
+}
+
+.budget-funds-card-hint {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #a1a1aa;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  transition: color 0.15s;
+}
+
+.budget-funds-card:hover .budget-funds-card-hint {
+  color: #52525b;
+}
+
+.dark .budget-funds-card:hover .budget-funds-card-hint {
+  color: #d4d4d8;
+}
+
+.budget-funds-card-amount {
+  font-size: 2.25rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.budget-funds-card-unassigned {
+  font-size: 0.7rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  color: #f59e0b;
+}
+
+.dark .budget-funds-card-unassigned {
+  color: #fbbf24;
+}
+
+.budget-funds-card-sub {
+  font-size: 0.65rem;
+  color: #a1a1aa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+}
+.budget-funds-card-net {
+  font-size: 0.7rem;
+  color: #a1a1aa;
+  margin-top: 0.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+}
+
+/* ── Item name + spend bar ────────────────────────────────────── */
+.item-name-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* Category name simplifed (bar moved to full-width overlay) */
+.category-name-bar {
+  min-width: 6rem;
+}
+
+/* Full-width bar pinned to the bottom edge of the category row */
+.category-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #e4e4e7;
+  overflow: hidden;
+}
+.category-bar.item-bar--over {
+  background: #22c55e;
+}
+.dark .category-bar {
+  background: #3f3f46;
+}
+.dark .category-bar.item-bar--over {
+  background: #16a34a;
+}
+
+/* Track — subtle gray, turns green when over 100% funded */
+.item-bar {
+  position: relative;
+  height: 4px;
+  background: #e4e4e7;
+  border-radius: 2px;
+  overflow: hidden;
+  width: 100%;
+}
+.item-bar--over {
+  background: #22c55e;  /* green shield base */
+}
+.dark .item-bar {
+  background: #3f3f46;
+}
+.dark .item-bar--over {
+  background: #16a34a;
+}
+
+/* Colored fill overlay */
+.item-bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* ── Clickable activity cell ──────────────────────────────────── */
+.activity-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.activity-link {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font-size: inherit;
+  font-family: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-style: dotted;
+  text-decoration-color: currentColor;
+}
+.activity-link:hover {
+  opacity: 0.65;
+}
+
+.activity-unassign-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 0.1rem 0.25rem;
+  font-size: 0.7rem;
+  color: #a1a1aa;
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s;
+  opacity: 0;
+}
+
+.activity-cell:hover .activity-unassign-btn {
+  opacity: 1;
+}
+
+.activity-unassign-btn:hover {
+  color: #ef4444;
+  border-color: #fca5a5;
+}
+
+.dark .activity-unassign-btn:hover {
+  color: #f87171;
+  border-color: #7f1d1d;
+}
+
+/* ── Available column states ─────────────────────────────────── */
+.available-safe {
+  color: #16a34a;
+}
+.dark .available-safe {
+  color: #4ade80;
+}
+.available-partial {
+  color: #ca8a04;
+}
+.dark .available-partial {
+  color: #facc15;
+}
+.available-danger {
+  color: #dc2626;
+}
+.dark .available-danger {
+  color: #f87171;
+}
+.available-overspend {
+  color: #2563eb;
+}
+.dark .available-overspend {
+  color: #60a5fa;
+}
+
+/* ── Fund modal warn / overspend variants ────────────────────── */
+.fund-modal--partial {
+  border-color: #ca8a04;
+}
+.dark .fund-modal--partial {
+  border-color: #facc15;
+}
+.fund-modal--partial .fund-modal-header {
+  color: #92400e;
+}
+.dark .fund-modal--partial .fund-modal-header {
+  color: #facc15;
+}
+.fund-modal--negative {
+  border-color: #dc2626;
+}
+.dark .fund-modal--negative {
+  border-color: #f87171;
+}
+.fund-modal--negative .fund-modal-header {
+  color: #b91c1c;
+}
+.dark .fund-modal--negative .fund-modal-header {
+  color: #f87171;
+}
+.fund-modal--overspend {
+  border-color: #2563eb;
+}
+.dark .fund-modal--overspend {
+  border-color: #60a5fa;
+}
+.fund-modal--overspend .fund-modal-header {
+  color: #1d4ed8;
+}
+.dark .fund-modal--overspend .fund-modal-header {
+  color: #60a5fa;
+}
+
+.fund-modal-btn-partial {
+  background: #ca8a04;
+  color: #ffffff;
+  border-color: #ca8a04;
+}
+.fund-modal-btn-partial:hover:not(:disabled) {
+  background: #a16207;
+}
+.dark .fund-modal-btn-partial {
+  background: #facc15;
+  border-color: #facc15;
+  color: #1c1917;
+}
+.dark .fund-modal-btn-partial:hover:not(:disabled) {
+  background: #eab308;
+}
+
+.fund-modal-btn-danger {
+  background: #dc2626;
+  color: #ffffff;
+  border-color: #dc2626;
+}
+.fund-modal-btn-danger:hover:not(:disabled) {
+  background: #b91c1c;
+}
+.dark .fund-modal-btn-danger {
+  background: #ef4444;
+  border-color: #ef4444;
+}
+.dark .fund-modal-btn-danger:hover:not(:disabled) {
+  background: #dc2626;
+}
+
+.fund-modal-btn-green {
+  background: #16a34a;
+  color: #ffffff;
+  border-color: #16a34a;
+}
+.fund-modal-btn-green:hover:not(:disabled) {
+  background: #15803d;
+}
+.dark .fund-modal-btn-green {
+  background: #22c55e;
+  border-color: #22c55e;
+  color: #052e16;
+}
+.dark .fund-modal-btn-green:hover:not(:disabled) {
+  background: #16a34a;
+}
+
+/* ── Category group subheader rows ───────────────────────────── */
+.p-datatable .p-datatable-row-group-header td {
+  padding: 0 !important;
+  vertical-align: middle !important;
+  background-color: #e4e4e7 !important;
+  border-top: 2px solid #d4d4d8 !important;
+  border-bottom: 1px solid #d4d4d8 !important;
+}
+.dark .p-datatable .p-datatable-row-group-header td {
+  background-color: #3f3f46 !important;
+  border-top-color: #52525b !important;
+  border-bottom-color: #52525b !important;
+}
+/* PrimeVue's built-in toggle — hidden, we own it in the slot */
+.p-datatable .p-datatable-row-group-header .p-datatable-row-toggle-button {
+  display: none !important;
+}
+
+.category-group-header {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 0.75rem;
+  padding: 0.45rem 1rem 0.45rem 0.75rem;
+  cursor: default;
+  border-left: 4px solid #71717a;
+}
+.dark .category-group-header {
+  border-left-color: #71717a;
+}
+.category-group-header.category-drop-target {
+  box-shadow: inset 0 0 0 2px #a1a1aa;
+  background-color: #d4d4d8 !important;
+}
+.dark .category-group-header.category-drop-target {
+  box-shadow: inset 0 0 0 2px #a1a1aa;
+  background-color: #52525b !important;
+}
+
+.category-group-name {
+  font-size: 0.65rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #18181b;
+  pointer-events: none;
+}
+.dark .category-group-name {
+  color: #f4f4f5;
+}
+
+.category-group-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.35rem;
+  font-size: 0.6rem;
+  font-weight: 800;
+  font-family: monospace;
+  background-color: #d4d4d8;
+  color: #52525b;
+  border-radius: 1px;
+  margin-left: 0.25rem;
+  pointer-events: none;
+}
+.dark .category-group-count {
+  background-color: #52525b;
+  color: #d4d4d8;
+}
+
+/* ── Category group totals ───────────────────────────────────── */
+.category-group-totals {
+  margin-left: auto;
+  display: flex;
+  font-size: 0.75rem;
+  font-family: monospace;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.category-group-totals > span {
+  width: 13rem;
+  box-sizing: border-box;
+  padding: 0 1rem;
+  flex-shrink: 0;
+}
+
+/* ── Category toggle button ──────────────────────────────────── */
+.category-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  padding: 0.1rem 0.25rem;
+  cursor: pointer;
+  color: #52525b;
+  font-size: 0.7rem;
+  pointer-events: auto;
+}
+.dark .category-toggle-btn {
+  color: #a1a1aa;
+}
+.category-toggle-btn:hover {
+  color: #18181b;
+}
+.dark .category-toggle-btn:hover {
+  color: #f4f4f5;
+}
+
+.category-checkbox {
+  flex-shrink: 0;
+  pointer-events: auto;
+  margin-right: 0.25rem;
+}
+
+/* ── Spacer column (fixes PrimeVue colspan=columnsLength-1 bug) ─ */
+.p-datatable th[style*="width: 0"],
+.p-datatable td[style*="width: 0"] {
+  width: 0 !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  overflow: hidden !important;
+}
+
+/* ── Money colours ───────────────────────────────────────────── */
+.money-positive {
+  color: #16a34a;
+  font-variant-numeric: tabular-nums;
+}
+.dark .money-positive {
+  color: #4ade80;
+}
+.money-negative {
+  color: #dc2626;
+  font-variant-numeric: tabular-nums;
+}
+.dark .money-negative {
+  color: #f87171;
+}
+
+/* ── Selected row highlight ──────────────────────────────────── */
+.p-datatable .budget-row-selected > td {
+  background-color: #e4e4e7 !important;
+}
+.dark .p-datatable .budget-row-selected > td {
+  background-color: #52525b !important;
+}
+
+/* ── Unassigned transactions banner (above budget table) ─────── */
+.budget-unassigned-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.6rem 1rem;
+  background-color: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.875rem;
+  transition: background-color 0.15s;
+}
+.budget-unassigned-banner:hover {
+  background-color: #ffedd5;
+}
+.dark .budget-unassigned-banner {
+  background-color: #1c1007;
+  border-color: #7c3f00;
+}
+.dark .budget-unassigned-banner:hover {
+  background-color: #271608;
+}
+.budget-unassigned-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  color: #c2410c;
+}
+.dark .budget-unassigned-label {
+  color: #fb923c;
+}
+.budget-unassigned-amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 1rem;
+}
+.budget-unassigned-hint {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: #9a3412;
+  opacity: 0.75;
+}
+.dark .budget-unassigned-hint {
+  color: #fdba74;
+}
+
+/* ── Static Uncategorized section (outside DataTable, always visible) ─ */
+.static-category-section {
+  border-top: 2px solid #d4d4d8;
+  background-color: #ffffff;
+}
+.dark .static-category-section {
+  border-top-color: #52525b;
+  background-color: #27272a;
+}
+.static-category-section > .category-group-header {
+  background-color: #e4e4e7;
+  border-bottom: 1px solid #d4d4d8;
+}
+.dark .static-category-section > .category-group-header {
+  background-color: #3f3f46;
+  border-bottom-color: #52525b;
+}
+
+/* ── Add Item: per-category groupfooter ──────────────────────── */
+
+/* PrimeVue renders groupfooter as a <td> — zero padding like groupheader */
+.p-datatable .p-datatable-row-group-footer td {
+  padding: 0 !important;
+  vertical-align: middle !important;
+}
+
+.category-add-item-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 0.3rem 1rem;
+  background-color: #fafafa;
+  border-top: 1px dashed #e4e4e7;
+}
+.dark .category-add-item-row {
+  background-color: #2d2d30;
+  border-top-color: #3f3f46;
+}
+
+/* Pending input row */
+.new-item-pending {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+/* Spacer matching the checkbox column (3rem) */
+.new-item-indent {
+  width: 3rem;
+  flex-shrink: 0;
+}
+
+.new-item-name-input {
+  flex: 1;
+  font-size: 0.875rem;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #a1a1aa;
+  outline: none;
+  padding: 0.125rem 0;
+  color: #18181b;
+}
+.dark .new-item-name-input {
+  border-bottom-color: #52525b;
+  color: #f4f4f5;
+}
+.new-item-name-input:focus {
+  border-bottom-color: #18181b;
+}
+.dark .new-item-name-input:focus {
+  border-bottom-color: #f4f4f5;
+}
+.new-item-name-input::placeholder {
+  color: #a1a1aa;
+  font-style: italic;
+}
+
+.new-item-select {
+  flex: 1;
+  font-size: 0.875rem;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #a1a1aa;
+  outline: none;
+  padding: 0.125rem 0;
+  color: #18181b;
+  cursor: pointer;
+}
+.dark .new-item-select {
+  border-bottom-color: #52525b;
+  color: #f4f4f5;
+  background: transparent;
+}
+.new-item-select:focus {
+  border-bottom-color: #18181b;
+}
+.dark .new-item-select:focus {
+  border-bottom-color: #f4f4f5;
+}
+
+/* ── Add Item: footer button ─────────────────────────────────── */
+.add-item-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #a1a1aa;
+  background: none;
+  border: none;
+  padding: 0.2rem 0.4rem;
+  cursor: pointer;
+  transition: color 0.1s;
+}
+.add-item-btn:hover {
+  color: #18181b;
+}
+.dark .add-item-btn:hover {
+  color: #f4f4f5;
+}
+.add-item-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
