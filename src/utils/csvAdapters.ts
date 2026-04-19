@@ -6,7 +6,7 @@
 const sebAdapter: CsvAdapter = {
   id: 'seb',
   name: 'SEB (Sweden)',
-  rowOrder: 'oldest-first',
+  rowOrder: 'newest-first',
   detect(headers) {
     const hs = headers.map(h => h.toLowerCase().trim())
     let score = 0
