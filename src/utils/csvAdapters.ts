@@ -25,21 +25,22 @@ const sebAdapter: CsvAdapter = {
     const balanceCol = idx(/^balance$/i)
     if (dateCol < 0 || detailCol < 0 || amountCol < 0) return []
 
-    const rows: ParsedRow[] = []
-    for (const cols of lines) {
-      if (cols.length <= amountCol) continue
-      const isoDate = parseDate(cols[dateCol]?.trim() ?? '')
-      if (!isoDate) continue
-      const details = cols[detailCol]?.trim() ?? ''
-      if (!details) continue
-      const rawAmt = parseAmount(cols[amountCol] ?? '')
-      if (isNaN(rawAmt) || rawAmt === 0) continue
-      const amount = Math.abs(rawAmt)
-      const type: 'in' | 'out' = rawAmt > 0 ? 'in' : 'out'
-      const balance = balanceCol >= 0 ? parseAmount(cols[balanceCol] ?? '') : NaN
-      rows.push({ isoDate, yearMonth: isoDate.slice(0, 7), details, amount, type, balance: isNaN(balance) ? null : balance })
+    const rows: ParsedRow[] = [];
+    for (const line of lines) {
+      const cols = Array.isArray(line) ? line : parseCsvLine(line, ';');
+      if (cols.length <= amountCol) continue;
+      const isoDate = parseDate(cols[dateCol]?.trim() ?? '');
+      if (!isoDate) continue;
+      const details = cols[detailCol]?.trim() ?? '';
+      if (!details) continue;
+      const rawAmt = parseAmount(cols[amountCol] ?? '');
+      if (isNaN(rawAmt) || rawAmt === 0) continue;
+      const amount = Math.abs(rawAmt);
+      const type: 'in' | 'out' = rawAmt > 0 ? 'in' : 'out';
+      const balance = balanceCol >= 0 ? parseAmount(cols[balanceCol] ?? '') : NaN;
+      rows.push({ isoDate, yearMonth: isoDate.slice(0, 7), details, amount, type, balance: isNaN(balance) ? null : balance });
     }
-    return rows
+    return rows;
   },
 }
 // ── Shared types ─────────────────────────────────────────────────────
@@ -125,7 +126,7 @@ function _dayAfter(iso: string): string {
 
 
 /** Parse a single CSV line respecting quoted fields and escaped double-quotes. */
-export function parseCsvLine(line: string): string[] {
+export function parseCsvLine(line: string, delimiter: string = ','): string[] {
   const result: string[] = []
   let current = '', inQuotes = false
   for (let i = 0; i < line.length; i++) {
@@ -437,14 +438,22 @@ function parseSingleCsvFile(text: string, fileName: string, forcedAdapterId?: st
     return { adapter: genericAdapter, rows: [], openingBalance: null, closingBalance: null, oldestDate: '', newestDate: '', fileName }
   }
 
-  const firstCols = parseCsvLine(lines[0])
-  const isHeader  = isNaN(Date.parse(firstCols[0])) || /date|time/i.test(firstCols[0])
-  const headers   = isHeader ? firstCols.map(h => h.trim()) : []
-  const dataLines = (isHeader ? lines.slice(1) : lines).map(parseCsvLine)
+  // Detect if header is semicolon-delimited (SEB)
+  const isLikelySEB = /booking date/i.test(lines[0]) && lines[0].includes(';');
+  const firstCols = isLikelySEB ? parseCsvLine(lines[0], ';') : parseCsvLine(lines[0]);
+  const isHeader  = isNaN(Date.parse(firstCols[0])) || /date|time/i.test(firstCols[0]);
+  const headers   = isHeader ? firstCols.map(h => h.trim()) : [];
+  const dataRawLines = isHeader ? lines.slice(1) : lines;
 
+  // Detect adapter before splitting data lines
   const adapter = forcedAdapterId
     ? (CSV_ADAPTERS.find(a => a.id === forcedAdapterId) ?? detectAdapter(headers, lines))
     : detectAdapter(headers, lines)
+
+  // For SEB, pass raw lines; for others, split with parseCsvLine (comma)
+  const dataLines = adapter.id === 'seb'
+    ? dataRawLines
+    : dataRawLines.map(parseCsvLine)
 
   // Parse in the adapter's native file order (needed for balance calculations).
   const rawRows = adapter.parse(headers, dataLines)
