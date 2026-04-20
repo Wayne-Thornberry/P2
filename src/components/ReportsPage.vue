@@ -5,6 +5,7 @@ import { useTransactionStore } from '../stores/transactionStore'
 import { useAccountStore } from '../stores/accountStore'
 import { useBudgetStore } from '../stores/budgetStore'
 import { useSettingsStore } from '../stores/settingsStore'
+import { useLoanStore } from '../stores/loanStore'
 
 Chart.register(...registerables)
 
@@ -12,6 +13,7 @@ const txStore      = useTransactionStore()
 const accountStore = useAccountStore()
 const budgetStore  = useBudgetStore()
 const settings     = useSettingsStore()
+const loanStore    = useLoanStore()
 
 function formatMoney(v: number): string { return settings.formatMoney(v) }
 
@@ -35,7 +37,7 @@ function goTx(opts: { month?: string; accountId?: string; name?: string; type?: 
 }
 
 // ── Tabs ───────────────────────────────────────────────────────
-type Tab = 'overall' | 'breakdown' | 'items'
+type Tab = 'overall' | 'breakdown' | 'items' | 'finance'
 const activeTab = ref<Tab>('overall')
 
 type BreakdownSubTab = 'year' | 'accounts' | 'month' | 'range'
@@ -44,6 +46,7 @@ const tabs: { id: Tab; label: string }[] = [
   { id: 'overall',   label: 'Overview'   },
   { id: 'breakdown', label: 'Breakdown'  },
   { id: 'items',     label: 'Items'      },
+  { id: 'finance',   label: 'Finance'    },
 ]
 
 // ── Shared month selector ──────────────────────────────────────
@@ -431,6 +434,13 @@ const yearFlowCanvas   = ref<HTMLCanvasElement | null>(null)
 const yearNetCanvas    = ref<HTMLCanvasElement | null>(null)
 const rangeChartCanvas = ref<HTMLCanvasElement | null>(null)
 const itemsDonutCanvas = ref<HTMLCanvasElement | null>(null)
+// Finance tab canvas refs (one per loan/savings — keyed by id at render time)
+const finLoanCanvases  = ref<Map<number, HTMLCanvasElement>>(new Map())
+const finSavCanvases   = ref<Map<number, HTMLCanvasElement>>(new Map())
+
+function registerFinCanvas(type: 'loan' | 'sav', id: number, el: HTMLCanvasElement | null): void {
+  if (el) (type === 'loan' ? finLoanCanvases : finSavCanvases).value.set(id, el)
+}
 
 // ── Chart management ───────────────────────────────────────────
 const charts: Chart[] = []
@@ -777,11 +787,150 @@ function buildBreakdown(): void {
   else                                           { buildMonthly() }
 }
 
+// ── Finance charts ─────────────────────────────────────────────
+function buildFinance(): void {
+  const tc = textClr.value
+  const gc = gridClr.value
+  const money = (v: number | string) => formatMoney(Number(v))
+
+  for (const loan of loanStore.loans.filter(l => !l.archived)) {
+    const canvas = finLoanCanvases.value.get(loan.id)
+    if (!canvas) continue
+    const rows   = loanStore.calcAmortization(loan)
+    const labels = rows.map(r => r.date)
+    const balances = rows.map(r => r.closingBalance)
+    let cumInt = 0
+    const cumInterest = rows.map(r => { cumInt += r.interestPaid; return Math.round(cumInt * 100) / 100 })
+
+    let actualPoints: (number | null)[] | null = null
+    if (loan.linkedAccountId) {
+      const byMonth = loanStore.buildMonthlyRunningBalance(loan.linkedAccountId)
+      const startYM = loan.startDate.slice(0, 7)
+      let lastVal: number | null = null
+      actualPoints = labels.map(label => {
+        if (label < startYM) return null
+        if (byMonth.has(label)) lastVal = byMonth.get(label)!
+        return lastVal
+      })
+    }
+
+    const datasets: object[] = [
+      {
+        label: 'Scheduled balance',
+        data: balances,
+        borderColor: loan.color,
+        backgroundColor: loan.color + '22',
+        fill: true, borderWidth: 2, pointRadius: 0, tension: 0.4,
+      },
+      {
+        label: 'Cumulative interest',
+        data: cumInterest,
+        borderColor: '#ef444488',
+        backgroundColor: 'transparent',
+        borderWidth: 1.5, borderDash: [5, 3], pointRadius: 0, tension: 0.4,
+      },
+    ]
+    if (actualPoints) {
+      datasets.push({
+        label: 'Actual balance',
+        data: actualPoints,
+        borderColor: '#f59e0b',
+        backgroundColor: 'transparent',
+        borderWidth: 2, borderDash: [4, 4], pointRadius: 3, tension: 0.3, spanGaps: true,
+      })
+    }
+    charts.push(new Chart(canvas, {
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: { duration: 200 },
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { labels: { color: tc, font: { size: 10 }, boxWidth: 12 } },
+          tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${formatMoney(ctx.parsed.y)}` } },
+        },
+        scales: {
+          x: { ticks: { color: tc, font: { size: 9 }, maxTicksLimit: 10 }, grid: { color: gc } },
+          y: { ticks: { color: tc, font: { size: 9 }, callback: money }, grid: { color: gc } },
+        },
+      },
+    }))
+  }
+
+  for (const sav of loanStore.savings.filter(s => !s.archived)) {
+    const canvas = finSavCanvases.value.get(sav.id)
+    if (!canvas) continue
+    const start = new Date(sav.startDate + 'T00:00:00')
+    const now   = new Date()
+    const elapsed = Math.max(0, (now.getFullYear() - start.getFullYear()) * 12 + now.getMonth() - start.getMonth())
+    const projMonths = Math.max(60, elapsed + 12)
+    const projection = loanStore.calcSavingsProjection(sav, projMonths)
+    const labels    = projection.map(p => p.date)
+    const projected = projection.map(p => p.balance)
+    const interest  = projected.map(b => Math.round((b - sav.startBalance) * 100) / 100)
+
+    let actualPoints: (number | null)[] | null = null
+    if (sav.linkedAccountId) {
+      const byMonth = loanStore.buildMonthlyRunningBalance(sav.linkedAccountId)
+      const startYM = sav.startDate.slice(0, 7)
+      let lastVal: number | null = null
+      actualPoints = labels.map(label => {
+        if (label < startYM) return null
+        if (byMonth.has(label)) lastVal = byMonth.get(label)!
+        return lastVal
+      })
+    }
+
+    const datasets: object[] = [
+      {
+        label: 'Projected balance',
+        data: projected,
+        borderColor: sav.color,
+        backgroundColor: sav.color + '22',
+        fill: true, borderWidth: 2, pointRadius: 0, tension: 0.4,
+      },
+      {
+        label: 'Interest earned',
+        data: interest,
+        borderColor: '#10b98188',
+        backgroundColor: 'transparent',
+        borderWidth: 1.5, borderDash: [5, 3], pointRadius: 0, tension: 0.4,
+      },
+    ]
+    if (actualPoints) {
+      datasets.push({
+        label: 'Actual balance',
+        data: actualPoints,
+        borderColor: '#f59e0b',
+        backgroundColor: 'transparent',
+        borderWidth: 2, borderDash: [4, 4], pointRadius: 3, tension: 0.3, spanGaps: true,
+      })
+    }
+    charts.push(new Chart(canvas, {
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: { duration: 200 },
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { labels: { color: tc, font: { size: 10 }, boxWidth: 12 } },
+          tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${formatMoney(ctx.parsed.y)}` } },
+        },
+        scales: {
+          x: { ticks: { color: tc, font: { size: 9 }, maxTicksLimit: 10 }, grid: { color: gc } },
+          y: { ticks: { color: tc, font: { size: 9 }, callback: money }, grid: { color: gc } },
+        },
+      },
+    }))
+  }
+}
+
 function buildTab(tab: Tab): void {
   destroyAll()
   if (tab === 'overall')   buildOverall()
   if (tab === 'breakdown') buildBreakdown()
   if (tab === 'items')     nextTick(() => buildItems())
+  if (tab === 'finance')   nextTick(() => { finLoanCanvases.value.clear(); finSavCanvases.value.clear(); nextTick(() => buildFinance()) })
 }
 
 onMounted(() => nextTick(() => buildTab(activeTab.value)))
@@ -805,6 +954,10 @@ watch([rangeBuckets, isDark], () => {
 watch([itemsData, isDark], () => {
   if (activeTab.value === 'items') { destroyAll(); nextTick(() => buildItems()) }
 })
+
+watch([() => loanStore.loans, () => loanStore.savings, isDark], () => {
+  if (activeTab.value === 'finance') { destroyAll(); finLoanCanvases.value.clear(); finSavCanvases.value.clear(); nextTick(() => nextTick(() => buildFinance())) }
+}, { deep: true })
 
 watch(breakdownSubTab, () => {
   if (activeTab.value === 'breakdown') { destroyAll(); nextTick(() => buildBreakdown()) }
@@ -1365,6 +1518,207 @@ watch(yearViewYear, y => {
           </div>
         </div>
       </template>
+    </template>
+
+    <!-- FINANCE -->
+    <template v-if="activeTab === 'finance'">
+
+      <!-- Empty state -->
+      <div
+        v-if="loanStore.loans.filter(l => !l.archived).length === 0 && loanStore.savings.filter(s => !s.archived).length === 0"
+        class="rpt-empty rpt-empty-lg"
+      >
+        <p>No loans or savings accounts tracked yet.</p>
+        <p class="rpt-muted" style="font-size:0.75rem;margin-top:0.25rem">Add them on the Finance page to see charts here.</p>
+      </div>
+
+      <!-- Summary stat bar -->
+      <div v-if="loanStore.loans.filter(l => !l.archived).length > 0 || loanStore.savings.filter(s => !s.archived).length > 0" class="reports-stats">
+        <div class="reports-stat-card">
+          <span class="reports-stat-label">Active Loans</span>
+          <span class="reports-stat-value">{{ loanStore.loans.filter(l => !l.archived).length }}</span>
+        </div>
+        <div class="reports-stat-card">
+          <span class="reports-stat-label">Total Borrowed</span>
+          <span class="reports-stat-value money-negative">{{ formatMoney(loanStore.loans.filter(l => !l.archived).reduce((s, l) => s + l.principal, 0)) }}</span>
+        </div>
+        <div class="reports-stat-card">
+          <span class="reports-stat-label">Total Interest Cost</span>
+          <span class="reports-stat-value money-negative">{{ formatMoney(loanStore.loans.filter(l => !l.archived).reduce((s, l) => s + loanStore.totalInterest(l), 0)) }}</span>
+        </div>
+        <div class="reports-stat-card">
+          <span class="reports-stat-label">Savings Accounts</span>
+          <span class="reports-stat-value">{{ loanStore.savings.filter(s => !s.archived).length }}</span>
+        </div>
+        <div class="reports-stat-card">
+          <span class="reports-stat-label">Total Savings Balance</span>
+          <span class="reports-stat-value money-positive">{{ formatMoney(loanStore.savings.filter(s => !s.archived).reduce((s, acc) => s + (acc.linkedAccountId ? loanStore.accountNetBalance(acc.linkedAccountId) : acc.startBalance), 0)) }}</span>
+        </div>
+      </div>
+
+      <!-- ── Loans ─────────────────────────────────────── -->
+      <template v-if="loanStore.loans.filter(l => !l.archived).length > 0">
+        <h2 class="rpt-section-heading"><i class="pi pi-credit-card" /> Loans</h2>
+
+        <div class="reports-grid">
+          <div
+            v-for="loan in loanStore.loans.filter(l => !l.archived)"
+            :key="loan.id"
+            class="reports-card reports-card-span3"
+          >
+            <div class="rpt-fin-card-header">
+              <span class="rpt-fin-dot" :style="{ background: loan.color }" />
+              <h3 class="rpt-fin-name">{{ loan.name }}</h3>
+              <span class="rpt-fin-pill rpt-fin-pill--red">{{ loan.apr }}% APR</span>
+              <span class="rpt-fin-pill">{{ loan.termMonths }}mo</span>
+              <span class="rpt-fin-pill">ends {{ (() => { const d = new Date(loan.startDate + 'T00:00:00'); d.setMonth(d.getMonth() + loan.termMonths); return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short' }) })() }}</span>
+            </div>
+
+            <div class="rpt-fin-stats">
+              <div class="rpt-fin-stat">
+                <span class="rpt-fin-stat-label">Principal</span>
+                <span class="rpt-fin-stat-value">{{ formatMoney(loan.principal) }}</span>
+              </div>
+              <div class="rpt-fin-stat">
+                <span class="rpt-fin-stat-label">Monthly payment</span>
+                <span class="rpt-fin-stat-value rpt-fin-red">{{ formatMoney(loanStore.monthlyPayment(loan)) }}</span>
+              </div>
+              <div class="rpt-fin-stat">
+                <span class="rpt-fin-stat-label">Total interest</span>
+                <span class="rpt-fin-stat-value rpt-fin-amber">{{ formatMoney(loanStore.totalInterest(loan)) }}</span>
+              </div>
+              <div class="rpt-fin-stat">
+                <span class="rpt-fin-stat-label">Total cost</span>
+                <span class="rpt-fin-stat-value rpt-fin-red">{{ formatMoney(loan.principal + loanStore.totalInterest(loan)) }}</span>
+              </div>
+            </div>
+
+            <div class="reports-chart-wrap" style="height:220px">
+              <canvas :ref="el => registerFinCanvas('loan', loan.id, el as HTMLCanvasElement | null)" />
+            </div>
+            <p class="rpt-chart-hint" style="margin-top:0.25rem">
+              Scheduled balance (solid) · Cumulative interest (dashed)
+              <template v-if="loan.linkedAccountId"> · Actual account balance (amber)</template>
+            </p>
+          </div>
+        </div>
+
+        <!-- Loan comparison table -->
+        <div class="reports-card reports-card-span3" style="margin-top:0">
+          <h3 class="reports-card-title">Loan Comparison</h3>
+          <table class="rpt-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th class="rpt-num">Principal</th>
+                <th class="rpt-num">APR</th>
+                <th class="rpt-num">Term</th>
+                <th class="rpt-num">Monthly</th>
+                <th class="rpt-num">Total Interest</th>
+                <th class="rpt-num">Total Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="loan in loanStore.loans.filter(l => !l.archived)" :key="loan.id">
+                <td>
+                  <span class="rpt-fin-dot rpt-fin-dot--inline" :style="{ background: loan.color }" />
+                  {{ loan.name }}
+                </td>
+                <td class="rpt-num">{{ formatMoney(loan.principal) }}</td>
+                <td class="rpt-num rpt-fin-red">{{ loan.apr }}%</td>
+                <td class="rpt-num rpt-muted">{{ loan.termMonths }}mo</td>
+                <td class="rpt-num rpt-fin-red">{{ formatMoney(loanStore.monthlyPayment(loan)) }}</td>
+                <td class="rpt-num rpt-fin-amber">{{ formatMoney(loanStore.totalInterest(loan)) }}</td>
+                <td class="rpt-num rpt-fin-red">{{ formatMoney(loan.principal + loanStore.totalInterest(loan)) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </template>
+
+      <!-- ── Savings Accounts ───────────────────────── -->
+      <template v-if="loanStore.savings.filter(s => !s.archived).length > 0">
+        <h2 class="rpt-section-heading rpt-section-heading--green"><i class="pi pi-chart-line" /> Savings Accounts</h2>
+
+        <div class="reports-grid">
+          <div
+            v-for="sav in loanStore.savings.filter(s => !s.archived)"
+            :key="sav.id"
+            class="reports-card reports-card-span3"
+          >
+            <div class="rpt-fin-card-header">
+              <span class="rpt-fin-dot" :style="{ background: sav.color }" />
+              <h3 class="rpt-fin-name">{{ sav.name }}</h3>
+              <span class="rpt-fin-pill rpt-fin-pill--green">{{ sav.apr }}% APR</span>
+              <span class="rpt-fin-pill">{{ sav.compoundFreq }}</span>
+            </div>
+
+            <div class="rpt-fin-stats">
+              <div class="rpt-fin-stat">
+                <span class="rpt-fin-stat-label">Opening balance</span>
+                <span class="rpt-fin-stat-value">{{ formatMoney(sav.startBalance) }}</span>
+              </div>
+              <div class="rpt-fin-stat">
+                <span class="rpt-fin-stat-label">Projected now</span>
+                <span class="rpt-fin-stat-value rpt-fin-green">{{ formatMoney((() => { const p = loanStore.calcSavingsProjection(sav, Math.max(0, (new Date().getFullYear() - new Date(sav.startDate).getFullYear()) * 12 + new Date().getMonth() - new Date(sav.startDate).getMonth())); return p[p.length - 1]?.balance ?? sav.startBalance })()) }}</span>
+              </div>
+              <div class="rpt-fin-stat">
+                <span class="rpt-fin-stat-label">Projected (5yr)</span>
+                <span class="rpt-fin-stat-value rpt-fin-muted">{{ formatMoney(loanStore.calcSavingsProjection(sav, 60)[60]?.balance ?? sav.startBalance) }}</span>
+              </div>
+              <div class="rpt-fin-stat">
+                <span class="rpt-fin-stat-label">Projected (10yr)</span>
+                <span class="rpt-fin-stat-value rpt-fin-muted">{{ formatMoney(loanStore.calcSavingsProjection(sav, 120)[120]?.balance ?? sav.startBalance) }}</span>
+              </div>
+              <div v-if="sav.linkedAccountId" class="rpt-fin-stat">
+                <span class="rpt-fin-stat-label">Actual balance</span>
+                <span class="rpt-fin-stat-value" :style="{ color: sav.color }">{{ formatMoney(loanStore.accountNetBalance(sav.linkedAccountId)) }}</span>
+              </div>
+            </div>
+
+            <div class="reports-chart-wrap" style="height:220px">
+              <canvas :ref="el => registerFinCanvas('sav', sav.id, el as HTMLCanvasElement | null)" />
+            </div>
+            <p class="rpt-chart-hint" style="margin-top:0.25rem">
+              Projected compound growth (solid) · Interest earned (dashed)
+              <template v-if="sav.linkedAccountId"> · Actual account balance (amber)</template>
+            </p>
+          </div>
+        </div>
+
+        <!-- Savings comparison table -->
+        <div class="reports-card reports-card-span3" style="margin-top:0">
+          <h3 class="reports-card-title">Savings Account Comparison</h3>
+          <table class="rpt-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th class="rpt-num">Opening</th>
+                <th class="rpt-num">APR</th>
+                <th class="rpt-num">Compounding</th>
+                <th class="rpt-num">Proj. 1yr</th>
+                <th class="rpt-num">Proj. 5yr</th>
+                <th class="rpt-num">Proj. 10yr</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="sav in loanStore.savings.filter(s => !s.archived)" :key="sav.id">
+                <td>
+                  <span class="rpt-fin-dot rpt-fin-dot--inline" :style="{ background: sav.color }" />
+                  {{ sav.name }}
+                </td>
+                <td class="rpt-num">{{ formatMoney(sav.startBalance) }}</td>
+                <td class="rpt-num rpt-fin-green">{{ sav.apr }}%</td>
+                <td class="rpt-num rpt-muted">{{ sav.compoundFreq }}</td>
+                <td class="rpt-num rpt-fin-green">{{ formatMoney(loanStore.calcSavingsProjection(sav, 12)[12]?.balance ?? sav.startBalance) }}</td>
+                <td class="rpt-num rpt-fin-green">{{ formatMoney(loanStore.calcSavingsProjection(sav, 60)[60]?.balance ?? sav.startBalance) }}</td>
+                <td class="rpt-num rpt-fin-green">{{ formatMoney(loanStore.calcSavingsProjection(sav, 120)[120]?.balance ?? sav.startBalance) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </template>
+
     </template>
 
   </div>

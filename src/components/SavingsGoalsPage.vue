@@ -18,15 +18,17 @@ const newName              = ref('')
 const newTarget            = ref('')
 const newDeadline          = ref('')
 const newLinkedAccountId   = ref('')
+const newInterestRate      = ref('')
 
-function openNewForm(): void { showNewForm.value = true; newName.value = ''; newTarget.value = ''; newDeadline.value = ''; newLinkedAccountId.value = '' }
+function openNewForm(): void { showNewForm.value = true; newName.value = ''; newTarget.value = ''; newDeadline.value = ''; newLinkedAccountId.value = ''; newInterestRate.value = '' }
 function cancelNew(): void   { showNewForm.value = false }
 
 function submitNew(): void {
   const name = newName.value.trim()
   const amt  = parseFloat(newTarget.value)
   if (!name || isNaN(amt) || amt <= 0) return
-  store.addGoal(name, amt, newDeadline.value || undefined, newLinkedAccountId.value || undefined)
+  const rate = parseFloat(newInterestRate.value)
+  store.addGoal(name, amt, newDeadline.value || undefined, newLinkedAccountId.value || undefined, !isNaN(rate) && rate > 0 ? rate : undefined)
   showNewForm.value = false
 }
 
@@ -36,6 +38,7 @@ const editName             = ref('')
 const editTarget           = ref('')
 const editDeadline         = ref('')
 const editLinkedAccountId  = ref('')
+const editInterestRate     = ref('')
 
 function startEdit(g: SavingsGoal): void {
   editingGoalId.value       = g.id
@@ -43,6 +46,7 @@ function startEdit(g: SavingsGoal): void {
   editTarget.value          = String(g.targetAmount)
   editDeadline.value        = g.deadline ?? ''
   editLinkedAccountId.value = g.linkedAccountId ?? ''
+  editInterestRate.value    = g.interestRate != null ? String(g.interestRate) : ''
 }
 
 function cancelEdit(): void { editingGoalId.value = null }
@@ -51,7 +55,8 @@ function submitEdit(): void {
   const id  = editingGoalId.value
   const amt = parseFloat(editTarget.value)
   if (!id || isNaN(amt) || amt <= 0) return
-  store.updateGoal(id, { name: editName.value, targetAmount: amt, deadline: editDeadline.value || undefined, linkedAccountId: editLinkedAccountId.value })
+  const rate = parseFloat(editInterestRate.value)
+  store.updateGoal(id, { name: editName.value, targetAmount: amt, deadline: editDeadline.value || undefined, linkedAccountId: editLinkedAccountId.value, interestRate: !isNaN(rate) && rate > 0 ? rate : undefined })
   editingGoalId.value = null
 }
 
@@ -116,6 +121,34 @@ function monthlyNeeded(goal: SavingsGoal): number | null {
   const months = Math.max(1, days / 30.4)
   return Math.ceil((remaining / months) * 100) / 100
 }
+
+// ── Interest projection ───────────────────────────────────────
+function projectedCompletionLabel(goal: SavingsGoal): string | null {
+  if (!goal.interestRate || goal.interestRate <= 0) return null
+  const saved   = store.totalSaved(goal)
+  const target  = goal.targetAmount
+  if (saved >= target) return null
+  const r = goal.interestRate / 100 / 12   // monthly rate
+
+  // Estimate avg monthly contribution from history (last 6 months or all)
+  const contribs = goal.contributions.slice(0, 6)
+  const avgMonthly = contribs.length > 0
+    ? contribs.reduce((s, c) => s + c.amount, 0) / Math.max(1, contribs.length)
+    : 0
+
+  // Find months to reach target: balance * (1+r)^n + avgMonthly * ((1+r)^n-1)/r >= target
+  let balance = saved
+  for (let n = 1; n <= 1200; n++) {
+    balance = balance * (1 + r) + avgMonthly
+    if (balance >= target) {
+      const d = new Date()
+      d.setMonth(d.getMonth() + n)
+      const label = d.toLocaleDateString(undefined, { year: 'numeric', month: 'short' })
+      return `With ${goal.interestRate}% interest → ${label} (${n}mo)`
+    }
+  }
+  return null
+}
 </script>
 
 <template>
@@ -162,8 +195,11 @@ function monthlyNeeded(goal: SavingsGoal): number | null {
             <option v-for="acc in accounts.accounts" :key="acc.id" :value="acc.id">{{ acc.name }}</option>
           </select>
           <span class="sg-optional" style="font-size:0.72rem;margin-top:0.25rem;">When linked, the goal tracks the account’s net balance automatically.</span>
-        </div>
-      </div>
+        </div>        <div class="sg-form-group">
+          <label class="sg-label">Interest rate % <span class="sg-optional">(optional APR)</span></label>
+          <input class="sg-input" type="number" min="0" step="0.01" v-model="newInterestRate" placeholder="e.g. 3.5" />
+          <span class="sg-optional" style="font-size:0.72rem;margin-top:0.25rem;">If set, shows projected compound-interest completion date.</span>
+        </div>      </div>
       <div class="sg-form-actions">
         <button class="sg-btn sg-btn--primary" @click="submitNew" :disabled="!newName.trim() || !newTarget || parseFloat(newTarget) <= 0">Create Goal</button>
         <button class="sg-btn sg-btn--ghost" @click="cancelNew">Cancel</button>
@@ -192,6 +228,7 @@ function monthlyNeeded(goal: SavingsGoal): number | null {
                 <input class="sg-input sg-input--sm" v-model="editName" placeholder="Goal name" @keydown.enter="submitEdit" @keydown.escape="cancelEdit" />
                 <input class="sg-input sg-input--sm" type="number" min="0.01" step="0.01" v-model="editTarget" placeholder="Target" @keydown.enter="submitEdit" />
                 <input class="sg-input sg-input--sm" type="date" v-model="editDeadline" />
+                <input class="sg-input sg-input--sm" type="number" min="0" step="0.01" v-model="editInterestRate" placeholder="APR % (optional)" />
                 <select class="sg-input sg-input--sm" v-model="editLinkedAccountId">
                   <option value="">— No account link —</option>
                   <option v-for="acc in accounts.accounts" :key="acc.id" :value="acc.id">{{ acc.name }}</option>
@@ -236,6 +273,9 @@ function monthlyNeeded(goal: SavingsGoal): number | null {
           </div>
           <div v-if="goal.deadline && monthlyNeeded(goal) !== null && store.progressPct(goal) < 100" class="sg-monthly-hint">
             <i class="pi pi-info-circle" /> {{ fmt(monthlyNeeded(goal)!) }}/month needed to reach goal by deadline
+          </div>
+          <div v-if="goal.interestRate && projectedCompletionLabel(goal)" class="sg-monthly-hint sg-monthly-hint--interest">
+            <i class="pi pi-chart-line" /> {{ projectedCompletionLabel(goal) }}
           </div>
           <div v-if="store.progressPct(goal) >= 100" class="sg-complete">
             <i class="pi pi-check-circle" /> Goal reached!

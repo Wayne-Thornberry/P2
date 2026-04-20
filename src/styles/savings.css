@@ -376,6 +376,12 @@
   gap: 0.3rem;
 }
 
+.sg-monthly-hint--interest {
+  color: #059669;
+  font-weight: 600;
+}
+.dark .sg-monthly-hint--interest { color: #34d399; }
+
 .sg-complete {
   font-size: 0.7rem;
   font-weight: 700;

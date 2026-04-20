@@ -58,7 +58,13 @@ const emit = defineEmits<{ navigate: [page: string] }>()
         :class="['flex items-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-widest transition-colors', props.currentPage === 'savings' ? 'bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900' : 'text-zinc-500 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700']"
         @click.prevent="emit('navigate', 'savings')">
         <i class="pi pi-flag text-xs" />
-        Savings
+        Savings Goals
+      </a>
+      <a href="#"
+        :class="['flex items-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-widest transition-colors', props.currentPage === 'finance' ? 'bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900' : 'text-zinc-500 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700']"
+        @click.prevent="emit('navigate', 'finance')">
+        <i class="pi pi-percentage text-xs" />
+        Finance
       </a>
       <a href="#"
         :class="['flex items-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-widest transition-colors', props.currentPage === 'settings' ? 'bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900' : 'text-zinc-500 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700']"

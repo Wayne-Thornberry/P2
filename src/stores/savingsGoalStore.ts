@@ -8,6 +8,7 @@ export interface SavingsGoal {
   name:             string
   targetAmount:     number
   deadline?:        string          // YYYY-MM-DD
+  interestRate?:    number          // optional APR % (e.g. 3.5 = 3.5%)
   color:            string          // css hex or named
   linkedAccountId?: string          // auto-track from account transactions
   contributions:    SavingsContribution[]
@@ -74,11 +75,12 @@ export const useSavingsGoalStore = defineStore('savingsGoals', () => {
     goals.value    = saved?.goals         ?? []
   })
 
-  function addGoal(name: string, targetAmount: number, deadline?: string, linkedAccountId?: string): SavingsGoal {
+  function addGoal(name: string, targetAmount: number, deadline?: string, linkedAccountId?: string, interestRate?: number): SavingsGoal {
     const color = COLORS[_nextGoalId % COLORS.length]
     const goal: SavingsGoal = {
       id: _nextGoalId++, name: name.trim(), targetAmount,
       deadline: deadline || undefined, color,
+      interestRate: interestRate && interestRate > 0 ? interestRate : undefined,
       linkedAccountId: linkedAccountId || undefined,
       contributions: [], createdAt: new Date().toISOString(), archived: false,
     }
@@ -86,7 +88,7 @@ export const useSavingsGoalStore = defineStore('savingsGoals', () => {
     return goal
   }
 
-  function updateGoal(id: number, patch: Partial<Pick<SavingsGoal, 'name' | 'targetAmount' | 'deadline' | 'color' | 'archived' | 'linkedAccountId'>>): void {
+  function updateGoal(id: number, patch: Partial<Pick<SavingsGoal, 'name' | 'targetAmount' | 'deadline' | 'color' | 'archived' | 'linkedAccountId' | 'interestRate'>>): void {
     const g = goals.value.find(g => g.id === id)
     if (!g) return
     if (patch.name            !== undefined) g.name            = patch.name.trim()
@@ -95,6 +97,7 @@ export const useSavingsGoalStore = defineStore('savingsGoals', () => {
     if (patch.color           !== undefined) g.color            = patch.color
     if (patch.archived        !== undefined) g.archived         = patch.archived
     if (patch.linkedAccountId !== undefined) g.linkedAccountId  = patch.linkedAccountId || undefined
+    if (patch.interestRate    !== undefined) g.interestRate      = patch.interestRate && patch.interestRate > 0 ? patch.interestRate : undefined
   }
 
   function deleteGoal(id: number): void {

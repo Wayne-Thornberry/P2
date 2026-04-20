@@ -10,6 +10,7 @@ import TemplatePage from './components/TemplatePage.vue'
 import AboutPage from './components/AboutPage.vue'
 import DashboardPage from './components/DashboardPage.vue'
 import SavingsGoalsPage from './components/SavingsGoalsPage.vue'
+import FinancePage from './components/FinancePage.vue'
 import GlobalSearch from './components/GlobalSearch.vue'
 import SetupScreen from './components/SetupScreen.vue'
 import CsvImportDialog from './components/CsvImportDialog.vue'
@@ -172,7 +173,8 @@ const PAGE_BREADCRUMBS: Record<string, BreadcrumbSegment[]> = {
   transactions: [{ icon: 'pi-list',        label: 'Transactions' }, { label: 'Log'           }],
   accounts:     [{ icon: 'pi-credit-card', label: 'Accounts'     }],
   reports:      [{ icon: 'pi-chart-bar',   label: 'Reports'      }],
-  savings:      [{ icon: 'pi-flag',        label: 'Savings Goals'}],
+  savings:      [{ icon: 'pi-flag',        label: 'Savings Goals' }],
+  finance:      [{ icon: 'pi-percentage',  label: 'Finance'       }, { label: 'Loans & Savings' }],
   settings:     [{ icon: 'pi-cog',         label: 'Settings'     }],
   about:        [{ icon: 'pi-info-circle', label: 'About'        }],
 }
@@ -337,6 +339,7 @@ const breadcrumbSegments = computed(() =>
         <AccountsPage v-else-if="currentPage === 'accounts'" @viewTransactions="onViewAccountTransactions" />
         <ReportsPage  v-else-if="currentPage === 'reports'" @viewTransactions="onReportViewTransactions" />
         <SavingsGoalsPage v-else-if="currentPage === 'savings'" />
+        <FinancePage      v-else-if="currentPage === 'finance'" />
         <SettingsPage v-else-if="currentPage === 'settings'" />
         <AboutPage    v-else-if="currentPage === 'about'" />
       </main>
