@@ -24,6 +24,11 @@ const historyStore = useImportHistoryStore()
 // ── Bank / adapter selection ──────────────────────────────────
 const selectedAdapterId = ref<string>('')
 
+// Only show adapters that match the site currency (or have no currency specified)
+const availableAdapters = computed(() =>
+  CSV_ADAPTERS.filter(a => !a.currency || a.currency === settings.currency)
+)
+
 // ── Account selection ─────────────────────────────────────────
 const selectedAccountId = ref<string>('')
 const newAccountName    = ref('')
@@ -297,7 +302,7 @@ function handleImport(): void {
             </div>
             <div class="csv-dialog-account-list">
               <label
-                v-for="adapter in CSV_ADAPTERS"
+                v-for="adapter in availableAdapters"
                 :key="adapter.id"
                 class="csv-dialog-option"
                 :class="{ 'csv-dialog-option--selected': selectedAdapterId === adapter.id }"

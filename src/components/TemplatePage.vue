@@ -5,10 +5,12 @@ import { useBudgetStore } from '../stores/budgetStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useMoneyInput } from '../composables/useMoneyInput'
 import type { BudgetItem, BudgetItemDef } from '../types/budget'
+import { useConfirm } from '../composables/useConfirm'
 
 const store       = useTemplateStore()
 const budgetStore = useBudgetStore()
 const settings    = useSettingsStore()
+const { confirm } = useConfirm()
 
 function formatMoney(v: number): string { return settings.formatMoney(v) }
 
@@ -136,14 +138,26 @@ function removeItem(id: number): void {
   if (editingId.value === id) cancelEdit()
 }
 
-function removeCategory(cat: string): void {
+async function removeCategory(cat: string): Promise<void> {
   const count = store.itemsInCategory(cat).length
-  if (!confirm(`Remove category "${cat}" and all ${count} item${count !== 1 ? 's' : ''} from the template?`)) return
+  const ok = await confirm({
+    title: 'Remove category?',
+    message: `Remove category "${cat}" and all ${count} item${count !== 1 ? 's' : ''} from the template?`,
+    confirmLabel: 'Remove',
+    danger: true,
+  })
+  if (!ok) return
   store.removeCategory(cat)
 }
 
-function deleteGlobally(item: BudgetItemDef): void {
-  if (!confirm(`Delete "${item.name}" from EVERY month, the template, and unassign all transactions?\nThis cannot be undone.`)) return
+async function deleteGlobally(item: BudgetItemDef): Promise<void> {
+  const ok = await confirm({
+    title: 'Delete globally?',
+    message: `Delete "${item.name}" from EVERY month, the template, and unassign all linked transactions?\nThis cannot be undone.`,
+    confirmLabel: 'Delete',
+    danger: true,
+  })
+  if (!ok) return
   budgetStore.deleteItemGlobally(item.id)
 }
 
@@ -164,8 +178,14 @@ function commitNewPanelItem(): void {
 }
 
 // ── Reset ──────────────────────────────────────────────────────
-function handleReset(): void {
-  if (!confirm('Reset template to built-in defaults? Any custom changes will be lost.')) return
+async function handleReset(): Promise<void> {
+  const ok = await confirm({
+    title: 'Reset template?',
+    message: 'Reset template to built-in defaults? Any custom changes will be lost.',
+    confirmLabel: 'Reset',
+    danger: true,
+  })
+  if (!ok) return
   store.resetToDefault()
 }
 

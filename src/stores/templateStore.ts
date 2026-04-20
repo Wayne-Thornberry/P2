@@ -3,20 +3,37 @@ import { ref, computed, watch } from 'vue'
 import type { BudgetItem, BudgetItemDef, TemplateEntry } from '../types/budget'
 import { BUDGET_TEMPLATE } from '../data/budgetTemplate'
 import { useBudgetStore } from './budgetStore'
+import { useSettingsStore } from './settingsStore'
 
 export const useTemplateStore = defineStore('template', () => {
   const budgetStore = useBudgetStore()
+  const settings    = useSettingsStore()
 
-  const _saved = (() => {
+  function _key(): string {
+    return settings.country ? `clearbook_template_${settings.country}` : 'clearbook_template'
+  }
+
+  function _loadTemplate() {
     try {
-      let raw = localStorage.getItem('clearbook_template')
+      const key = _key()
+      let raw = localStorage.getItem(key)
+      // One-time migration from bare key for existing installs
+      if (raw === null && settings.country) {
+        raw = localStorage.getItem('clearbook_template')
+        if (raw !== null) {
+          localStorage.setItem(key, raw)
+          localStorage.removeItem('clearbook_template')
+        }
+      }
       if (raw === null) {
         raw = localStorage.getItem('p2_template')
         if (raw !== null) localStorage.removeItem('p2_template')
       }
       return JSON.parse(raw ?? 'null')
     } catch { return null }
-  })()
+  }
+
+  const _saved = _loadTemplate()
 
   // ── Initialize / Migrate ─────────────────────────────────────────────
   let _initEntries: TemplateEntry[]
@@ -50,8 +67,25 @@ export const useTemplateStore = defineStore('template', () => {
   const entries = ref<TemplateEntry[]>(_initEntries)
 
   watch(entries, (val) => {
-    localStorage.setItem('clearbook_template', JSON.stringify({ entries: val }))
+    localStorage.setItem(_key(), JSON.stringify({ entries: val }))
   }, { deep: true })
+
+  // Reload when country changes
+  watch(() => settings.country, (newCountry) => {
+    if (!newCountry) return
+    const saved = _loadTemplate()
+    if (saved?.entries) {
+      // Load saved entries directly (v2 format — itemIds reference budgetStore globalItems)
+      entries.value = saved.entries
+    } else {
+      // Fresh country — seed from BUDGET_TEMPLATE using fixed IDs (matches budgetStore fresh seed)
+      entries.value = BUDGET_TEMPLATE.map(item => ({
+        itemId:   item.id,
+        assigned: item.assigned,
+        category: item.category,
+      }))
+    }
+  })
 
   // ── Computed ──────────────────────────────────────────────────────────
   const items = computed<BudgetItem[]>(() => {

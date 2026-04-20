@@ -7,8 +7,8 @@ import { useBudgetStore } from '../stores/budgetStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useMoneyInput } from '../composables/useMoneyInput'
 import { getTodayStr } from '../utils/date'
-import CsvImportDialog from './CsvImportDialog.vue'
 import { useImportHistoryStore } from '../stores/importHistoryStore'
+import { useConfirm } from '../composables/useConfirm'
 
 const props = defineProps<{ monthFilter?: string; accountFilter?: string; itemFilter?: number; nameFilter?: string; typeFilter?: 'all' | 'in' | 'out'; focusSearch?: boolean }>()
 
@@ -17,6 +17,14 @@ const accountStore = useAccountStore()
 const budgetStore  = useBudgetStore()
 const settings     = useSettingsStore()
 const historyStore = useImportHistoryStore()
+const { confirm }  = useConfirm()
+
+// ── Balance cutoff pin ─────────────────────────────────────────
+const cutoffTxId = computed(() => settings.balanceCutoffTxId)
+
+function setPinTx(id: number): void {
+  settings.balanceCutoffTxId = settings.balanceCutoffTxId === id ? null : id
+}
 
 const { moneyFocus, moneyBlur } = useMoneyInput()
 
@@ -252,11 +260,22 @@ watch([filterSearch, filterYear, filterMonthNum, filterType, filterAccountId, fi
 // ── Running balance per transaction ─────────────────────────
 // Computed from the filtered set, chronological oldest→newest.
 // Maps transaction id → running balance at that point in time.
+// When a cutoff pin is set, only transactions on/after the pinned tx's date
+// are included in the balance accumulation; earlier rows get no map entry.
 const runningBalanceMap = computed<Map<number, number>>(() => {
+  const pinId    = cutoffTxId.value
+  let cutoffDate: string | null = null
+  if (pinId !== null) {
+    const pinTx = store.transactions.find(t => t.id === pinId)
+    cutoffDate = pinTx?.date ?? null
+  }
+
   // Compute running balance per account independently so mixing accounts in
   // "All accounts" view doesn't corrupt each account's balance column.
   const byAccount = new Map<string | null, (typeof filteredTransactions.value[0])[]>()
   for (const tx of filteredTransactions.value) {
+    // Exclude transactions before the cutoff from balance calculation
+    if (cutoffDate && tx.date < cutoffDate) continue
     if (!byAccount.has(tx.accountId)) byAccount.set(tx.accountId, [])
     byAccount.get(tx.accountId)!.push(tx)
   }
@@ -430,77 +449,6 @@ function switchEditType(type: 'in' | 'out'): void {
   editDraft.value.type = type
 }
 
-// ── CSV Drag-and-Drop ──────────────────────────────────────────
-const isDraggingOver   = ref(false)
-const csvImportCount   = ref(0)
-const csvImportMsg     = ref('')
-const csvDialogVisible = ref(false)
-const pendingCsvFiles  = ref<Array<{ text: string; fileName: string }>>([])
-let dragCounter = 0
-
-function onDragEnter(e: DragEvent): void {
-  e.preventDefault()
-  dragCounter++
-  if (e.dataTransfer?.types.includes('Files')) {
-    isDraggingOver.value = true
-  }
-}
-
-function onDragOver(e: DragEvent): void {
-  e.preventDefault()
-  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
-}
-
-function onDragLeave(): void {
-  dragCounter--
-  if (dragCounter <= 0) {
-    dragCounter = 0
-    isDraggingOver.value = false
-  }
-}
-
-function onDrop(e: DragEvent): void {
-  e.preventDefault()
-  dragCounter = 0
-  isDraggingOver.value = false
-
-  const files = [...(e.dataTransfer?.files ?? [])]
-  const csvFiles = files.filter(f =>
-    f.name.toLowerCase().endsWith('.csv') ||
-    f.type === 'text/csv' ||
-    f.type === 'application/vnd.ms-excel'
-  )
-
-  if (csvFiles.length === 0) {
-    csvImportMsg.value = 'Please drop one or more CSV files.'
-    setTimeout(() => { csvImportMsg.value = '' }, 3000)
-    return
-  }
-
-  // Read all CSV files, then open the dialog once all are loaded.
-  const collected: Array<{ text: string; fileName: string }> = []
-  let remaining = csvFiles.length
-
-  for (const file of csvFiles) {
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const text = ev.target?.result as string
-      if (text) collected.push({ text, fileName: file.name })
-      if (--remaining === 0) {
-        pendingCsvFiles.value  = collected
-        csvDialogVisible.value = true
-      }
-    }
-    reader.readAsText(file)
-  }
-}
-
-function onCsvDone(count: number): void {
-  csvImportMsg.value   = count > 0 ? `Imported ${count} transaction${count !== 1 ? 's' : ''}.` : 'No new transactions found in file(s).'
-  csvImportCount.value = count
-  setTimeout(() => { csvImportMsg.value = ''; csvImportCount.value = 0 }, 4000)
-}
-
 // ── Export to CSV ─────────────────────────────────────────
 function escapeCsv(v: string | number | undefined | null): string {
   const s = String(v ?? '')
@@ -617,12 +565,30 @@ function clearSelection(): void {
   selectedIds.value = new Set()
 }
 
-function deleteSelected(): void {
+async function deleteSelected(): Promise<void> {
   const n = selectedCount.value
-  if (!confirm(`Permanently delete ${n} transaction${n !== 1 ? 's' : ''}? This cannot be undone.`)) return
+  const ok = await confirm({
+    title: 'Delete transactions?',
+    message: `Permanently delete ${n} transaction${n !== 1 ? 's' : ''}? This cannot be undone.`,
+    confirmLabel: 'Delete',
+    danger: true,
+  })
+  if (!ok) return
   const ids = new Set(filteredTransactions.value.filter(t => selectedIds.value.has(t.id)).map(t => t.id))
   for (const id of ids) store.deleteTransaction(id)
   clearSelection()
+}
+
+async function confirmDeleteTx(id: number, cancelEditAfter: boolean): Promise<void> {
+  const ok = await confirm({
+    title: 'Delete transaction?',
+    message: 'Permanently delete this transaction? This cannot be undone.',
+    confirmLabel: 'Delete',
+    danger: true,
+  })
+  if (!ok) return
+  store.deleteTransaction(id)
+  if (cancelEditAfter) cancelEdit()
 }
 
 // ── Bulk actions ───────────────────────────────────────────────
@@ -902,18 +868,10 @@ const historyExpanded = ref(false)
       <!-- Table -->
       <div
         class="tx-table-scroll"
-        :class="{ 'tx-drag-over': isDraggingOver }"
-        @dragenter="onDragEnter"
-        @dragover="onDragOver"
-        @dragleave="onDragLeave"
-        @drop="onDrop"
       >
-        <div v-if="isDraggingOver" class="tx-drop-overlay">
-          <i class="pi pi-upload" />
-          <span>Drop CSV to import transactions</span>
-        </div>
         <table class="tx-table">
           <colgroup>
+            <col class="tx-col-markers" />
             <col :style="colStyle('check')" />
             <col :style="colStyle('date')" />
             <col :style="colStyle('name')" />
@@ -928,6 +886,9 @@ const historyExpanded = ref(false)
           </colgroup>
           <thead>
             <tr>
+              <!-- Markers (pin / flag indicators) -->
+              <th class="tx-col-markers"></th>
+
               <!-- Select page -->
               <th class="tx-col-check" @click.stop>
                 <input
@@ -997,9 +958,15 @@ const historyExpanded = ref(false)
                 v-if="tx.id === editingId && editDraft"
                 :ref="(el) => { if (tx.id === editingId) editRowRef = el as HTMLElement | null }"
                 class="tx-pending-row"
+                :class="{ 'tx-row-cutoff': tx.id === cutoffTxId }"
                 @focusout="onEditFocusOut"
                 @keydown.escape.prevent="cancelEdit"
               >
+                <td class="tx-col-markers">
+                  <button class="tx-pin-btn" :class="{ 'tx-pin-btn--active': tx.id === cutoffTxId }" :title="tx.id === cutoffTxId ? 'Remove balance cutoff pin' : 'Pin: calculate balance from here'" @click.stop="setPinTx(tx.id)">
+                    <i class="pi pi-map-marker" />
+                  </button>
+                </td>
                 <td class="tx-col-check"></td>
                 <td>
                   <input type="date" v-model="editDraft.date" class="tx-input"
@@ -1056,7 +1023,10 @@ const historyExpanded = ref(false)
                 </td>
                 <td class="tx-created-at">{{ formatCreatedAt(tx.createdAt) }}</td>
                 <td class="tx-col-action">
-                  <button class="tx-delete-btn" title="Delete" @click.stop="store.deleteTransaction(tx.id); cancelEdit()">
+                  <button class="tx-flag-btn" :class="{ 'tx-flag-btn--active': tx.flagged }" title="Flag / unflag" @click.stop="store.patchTransaction(tx.id, { flagged: !tx.flagged })">
+                    <i class="pi" :class="tx.flagged ? 'pi-flag-fill' : 'pi-flag'" />
+                  </button>
+                  <button class="tx-delete-btn" title="Delete" @click.stop="confirmDeleteTx(tx.id, true)">
                     <i class="pi pi-times" />
                   </button>
                 </td>
@@ -1066,9 +1036,14 @@ const historyExpanded = ref(false)
               <tr
                 v-else
                 class="tx-row tx-row-clickable"
-                :class="{ 'tx-row-selected': isSelected(tx.id) }"
+                :class="{ 'tx-row-selected': isSelected(tx.id), 'tx-row-cutoff': tx.id === cutoffTxId, 'tx-row-flagged': tx.flagged }"
                 @click="startEdit(tx)"
               >
+                <td class="tx-col-markers" @click.stop>
+                  <button class="tx-pin-btn" :class="{ 'tx-pin-btn--active': tx.id === cutoffTxId }" :title="tx.id === cutoffTxId ? 'Remove balance cutoff pin' : 'Pin: calculate balance from here'" @click.stop="setPinTx(tx.id)">
+                    <i class="pi pi-map-marker" />
+                  </button>
+                </td>
                 <td class="tx-col-check" @click.stop="toggleSelected(tx.id)">
                   <input
                     type="checkbox"
@@ -1081,13 +1056,16 @@ const historyExpanded = ref(false)
                 <td>{{ tx.name }}</td>
                 <td class="tx-col-money money-positive">{{ tx.type === 'in'  ? formatMoney(tx.amount) : '' }}</td>
                 <td class="tx-col-money money-negative">{{ tx.type === 'out' ? formatMoney(tx.amount) : '' }}</td>
-                <td class="tx-col-balance" :class="(runningBalanceMap.get(tx.id) ?? 0) >= 0 ? 'money-positive' : 'money-negative'">{{ formatMoney(runningBalanceMap.get(tx.id) ?? 0) }}</td>
+                <td class="tx-col-balance" :class="runningBalanceMap.has(tx.id) ? ((runningBalanceMap.get(tx.id) ?? 0) >= 0 ? 'money-positive' : 'money-negative') : 'tx-balance-hidden'">{{ runningBalanceMap.has(tx.id) ? formatMoney(runningBalanceMap.get(tx.id)!) : '—' }}</td>
                 <td class="tx-col-item">{{ getItemName(tx.itemId) }}</td>
                 <td class="tx-col-account">{{ getAccountName(tx.accountId) }}</td>
                 <td class="tx-col-notes" :title="tx.notes">{{ tx.notes ?? '' }}</td>
                 <td class="tx-created-at">{{ formatCreatedAt(tx.createdAt) }}</td>
-                <td class="tx-col-action">
-                  <button class="tx-delete-btn" title="Delete" @click.stop="store.deleteTransaction(tx.id)">
+                <td class="tx-col-action" @click.stop>
+                  <button class="tx-flag-btn" :class="{ 'tx-flag-btn--active': tx.flagged }" title="Flag / unflag" @click.stop="store.patchTransaction(tx.id, { flagged: !tx.flagged })">
+                    <i class="pi" :class="tx.flagged ? 'pi-flag-fill' : 'pi-flag'" />
+                  </button>
+                  <button class="tx-delete-btn" title="Delete" @click.stop="confirmDeleteTx(tx.id, false)">
                     <i class="pi pi-times" />
                   </button>
                 </td>
@@ -1097,7 +1075,7 @@ const historyExpanded = ref(false)
 
             <!-- Empty state -->
             <tr v-if="!pagedTransactions.length && !pending">
-              <td colspan="11" class="tx-empty">
+              <td colspan="12" class="tx-empty">
                 <span v-if="hasActiveFilters">No transactions match the current filters.</span>
                 <span v-else>No transactions yet. Click + Add Transaction below to get started.</span>
               </td>
@@ -1111,6 +1089,7 @@ const historyExpanded = ref(false)
               @focusout="onPendingFocusOut"
               @keydown.escape.prevent="cancelTransaction"
             >
+              <td class="tx-col-markers"></td>
               <td class="tx-col-check"></td>
               <td>
                 <input type="date" v-model="pending.date" class="tx-input"
@@ -1286,10 +1265,6 @@ const historyExpanded = ref(false)
         <button class="tx-export-btn" @click="exportCsv" :title="selectedCount > 0 ? `Export ${selectedCount} selected` : `Export all ${totalCount} filtered`">
           <i class="pi pi-download" /> Export CSV{{ selectedCount > 0 ? ` (${selectedCount})` : '' }}
         </button>
-        <span class="tx-csv-hint"><i class="pi pi-upload" /> Drop a CSV file onto the table to import</span>
-        <span v-if="csvImportMsg" class="tx-csv-msg" :class="csvImportCount > 0 ? 'tx-csv-msg-ok' : 'tx-csv-msg-warn'">
-          {{ csvImportMsg }}
-        </span>
       </div>
 
       <!-- Import history -->
@@ -1312,10 +1287,4 @@ const historyExpanded = ref(false)
 
     </div>
   </div>
-  <CsvImportDialog
-    :visible="csvDialogVisible"
-    :csvFiles="pendingCsvFiles"
-    @close="csvDialogVisible = false"
-    @done="onCsvDone"
-  />
 </template>
