@@ -254,29 +254,66 @@ function mountSavChart(id: number): void {
 // ── Loan derived stats ────────────────────────────────────────
 interface LoanStats {
   monthly: number; totalInt: number; paidOff: number; remaining: number
-  scheduledBalance: number; interestPaid: number; pct: number; endStr: string
+  scheduledBalance: number; actualBalance: number | null
+  interestPaid: number; pct: number; endStr: string
 }
 
 function loanStats(loan: LoanRecord): LoanStats {
-  const rows    = store.calcAmortization(loan)
-  const monthly = store.monthlyPayment(loan)
+  const rows     = store.calcAmortization(loan)
+  const monthly  = store.monthlyPayment(loan)
   const totalInt = store.totalInterest(loan)
 
   const start   = new Date(loan.startDate + 'T00:00:00')
   const now     = new Date()
   const elapsed = Math.max(0, (now.getFullYear() - start.getFullYear()) * 12 + now.getMonth() - start.getMonth())
   const paidOff = Math.min(elapsed, loan.termMonths)
+
+  // Schedule-based figures (always computed as fallback)
+  const scheduledBalance      = paidOff < rows.length ? rows[paidOff].closingBalance : 0
+  const scheduledInterestPaid = Math.round(rows.slice(0, paidOff).reduce((s, r) => s + r.interestPaid, 0) * 100) / 100
+  const scheduledPct          = Math.min(100, Math.round((paidOff / loan.termMonths) * 100))
+
+  // Actual-payment-aware figures when a linked account exists
+  let actualBalance: number | null = null
+  let interestPaid = scheduledInterestPaid
+  let pct          = scheduledPct
+
+  if (loan.linkedAccountId) {
+    // Build map of in-transaction totals per month (= actual payments made)
+    const payByMonth = new Map<string, number>()
+    for (const t of txStore.transactions) {
+      if (t.accountId === loan.linkedAccountId && t.type === 'in') {
+        const ym = t.date.slice(0, 7)
+        payByMonth.set(ym, (payByMonth.get(ym) ?? 0) + t.amount)
+      }
+    }
+
+    const r = loan.apr / 100 / 12
+    let balance = loan.principal
+    let intAcc  = 0
+
+    for (let i = 0; i < paidOff && balance > 0.005; i++) {
+      const d = new Date(start)
+      d.setMonth(d.getMonth() + i + 1)
+      const ym      = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      const payment = payByMonth.get(ym) ?? monthly   // fall back to scheduled if no tx recorded
+      const interest       = balance * r
+      const principalPaid  = Math.max(0, Math.min(payment - interest, balance))
+      intAcc  += interest
+      balance  = Math.max(0, balance - principalPaid)
+    }
+
+    actualBalance = Math.round(balance * 100) / 100
+    interestPaid  = Math.round(intAcc * 100) / 100
+    pct           = Math.min(100, Math.round(((loan.principal - actualBalance) / loan.principal) * 100))
+  }
+
   const remaining = loan.termMonths - paidOff
-
-  const scheduledBalance = paidOff < rows.length ? rows[paidOff].closingBalance : 0
-  const interestPaid = Math.round(rows.slice(0, paidOff).reduce((s, r) => s + r.interestPaid, 0) * 100) / 100
-  const pct = Math.min(100, Math.round((paidOff / loan.termMonths) * 100))
-
-  const endDate = new Date(start)
+  const endDate   = new Date(start)
   endDate.setMonth(endDate.getMonth() + loan.termMonths)
   const endStr = endDate.toLocaleDateString(undefined, { year: 'numeric', month: 'short' })
 
-  return { monthly, totalInt, paidOff, remaining, scheduledBalance, interestPaid, pct, endStr }
+  return { monthly, totalInt, paidOff, remaining, scheduledBalance, actualBalance, interestPaid, pct, endStr }
 }
 
 const loanStatsMap = computed(() => {
@@ -454,7 +491,8 @@ function submitSav(): void {
 
 function loanProgressLabel(loan: LoanRecord): string {
   const s = loanStatsMap.value.get(loan.id)!
-  return `${fmt(loan.principal - s.scheduledBalance)} paid · ${fmt(s.scheduledBalance)} remaining · ends ${s.endStr}`
+  const remaining = s.actualBalance ?? s.scheduledBalance
+  return `${fmt(loan.principal - remaining)} paid · ${fmt(remaining)} remaining · ends ${s.endStr}`
 }
 </script>
 
@@ -625,7 +663,11 @@ function loanProgressLabel(loan: LoanRecord): string {
               </div>
               <div class="fn-stat">
                 <span class="fn-stat-label">Remaining balance</span>
-                <span class="fn-stat-value">{{ fmt(loanStatsMap.get(loan.id)!.scheduledBalance) }}</span>
+                <span class="fn-stat-value">{{ fmt(loanStatsMap.get(loan.id)!.actualBalance ?? loanStatsMap.get(loan.id)!.scheduledBalance) }}</span>
+              </div>
+              <div v-if="loanStatsMap.get(loan.id)!.actualBalance !== null && loanStatsMap.get(loan.id)!.actualBalance !== loanStatsMap.get(loan.id)!.scheduledBalance" class="fn-stat">
+                <span class="fn-stat-label">Scheduled balance</span>
+                <span class="fn-stat-value fn-stat-value--muted">{{ fmt(loanStatsMap.get(loan.id)!.scheduledBalance) }}</span>
               </div>
               <div class="fn-stat">
                 <span class="fn-stat-label">Interest paid</span>
