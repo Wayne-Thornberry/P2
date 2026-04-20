@@ -330,22 +330,24 @@ function accountNetBalance(accId: string): number {
 }
 const showLoanForm  = ref(false)
 const editLoanId    = ref<number | null>(null)
-const loanName      = ref('')
-const loanPrincipal = ref('')
-const loanApr       = ref('')
-const loanTerm      = ref('')
-const loanStart     = ref(today)
-const loanAccount   = ref('')
+const loanName           = ref('')
+const loanPrincipal      = ref('')
+const loanApr            = ref('')
+const loanTerm           = ref('')
+const loanStart          = ref(today)
+const loanAccount        = ref('')
+const loanDepositAccount = ref('')
 
 function openLoanForm(loan?: LoanRecord): void {
-  editLoanId.value    = loan?.id ?? null
-  loanName.value      = loan?.name ?? ''
-  loanPrincipal.value = loan ? String(loan.principal) : ''
-  loanApr.value       = loan ? String(loan.apr) : ''
-  loanTerm.value      = loan ? String(loan.termMonths) : ''
-  loanStart.value     = loan?.startDate ?? today
-  loanAccount.value   = loan?.linkedAccountId ?? ''
-  showLoanForm.value  = true
+  editLoanId.value         = loan?.id ?? null
+  loanName.value           = loan?.name ?? ''
+  loanPrincipal.value      = loan ? String(loan.principal) : ''
+  loanApr.value            = loan ? String(loan.apr) : ''
+  loanTerm.value           = loan ? String(loan.termMonths) : ''
+  loanStart.value          = loan?.startDate ?? today
+  loanAccount.value        = loan?.linkedAccountId ?? ''
+  loanDepositAccount.value = ''
+  showLoanForm.value       = true
 }
 
 // When an existing account is linked on a new entry, lock name/amount/date
@@ -363,7 +365,7 @@ watch(loanAccount, (accId) => {
   loanStart.value = accountEarliestDate(accId)
 })
 
-function closeLoanForm(): void { showLoanForm.value = false; editLoanId.value = null }
+function closeLoanForm(): void { showLoanForm.value = false; editLoanId.value = null; loanDepositAccount.value = '' }
 
 function submitLoan(): void {
   const name = loanName.value.trim()
@@ -382,7 +384,10 @@ function submitLoan(): void {
     let accId = loanAccount.value
     if (!accId) {
       accId = accounts.addAccount(name)
-      txStore.addOpeningBalance(accId, P, loanStart.value)
+      txStore.addOpeningBalance(accId, -P, loanStart.value)
+      if (loanDepositAccount.value) {
+        txStore.addOpeningBalance(loanDepositAccount.value, P, loanStart.value)
+      }
     }
     store.addLoan(name, P, apr, term, loanStart.value, accId || undefined)
   }
@@ -530,6 +535,13 @@ function loanProgressLabel(loan: LoanRecord): string {
             <label class="fn-label">Linked account <span class="fn-label-hint">(optional — or leave blank to auto-create)</span></label>
             <select class="fn-input" v-model="loanAccount">
               <option value="">— None (auto-create) —</option>
+              <option v-for="acc in accounts.accounts" :key="acc.id" :value="acc.id">{{ acc.name }}</option>
+            </select>
+          </div>
+          <div v-if="!editLoanId && !loanAccount" class="fn-form-group">
+            <label class="fn-label">Deposit to account <span class="fn-label-hint">(optional — where the loan proceeds landed)</span></label>
+            <select class="fn-input" v-model="loanDepositAccount">
+              <option value="">— None —</option>
               <option v-for="acc in accounts.accounts" :key="acc.id" :value="acc.id">{{ acc.name }}</option>
             </select>
           </div>
