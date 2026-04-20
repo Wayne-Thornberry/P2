@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onUnmounted } from 'vue'
-import { Chart, registerables } from 'chart.js'
+import { Chart, registerables, type ChartDataset } from 'chart.js'
 import { useLoanStore } from '../stores/loanStore'
 import type { LoanRecord, SavingsAccountRecord } from '../stores/loanStore'
 import { useAccountStore } from '../stores/accountStore'
@@ -97,7 +97,7 @@ function mountLoanChart(id: number): void {
     })
   }
 
-  const datasets: object[] = [
+  const datasets: ChartDataset<'line', (number | null)[]>[] = [
     {
       label: 'Scheduled balance',
       data: balances,
@@ -145,7 +145,7 @@ function mountLoanChart(id: number): void {
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { labels: { color: labelColor.value, font: { size: 10 }, boxWidth: 12 } },
-        tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${fmt(ctx.parsed.y)}` } },
+        tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${fmt(ctx.parsed.y ?? 0)}` } },
       },
       scales: {
         x: { ticks: { color: labelColor.value, font: { size: 9 }, maxTicksLimit: 10 }, grid: { color: gridColor.value } },
@@ -190,7 +190,7 @@ function mountSavChart(id: number): void {
     })
   }
 
-  const datasets: object[] = [
+  const datasets: ChartDataset<'line', (number | null)[]>[] = [
     {
       label: 'Projected balance',
       data: projected,
@@ -238,7 +238,7 @@ function mountSavChart(id: number): void {
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { labels: { color: labelColor.value, font: { size: 10 }, boxWidth: 12 } },
-        tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${fmt(ctx.parsed.y)}` } },
+        tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${fmt(ctx.parsed.y ?? 0)}` } },
       },
       scales: {
         x: { ticks: { color: labelColor.value, font: { size: 9 }, maxTicksLimit: 10 }, grid: { color: gridColor.value } },

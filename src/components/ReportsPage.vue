@@ -1,6 +1,6 @@
 ﻿<script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import { Chart, registerables } from 'chart.js'
+import { Chart, registerables, type ChartDataset } from 'chart.js'
 import { useTransactionStore } from '../stores/transactionStore'
 import { useAccountStore } from '../stores/accountStore'
 import { useBudgetStore } from '../stores/budgetStore'
@@ -814,7 +814,7 @@ function buildFinance(): void {
       })
     }
 
-    const datasets: object[] = [
+    const datasets: ChartDataset<'line', (number | null)[]>[] = [
       {
         label: 'Scheduled balance',
         data: balances,
@@ -847,7 +847,7 @@ function buildFinance(): void {
         interaction: { mode: 'index', intersect: false },
         plugins: {
           legend: { labels: { color: tc, font: { size: 10 }, boxWidth: 12 } },
-          tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${formatMoney(ctx.parsed.y)}` } },
+          tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${formatMoney(ctx.parsed.y ?? 0)}` } },
         },
         scales: {
           x: { ticks: { color: tc, font: { size: 9 }, maxTicksLimit: 10 }, grid: { color: gc } },
@@ -881,7 +881,7 @@ function buildFinance(): void {
       })
     }
 
-    const datasets: object[] = [
+    const datasets: ChartDataset<'line', (number | null)[]>[] = [
       {
         label: 'Projected balance',
         data: projected,
@@ -914,7 +914,7 @@ function buildFinance(): void {
         interaction: { mode: 'index', intersect: false },
         plugins: {
           legend: { labels: { color: tc, font: { size: 10 }, boxWidth: 12 } },
-          tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${formatMoney(ctx.parsed.y)}` } },
+          tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${formatMoney(ctx.parsed.y ?? 0)}` } },
         },
         scales: {
           x: { ticks: { color: tc, font: { size: 9 }, maxTicksLimit: 10 }, grid: { color: gc } },
