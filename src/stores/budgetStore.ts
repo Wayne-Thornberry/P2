@@ -6,22 +6,39 @@ import { BUDGET_TEMPLATE } from '../data/budgetTemplate'
 import { useMonthStore } from './monthStore'
 import { useTemplateStore } from './templateStore'
 import { useTransactionStore } from './transactionStore'
+import { useSettingsStore } from './settingsStore'
 
 let _nextItemId = 2000
 
 export const useBudgetStore = defineStore('budget', () => {
   const monthStore = useMonthStore()
+  const settings   = useSettingsStore()
 
-  const _saved = (() => {
+  function _key(): string {
+    return settings.country ? `clearbook_budget_${settings.country}` : 'clearbook_budget'
+  }
+
+  function _loadBudget() {
     try {
-      let raw = localStorage.getItem('clearbook_budget')
+      const key = _key()
+      let raw = localStorage.getItem(key)
+      // One-time migration from bare key for existing installs
+      if (raw === null && settings.country) {
+        raw = localStorage.getItem('clearbook_budget')
+        if (raw !== null) {
+          localStorage.setItem(key, raw)
+          localStorage.removeItem('clearbook_budget')
+        }
+      }
       if (raw === null) {
         raw = localStorage.getItem('p2_budget')
         if (raw !== null) localStorage.removeItem('p2_budget')
       }
       return JSON.parse(raw ?? 'null')
     } catch { return null }
-  })()
+  }
+
+  const _saved = _loadBudget()
 
   // ── Storage ───────────────────────────────────────────────────────────
   const globalItems    = ref<BudgetItemDef[]>([])
@@ -86,12 +103,33 @@ export const useBudgetStore = defineStore('budget', () => {
   }
 
   watch([globalItems, monthlyEntries], () => {
-    localStorage.setItem('clearbook_budget', JSON.stringify({
+    localStorage.setItem(_key(), JSON.stringify({
       globalItems:    globalItems.value,
       monthlyEntries: monthlyEntries.value,
       nextId:         _nextItemId,
     }))
   }, { deep: true })
+
+  // Reload when country changes
+  watch(() => settings.country, (newCountry) => {
+    if (!newCountry) return
+    const saved = _loadBudget()
+    if (saved?.globalItems && saved?.monthlyEntries) {
+      // v2 format — load directly
+      const savedDefs: Array<{ id: number; name: string }> = saved.globalItems
+      globalItems.value    = savedDefs.map(i => ({ id: i.id, name: i.name }))
+      monthlyEntries.value = saved.monthlyEntries
+      _nextItemId          = saved.nextId ?? 2000
+    } else {
+      // Fresh country — seed from template
+      _nextItemId       = 2000
+      globalItems.value = BUDGET_TEMPLATE.map(i => ({ id: i.id, name: i.name }))
+      _nextItemId       = Math.max(...globalItems.value.map(i => i.id), _nextItemId - 1) + 1
+      monthlyEntries.value = {}
+      const now = new Date()
+      _seedMonth(now.getFullYear(), now.getMonth() + 1)
+    }
+  })
 
   // ── Internal helpers ──────────────────────────────────────────────────
   function _seedMonth(year: number, month: number): void {

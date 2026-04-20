@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import { useTransactionStore } from './transactionStore'
+import { useSettingsStore } from './settingsStore'
 
 export interface SavingsGoal {
   id:               number
@@ -30,20 +31,48 @@ const COLORS = [
 ]
 
 export const useSavingsGoalStore = defineStore('savingsGoals', () => {
-  const _saved = (() => {
-    try { return JSON.parse(localStorage.getItem('clearbook_savings_goals') ?? 'null') }
-    catch { return null }
-  })()
+  const settings = useSettingsStore()
+
+  function _key(): string {
+    return settings.country ? `clearbook_savings_goals_${settings.country}` : 'clearbook_savings_goals'
+  }
+
+  function _load() {
+    try {
+      const key = _key()
+      let raw = localStorage.getItem(key)
+      // One-time migration from bare key for existing installs
+      if (raw === null && settings.country) {
+        raw = localStorage.getItem('clearbook_savings_goals')
+        if (raw !== null) {
+          localStorage.setItem(key, raw)
+          localStorage.removeItem('clearbook_savings_goals')
+        }
+      }
+      return JSON.parse(raw ?? 'null')
+    } catch { return null }
+  }
+
+  const _saved = _load()
 
   const goals = ref<SavingsGoal[]>(_saved?.goals ?? [])
   if (_saved?.nextGoalId   != null) _nextGoalId    = _saved.nextGoalId
   if (_saved?.nextContribId != null) _nextContribId = _saved.nextContribId
 
   watch(goals, () => {
-    localStorage.setItem('clearbook_savings_goals', JSON.stringify({
+    localStorage.setItem(_key(), JSON.stringify({
       goals: goals.value, nextGoalId: _nextGoalId, nextContribId: _nextContribId,
     }))
   }, { deep: true })
+
+  // Reload when country changes
+  watch(() => settings.country, (newCountry) => {
+    if (!newCountry) return
+    const saved = _load()
+    _nextGoalId    = saved?.nextGoalId    ?? 1
+    _nextContribId = saved?.nextContribId ?? 1
+    goals.value    = saved?.goals         ?? []
+  })
 
   function addGoal(name: string, targetAmount: number, deadline?: string, linkedAccountId?: string): SavingsGoal {
     const color = COLORS[_nextGoalId % COLORS.length]

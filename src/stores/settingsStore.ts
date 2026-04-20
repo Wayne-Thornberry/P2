@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
-import { ref, watchEffect } from 'vue'
+import { ref, computed, watchEffect } from 'vue'
+import { getCountryById } from '../data/countries'
 
 // ── Browser-default detection ──────────────────────────────────
 function detectCurrency(locale: string): string {
@@ -63,13 +64,34 @@ export const useSettingsStore = defineStore('settings', () => {
   const currency  = ref<string>(_saved?.currency ?? detectCurrency(_locale))
   const dateStyle = ref<'short' | 'medium' | 'long' | 'iso'>(_saved?.dateStyle ?? 'medium')
   const timeStyle = ref<'12h' | '24h'>(_saved?.timeStyle ?? (detect12h(_locale) ? '12h' : '24h'))
+  // country ID — empty string means first-run setup not yet completed
+  const country   = ref<string>(_saved?.country ?? '')
+
+  const setupComplete = computed(() => country.value !== '')
+
+  function setCountry(countryId: string): void {
+    const def = getCountryById(countryId)
+    if (!def) return
+    country.value  = countryId
+    currency.value = def.currency
+    locale.value   = def.locale
+    // Immediately persist so a subsequent page reload reads the correct country
+    localStorage.setItem('clearbook_settings', JSON.stringify({
+      theme:              theme.value,
+      locale:             def.locale,
+      currency:           def.currency,
+      dateStyle:          dateStyle.value,
+      timeStyle:          timeStyle.value,
+      balanceCutoffTxId:  balanceCutoffTxId.value,
+      country:            countryId,
+    }))
+  }
 
   /**
-   * When set, Total Funds = openingBalance + sum of transactions on/after balanceCutoffDate.
-   * When empty string, all transactions are summed (default behaviour).
+   * When set, the running balance in TransactionLog and totalFunds calculation
+   * starts from the pinned transaction onwards (by date). Stored as a transaction ID.
    */
-  const balanceCutoffDate = ref<string>(_saved?.balanceCutoffDate ?? '')
-  const openingBalance    = ref<number>(_saved?.openingBalance ?? 0)
+  const balanceCutoffTxId = ref<number | null>(_saved?.balanceCutoffTxId ?? null)
 
   let _themeTransitionTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -93,13 +115,13 @@ export const useSettingsStore = defineStore('settings', () => {
   // Persist settings to localStorage whenever any setting changes
   watchEffect(() => {
     localStorage.setItem('clearbook_settings', JSON.stringify({
-      theme: theme.value,
-      locale: locale.value,
-      currency: currency.value,
-      dateStyle: dateStyle.value,
-      timeStyle: timeStyle.value,
-      balanceCutoffDate: balanceCutoffDate.value,
-      openingBalance: openingBalance.value,
+      theme:             theme.value,
+      locale:            locale.value,
+      currency:          currency.value,
+      dateStyle:         dateStyle.value,
+      timeStyle:         timeStyle.value,
+      balanceCutoffTxId: balanceCutoffTxId.value,
+      country:           country.value,
     }))
   })
 
@@ -154,5 +176,5 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
-  return { theme, locale, currency, dateStyle, timeStyle, balanceCutoffDate, openingBalance, formatMoney, formatDate, formatCreatedAt }
+  return { theme, locale, currency, country, setupComplete, setCountry, dateStyle, timeStyle, balanceCutoffTxId, formatMoney, formatDate, formatCreatedAt }
 })

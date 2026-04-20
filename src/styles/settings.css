@@ -99,10 +99,24 @@
   gap: 0.5rem;
 }
 
+/* Country display row */
+.settings-country-row {
+  align-items: center;
+  gap: 1rem;
+}
+
+.settings-country-display {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-zinc-800);
+}
+
+.dark .settings-country-display {
+  color: var(--color-zinc-200);
+}
+
 /* Select */
 .settings-select {
-  font-size: 0.8rem;
-  color: var(--color-zinc-900);
   background-color: #ffffff;
   border: 2px solid var(--color-zinc-400);
   padding: 0.3rem 0.5rem;

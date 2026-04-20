@@ -17,6 +17,7 @@ interface AppExport {
     currency: string
     dateStyle: string
     timeStyle: string
+    country?: string
   }
   accounts: Account[]
   transactions: Transaction[]
@@ -44,6 +45,7 @@ export function exportAllData(): string {
       currency:  settings.currency,
       dateStyle: settings.dateStyle,
       timeStyle: settings.timeStyle,
+      country:   settings.country,
     },
     accounts:             JSON.parse(JSON.stringify(accountStore.accounts)),
     transactions:         JSON.parse(JSON.stringify(txnStore.transactions)),
@@ -56,12 +58,16 @@ export function exportAllData(): string {
 }
 
 export function downloadExport(): void {
+  const settings = useSettingsStore()
   const json = exportAllData()
   const blob = new Blob([json], { type: 'application/json' })
   const url  = URL.createObjectURL(blob)
   const a    = document.createElement('a')
   a.href     = url
-  a.download = `budget-backup-${new Date().toISOString().slice(0, 10)}.json`
+  const country  = settings.country  || 'unknown'
+  const currency = settings.currency || 'XXX'
+  const ts = new Date().toISOString().slice(0, 16).replace('T', '_').replace(':', '-')
+  a.download = `clearbook-backup-${country}-${currency}-${ts}.json`
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
@@ -92,6 +98,7 @@ export function importData(json: string): void {
     if (data.settings.currency)  settings.currency  = data.settings.currency
     if (data.settings.dateStyle) settings.dateStyle = data.settings.dateStyle as 'short' | 'medium' | 'long' | 'iso'
     if (data.settings.timeStyle) settings.timeStyle = data.settings.timeStyle as '12h' | '24h'
+    if (data.settings.country)   settings.setCountry(data.settings.country)
   }
 
   if (Array.isArray(data.accounts)) {
@@ -118,4 +125,99 @@ export function importData(json: string): void {
 export async function importFromFile(file: File): Promise<void> {
   const text = await file.text()
   importData(text)
+}
+
+/**
+ * Find every country that has data in localStorage and trigger one download per country.
+ * Each file is built directly from localStorage so it works regardless of which country
+ * is currently active in the running app.
+ */
+export function downloadAllCountries(): void {
+  // Discover all countries that have account data
+  const countryIds = new Set<string>()
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i)
+    if (!key) continue
+    const match = key.match(/^clearbook_accounts_(.+)$/)
+    if (match) countryIds.add(match[1])
+  }
+
+  if (countryIds.size === 0) {
+    // No country-scoped data; fall back to single current-country export
+    downloadExport()
+    return
+  }
+
+  const settingsRaw = (() => {
+    try { return JSON.parse(localStorage.getItem('clearbook_settings') ?? 'null') } catch { return null }
+  })()
+
+  const ts = new Date().toISOString().slice(0, 16).replace('T', '_').replace(':', '-')
+
+  for (const countryId of countryIds) {
+    const read = (suffix: string) => {
+      try { return JSON.parse(localStorage.getItem(`clearbook_${suffix}_${countryId}`) ?? 'null') } catch { return null }
+    }
+    const acctData   = read('accounts')
+    const txData     = read('transactions')
+    const budgetData = read('budget')
+    const tplData    = read('template')
+
+    const currencyForCountry: string = settingsRaw?.country === countryId
+      ? (settingsRaw?.currency ?? countryId)
+      : countryId  // best guess when country differs
+
+    const payload: AppExport = {
+      version:    EXPORT_VERSION,
+      exportedAt: new Date().toISOString(),
+      settings: {
+        theme:     settingsRaw?.theme    ?? 'dark',
+        locale:    settingsRaw?.locale   ?? 'en-IE',
+        currency:  settingsRaw?.country === countryId ? (settingsRaw?.currency ?? '') : '',
+        dateStyle: settingsRaw?.dateStyle ?? 'medium',
+        timeStyle: settingsRaw?.timeStyle ?? '12h',
+        country:   countryId,
+      },
+      accounts:             acctData?.accounts      ?? [],
+      transactions:         txData?.transactions    ?? [],
+      budgetGlobalItems:    budgetData?.globalItems  ?? [],
+      budgetMonthlyEntries: budgetData?.monthlyEntries ?? {},
+      templateItems:        tplData?.items           ?? [],
+    }
+
+    const json = JSON.stringify(payload, null, 2)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
+    a.download = `clearbook-backup-${countryId}-${currencyForCountry}-${ts}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+}
+
+/** Wipe all country-scoped data for the target country, restore from backup, then reload the page. */
+export function clearAndImport(json: string): void {
+  let data: AppExport
+  try {
+    data = JSON.parse(json) as AppExport
+  } catch {
+    throw new Error('Invalid backup file: could not parse JSON.')
+  }
+
+  const settings     = useSettingsStore()
+  const targetCountry = data.settings?.country ?? settings.country
+
+  const dataSuffixes = ['accounts', 'transactions', 'budget', 'template', 'savings_goals', 'import_history']
+  for (const suffix of dataSuffixes) {
+    if (targetCountry) localStorage.removeItem(`clearbook_${suffix}_${targetCountry}`)
+    localStorage.removeItem(`clearbook_${suffix}`)
+  }
+
+  // Write settings back first so stores load with correct country key
+  importData(json)
+
+  window.location.reload()
 }
