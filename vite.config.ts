@@ -8,6 +8,7 @@ export default defineConfig({
     vue(),
     tailwindcss(),
   ],
+  base: '/P2/', 
   server: {
     host: '127.0.0.1',
     port: 3000,
