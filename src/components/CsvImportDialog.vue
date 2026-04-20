@@ -22,7 +22,7 @@ const settings     = useSettingsStore()
 const historyStore = useImportHistoryStore()
 
 // ── Bank / adapter selection ──────────────────────────────────
-const selectedAdapterId = ref<string>('boi')
+const selectedAdapterId = ref<string>('')
 
 // ── Account selection ─────────────────────────────────────────
 const selectedAccountId = ref<string>('')
@@ -38,6 +38,7 @@ watch(() => props.visible, (v) => {
 // ── Parsed result (reactive to files + adapter choice) ───────
 const processedResult = computed(() => {
   if (props.csvFiles.length === 0) return null
+  if (!selectedAdapterId.value) return null // No adapter selected
   return processMultipleCsvFiles(props.csvFiles, selectedAdapterId.value)
 })
 
@@ -59,8 +60,8 @@ const importPlan = computed<ImportPlan | null>(() => {
   if (accountTxs.length === 0) return { type: 'clean' }
 
   const existingOBTx    = accountTxs.find(t => t.name === 'Opening Balance') ?? null
-  const earliestExisting = accountTxs.reduce((min, t) => t.date < min ? t.date : min, '9999-99-99')
-  const latestExisting   = accountTxs.reduce((max, t) => t.date > max ? t.date : max, '')
+  const earliestExisting = accountTxs.reduce<string>((min, t) => t.date < min ? t.date : min, '9999-99-99')
+  const latestExisting   = accountTxs.reduce<string>((max, t) => t.date > max ? t.date : max, '')
 
   const newOldest = result.allRows[0]?.isoDate ?? ''
   const newNewest = result.allRows[result.allRows.length - 1]?.isoDate ?? ''
@@ -73,7 +74,7 @@ const importPlan = computed<ImportPlan | null>(() => {
     const newOBSigned = result.openingBalance ?? 0
     // Estimate net of new rows (dedup not applied yet, so this is approximate)
     const estNet = Math.round(
-      result.allRows.reduce((s, r) => s + (r.type === 'in' ? r.amount : -r.amount), 0) * 100
+      result.allRows.reduce<number>((s, r) => s + (r.type === 'in' ? r.amount : -r.amount), 0) * 100
     ) / 100
     const gapDiff = Math.round((oldOBSigned - newOBSigned - estNet) * 100) / 100
     return {
@@ -91,7 +92,7 @@ const importPlan = computed<ImportPlan | null>(() => {
   if (newOldest > dayAfterLatest) {
     // New data starts after a gap from the latest existing transaction
     const currentBalance = Math.round(
-      accountTxs.reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0) * 100
+      accountTxs.reduce<number>((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0) * 100
     ) / 100
     const diff = result.openingBalance !== null
       ? Math.round((result.openingBalance - currentBalance) * 100) / 100
@@ -198,6 +199,9 @@ function handleImport(): void {
     const key = `${t.date}|${t.name}|${t.amount}|${t.type}`
     existingKeyCounts.set(key, (existingKeyCounts.get(key) ?? 0) + 1)
   }
+  // eslint-disable-next-line no-console
+  console.info('[IMPORT] Existing transaction keys:', Array.from(existingKeyCounts.entries()).slice(0, 10), '...')
+
   const consumedCounts = new Map<string, number>()
   let actualNet = 0
   let count     = 0
@@ -205,9 +209,14 @@ function handleImport(): void {
     const key = `${row.isoDate}|${row.details}|${row.amount}|${row.type}`
     const existing = existingKeyCounts.get(key) ?? 0
     const consumed = consumedCounts.get(key) ?? 0
+    // eslint-disable-next-line no-console
+    console.debug('[IMPORT] Row:', { row, key, existing, consumed })
     if (consumed < existing) {
       // This occurrence matches an already-imported row — skip it
       consumedCounts.set(key, consumed + 1)
+      // Log skipped row
+      // eslint-disable-next-line no-console
+      console.warn('[IMPORT] Skipped duplicate row:', row)
     } else {
       // New occurrence — import it
       txStore.addTransaction({ name: row.details, date: row.isoDate, type: row.type, amount: row.amount, itemId: null, accountId })
@@ -215,6 +224,8 @@ function handleImport(): void {
       count++
     }
   }
+  // eslint-disable-next-line no-console
+  console.info('[IMPORT] Finished import loop. Imported:', count, 'Skipped:', result.allRows.length - count)
 
   // 7. Inter-CSV gap adjustments (bridges between non-adjacent files)
   for (const gap of result.gapAdjustments) {
