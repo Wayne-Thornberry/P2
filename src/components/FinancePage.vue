@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onUnmounted } from 'vue'
 import { Chart, registerables, type ChartDataset } from 'chart.js'
 import { useLoanStore } from '../stores/loanStore'
 import type { LoanRecord, SavingsAccountRecord } from '../stores/loanStore'
 import { useAccountStore } from '../stores/accountStore'
+import { useTransactionStore } from '../stores/transactionStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { getTodayStr } from '../utils/date'
 
@@ -11,6 +12,7 @@ Chart.register(...registerables)
 
 const store    = useLoanStore()
 const accounts = useAccountStore()
+const txStore  = useTransactionStore()
 const settings = useSettingsStore()
 
 function fmt(v: number): string { return settings.formatMoney(v) }
@@ -314,7 +316,19 @@ const savStatsMap = computed(() => {
   return m
 })
 
-// ── Loan form ─────────────────────────────────────────────────
+// helpers: derive earliest tx date and net balance from an account
+function accountEarliestDate(accId: string): string {
+  const txs = txStore.transactions.filter(t => t.accountId === accId)
+  if (txs.length === 0) return today
+  return txs.reduce((min, t) => t.date < min ? t.date : min, txs[0].date)
+}
+function accountNetBalance(accId: string): number {
+  return Math.round(
+    txStore.transactions
+      .filter(t => t.accountId === accId)
+      .reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0) * 100
+  ) / 100
+}
 const showLoanForm  = ref(false)
 const editLoanId    = ref<number | null>(null)
 const loanName      = ref('')
@@ -335,6 +349,21 @@ function openLoanForm(loan?: LoanRecord): void {
   showLoanForm.value  = true
 }
 
+// When an existing account is linked on a new entry, lock name/amount/date
+const loanAccountLocked = computed(() => editLoanId.value === null && !!loanAccount.value)
+const savAccountLocked  = computed(() => editSavId.value  === null && !!savAccount.value)
+
+// Auto-fill (and lock) from linked account when account is picked in the form
+watch(loanAccount, (accId) => {
+  if (!accId || editLoanId.value !== null) return
+  const acc = accounts.accounts.find(a => a.id === accId)
+  if (!acc) return
+  loanName.value = acc.name
+  const bal = Math.abs(accountNetBalance(accId))
+  if (bal > 0) loanPrincipal.value = String(bal)
+  loanStart.value = accountEarliestDate(accId)
+})
+
 function closeLoanForm(): void { showLoanForm.value = false; editLoanId.value = null }
 
 function submitLoan(): void {
@@ -351,7 +380,12 @@ function submitLoan(): void {
     const eid = editLoanId.value
     if (expandedLoanIds.value.includes(eid)) nextTick(() => mountLoanChart(eid))
   } else {
-    store.addLoan(name, P, apr, term, loanStart.value, loanAccount.value || undefined)
+    let accId = loanAccount.value
+    if (!accId) {
+      accId = accounts.addAccount(name)
+      txStore.addOpeningBalance(accId, P, loanStart.value)
+    }
+    store.addLoan(name, P, apr, term, loanStart.value, accId || undefined)
   }
   closeLoanForm()
 }
@@ -377,6 +411,17 @@ function openSavForm(sav?: SavingsAccountRecord): void {
   showSavForm.value = true
 }
 
+// Auto-fill (and lock) from linked account when account is picked in the form
+watch(savAccount, (accId) => {
+  if (!accId || editSavId.value !== null) return
+  const acc = accounts.accounts.find(a => a.id === accId)
+  if (!acc) return
+  savName.value = acc.name
+  const bal = accountNetBalance(accId)
+  if (bal !== 0) savStartBal.value = String(bal)
+  savStart.value = accountEarliestDate(accId)
+})
+
 function closeSavForm(): void { showSavForm.value = false; editSavId.value = null }
 
 function submitSav(): void {
@@ -393,7 +438,12 @@ function submitSav(): void {
     const eid = editSavId.value
     if (expandedSavIds.value.includes(eid)) nextTick(() => mountSavChart(eid))
   } else {
-    store.addSavingsAccount(name, apr, savFreq.value, bal, savStart.value, savAccount.value || undefined)
+    let accId = savAccount.value
+    if (!accId) {
+      accId = accounts.addAccount(name)
+      txStore.addOpeningBalance(accId, bal, savStart.value)
+    }
+    store.addSavingsAccount(name, apr, savFreq.value, bal, savStart.value, accId || undefined)
   }
   closeSavForm()
 }
@@ -455,14 +505,15 @@ function loanProgressLabel(loan: LoanRecord): string {
       <!-- Form -->
       <div v-if="showLoanForm" class="fn-form-card">
         <h3 class="fn-form-title">{{ editLoanId ? 'Edit Loan' : 'New Loan' }}</h3>
+        <p v-if="loanAccountLocked" class="fn-form-hint"><i class="pi pi-lock" /> Name, principal and start date are taken from the linked account.</p>
         <div class="fn-form-grid">
           <div class="fn-form-group">
             <label class="fn-label">Name</label>
-            <input class="fn-input" v-model="loanName" placeholder="e.g. Car Loan" @keydown.escape="closeLoanForm" autofocus />
+            <input class="fn-input" v-model="loanName" placeholder="e.g. Car Loan" @keydown.escape="closeLoanForm" autofocus :disabled="loanAccountLocked" />
           </div>
           <div class="fn-form-group">
             <label class="fn-label">Principal <span class="fn-label-hint">(loan amount)</span></label>
-            <input class="fn-input" type="number" min="0.01" step="0.01" v-model="loanPrincipal" placeholder="15000.00" />
+            <input class="fn-input" type="number" min="0.01" step="0.01" v-model="loanPrincipal" placeholder="15000.00" :disabled="loanAccountLocked" />
           </div>
           <div class="fn-form-group">
             <label class="fn-label">APR % <span class="fn-label-hint">(annual rate)</span></label>
@@ -474,12 +525,12 @@ function loanProgressLabel(loan: LoanRecord): string {
           </div>
           <div class="fn-form-group">
             <label class="fn-label">Start date</label>
-            <input class="fn-input" type="date" v-model="loanStart" />
+            <input class="fn-input" type="date" v-model="loanStart" :disabled="loanAccountLocked" />
           </div>
           <div class="fn-form-group">
-            <label class="fn-label">Linked account <span class="fn-label-hint">(optional)</span></label>
+            <label class="fn-label">Linked account <span class="fn-label-hint">(optional — or leave blank to auto-create)</span></label>
             <select class="fn-input" v-model="loanAccount">
-              <option value="">— None —</option>
+              <option value="">— None (auto-create) —</option>
               <option v-for="acc in accounts.accounts" :key="acc.id" :value="acc.id">{{ acc.name }}</option>
             </select>
           </div>
@@ -624,10 +675,11 @@ function loanProgressLabel(loan: LoanRecord): string {
       <!-- Form -->
       <div v-if="showSavForm" class="fn-form-card fn-form-card--sav">
         <h3 class="fn-form-title">{{ editSavId ? 'Edit Savings Account' : 'New Savings Account' }}</h3>
+        <p v-if="savAccountLocked" class="fn-form-hint"><i class="pi pi-lock" /> Name, balance and start date are taken from the linked account.</p>
         <div class="fn-form-grid">
           <div class="fn-form-group">
             <label class="fn-label">Name</label>
-            <input class="fn-input" v-model="savName" placeholder="e.g. High-Yield Savings" @keydown.escape="closeSavForm" autofocus />
+            <input class="fn-input" v-model="savName" placeholder="e.g. High-Yield Savings" @keydown.escape="closeSavForm" autofocus :disabled="savAccountLocked" />
           </div>
           <div class="fn-form-group">
             <label class="fn-label">APR % <span class="fn-label-hint">(annual rate)</span></label>
@@ -643,16 +695,16 @@ function loanProgressLabel(loan: LoanRecord): string {
           </div>
           <div class="fn-form-group">
             <label class="fn-label">Opening balance</label>
-            <input class="fn-input" type="number" min="0" step="0.01" v-model="savStartBal" placeholder="5000.00" />
+            <input class="fn-input" type="number" min="0" step="0.01" v-model="savStartBal" placeholder="5000.00" :disabled="savAccountLocked" />
           </div>
           <div class="fn-form-group">
             <label class="fn-label">Start date</label>
-            <input class="fn-input" type="date" v-model="savStart" />
+            <input class="fn-input" type="date" v-model="savStart" :disabled="savAccountLocked" />
           </div>
           <div class="fn-form-group">
-            <label class="fn-label">Linked account <span class="fn-label-hint">(optional)</span></label>
+            <label class="fn-label">Linked account <span class="fn-label-hint">(optional — or leave blank to auto-create)</span></label>
             <select class="fn-input" v-model="savAccount">
-              <option value="">— None —</option>
+              <option value="">— None (auto-create) —</option>
               <option v-for="acc in accounts.accounts" :key="acc.id" :value="acc.id">{{ acc.name }}</option>
             </select>
           </div>

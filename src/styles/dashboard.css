@@ -522,3 +522,108 @@ button.dash-stat-card:hover { border-color: var(--color-zinc-500); }
   color: var(--color-zinc-900);
 }
 .dark .dash-fin-stat-val { color: var(--color-zinc-100); }
+
+/* ── Savings goals grid ──────────────────────────────────────── */
+.dash-goals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: 0.65rem;
+}
+
+.dash-goal-card {
+  background: #ffffff;
+  border: 1.5px solid var(--color-zinc-200);
+  padding: 0.7rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  transition: border-color 0.15s;
+}
+.dark .dash-goal-card { background: var(--color-zinc-800); border-color: var(--color-zinc-700); }
+.dash-goal-card--complete { border-color: #bbf7d0; }
+.dark .dash-goal-card--complete { border-color: #065f46; }
+
+.dash-goal-top {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.dash-goal-name {
+  flex: 1;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--color-zinc-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dark .dash-goal-name { color: var(--color-zinc-100); }
+
+.dash-goal-badge {
+  font-size: 0.55rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.2rem;
+  background: var(--color-zinc-200);
+  color: var(--color-zinc-500);
+  white-space: nowrap;
+}
+.dark .dash-goal-badge { background: var(--color-zinc-700); color: var(--color-zinc-400); }
+.dash-goal-badge--done { background: #d1fae5; color: #065f46; }
+.dark .dash-goal-badge--done { background: #064e3b; color: #6ee7b7; }
+
+.dash-goal-amounts {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.dash-goal-saved {
+  font-size: 0.88rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-goal-sep {
+  font-size: 0.75rem;
+  color: var(--color-zinc-300);
+}
+
+.dash-goal-target {
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-zinc-500);
+}
+
+.dash-goal-pct {
+  font-size: 0.65rem;
+  font-weight: 800;
+  margin-left: auto;
+}
+
+.dash-goal-track {
+  height: 5px;
+  background: var(--color-zinc-200);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.dark .dash-goal-track { background: var(--color-zinc-700); }
+
+.dash-goal-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s;
+}
+
+.dash-goal-linked {
+  font-size: 0.6rem;
+  color: var(--color-zinc-400);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}

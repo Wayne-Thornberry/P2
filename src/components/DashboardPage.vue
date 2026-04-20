@@ -5,12 +5,14 @@ import { useAccountStore }     from '../stores/accountStore'
 import { useBudgetStore }      from '../stores/budgetStore'
 import { useSettingsStore }    from '../stores/settingsStore'
 import { useLoanStore }        from '../stores/loanStore'
+import { useSavingsGoalStore } from '../stores/savingsGoalStore'
 
 const txStore      = useTransactionStore()
 const accountStore = useAccountStore()
 const budgetStore  = useBudgetStore()
 const settings     = useSettingsStore()
 const loanStore    = useLoanStore()
+const goalStore    = useSavingsGoalStore()
 
 function formatMoney(v: number): string { return settings.formatMoney(v) }
 
@@ -193,6 +195,28 @@ const savDashRows = computed((): SavDashRow[] =>
 
 const hasFinance = computed(() => activeLoans.value.length > 0 || activeSavings.value.length > 0)
 
+// ── Savings goals summary ────────────────────────────────────────
+const activeGoals = computed(() => goalStore.goals.filter(g => !g.archived))
+const hasGoals    = computed(() => activeGoals.value.length > 0)
+
+interface GoalDashRow {
+  id: number; name: string; color: string
+  saved: number; target: number; pct: number; complete: boolean
+  linkedAccountName?: string; deadline?: string
+}
+
+const goalDashRows = computed((): GoalDashRow[] =>
+  activeGoals.value.map(g => ({
+    id: g.id, name: g.name, color: g.color,
+    saved:    goalStore.totalSaved(g),
+    target:   g.targetAmount,
+    pct:      goalStore.progressPct(g),
+    complete: goalStore.progressPct(g) >= 100,
+    linkedAccountName: g.linkedAccountId ? accountStore.accounts.find(a => a.id === g.linkedAccountId)?.name : undefined,
+    deadline: g.deadline,
+  }))
+)
+
 </script>
 
 <template>
@@ -353,6 +377,40 @@ const hasFinance = computed(() => activeLoans.value.length > 0 || activeSavings.
       </div>
 
     </div>
+
+    <!-- Savings Goals -->
+    <section v-if="hasGoals" class="dash-section">
+      <div class="dash-section-header">
+        <h2 class="dash-section-title">Savings Goals</h2>
+        <button class="dash-link" @click="emit('navigate', 'savings')">View All</button>
+      </div>
+      <div class="dash-goals-grid">
+        <div v-for="row in goalDashRows" :key="row.id" class="dash-goal-card" :class="{ 'dash-goal-card--complete': row.complete }">
+          <div class="dash-goal-top">
+            <span class="dash-fin-dot" :style="{ background: row.color }" />
+            <span class="dash-goal-name">{{ row.name }}</span>
+            <span v-if="row.complete" class="dash-goal-badge dash-goal-badge--done">
+              <i class="pi pi-check" /> Done
+            </span>
+            <span v-else-if="row.deadline" class="dash-goal-badge">
+              {{ (() => { const d = Math.ceil((new Date(row.deadline + 'T00:00:00').getTime() - Date.now()) / 86400000); return d < 0 ? `${Math.abs(d)}d overdue` : d < 30 ? `${d}d left` : `${Math.round(d/30.4)}mo left` })() }}
+            </span>
+          </div>
+          <div class="dash-goal-amounts">
+            <span class="dash-goal-saved" :style="{ color: row.color }">{{ formatMoney(row.saved) }}</span>
+            <span class="dash-goal-sep">/</span>
+            <span class="dash-goal-target">{{ formatMoney(row.target) }}</span>
+            <span class="dash-goal-pct" :style="{ color: row.color }">{{ row.pct }}%</span>
+          </div>
+          <div class="dash-goal-track">
+            <div class="dash-goal-fill" :style="{ width: Math.max(2, row.pct) + '%', background: row.color }" />
+          </div>
+          <div v-if="row.linkedAccountName" class="dash-goal-linked">
+            <i class="pi pi-link" style="font-size:0.6rem" /> {{ row.linkedAccountName }}
+          </div>
+        </div>
+      </div>
+    </section>
 
     <!-- Finance at a Glance -->
     <section v-if="hasFinance" class="dash-section">

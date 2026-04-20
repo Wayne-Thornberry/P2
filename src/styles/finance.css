@@ -202,8 +202,23 @@
   transition: border-color 0.15s;
 }
 .fn-input:focus { border-color: #6366f1; }
+.fn-input:disabled { opacity: 0.55; cursor: not-allowed; background: var(--color-zinc-100); }
 .dark .fn-input { border-color: var(--color-zinc-600); background: var(--color-zinc-700); color: var(--color-zinc-100); }
 .dark .fn-input:focus { border-color: #818cf8; }
+.dark .fn-input:disabled { background: var(--color-zinc-900); }
+
+.fn-form-hint {
+  font-size: 0.7rem;
+  color: var(--color-zinc-500);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.5rem;
+  background: var(--color-zinc-100);
+  border-left: 2px solid var(--color-zinc-300);
+  margin-bottom: 0.5rem;
+}
+.dark .fn-form-hint { background: var(--color-zinc-800); border-color: var(--color-zinc-600); color: var(--color-zinc-400); }
 
 .fn-form-preview {
   font-size: 0.72rem;

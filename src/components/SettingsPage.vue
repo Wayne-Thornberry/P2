@@ -67,6 +67,7 @@ async function clearAllData(): Promise<void> {
 }
 
 // ── Debug generators ──────────────────────────────────────────
+const isDev = import.meta.env.DEV
 const _now = new Date()
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
@@ -603,7 +604,7 @@ const previewCreated  = computed(() => settings.formatCreatedAt(PREVIEW_ISO))
     </div>
 
     <!-- Debug ──────────────────────────────────────────────────── -->
-    <div class="settings-section settings-section--full">
+    <div v-if="isDev" class="settings-section settings-section--full">
       <h2 class="settings-section-title">Debug</h2>
 
       <!-- Generate Items -->
