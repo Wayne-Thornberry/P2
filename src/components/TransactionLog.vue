@@ -324,31 +324,33 @@ const runningBalanceMap = computed<Map<number, number>>(() => {
   return map
 })
 
-// ── All-filtered stats (Opening Balance excluded) ──────────
-const filteredForStats = computed(() => filteredTransactions.value.filter(t => t.name !== 'Opening Balance'))
-const allInTxs  = computed(() => filteredForStats.value.filter(t => t.type === 'in'))
-const allOutTxs = computed(() => filteredForStats.value.filter(t => t.type === 'out'))
+// ── All-filtered stats ──────────
+const allInTxs  = computed(() => filteredTransactions.value.filter(t => t.type === 'in'))
+const allOutTxs = computed(() => filteredTransactions.value.filter(t => t.type === 'out'))
 const allIn     = computed(() => allInTxs.value.reduce((s, t) => s + t.amount, 0))
 const allOut    = computed(() => allOutTxs.value.reduce((s, t) => s + t.amount, 0))
 const allNet    = computed(() => allIn.value - allOut.value)
-const allMaxIn  = computed<number | null>(() => allInTxs.value.length  ? Math.max(...allInTxs.value.map(t => t.amount))  : null)
-const allMinIn  = computed<number | null>(() => allInTxs.value.length  ? Math.min(...allInTxs.value.map(t => t.amount))  : null)
-const allMaxOut = computed<number | null>(() => allOutTxs.value.length ? Math.max(...allOutTxs.value.map(t => t.amount)) : null)
-const allMinOut = computed<number | null>(() => allOutTxs.value.length ? Math.min(...allOutTxs.value.map(t => t.amount)) : null)
+const allInTxsForMaxMin  = computed(() => allInTxs.value.filter(t => t.name !== 'Opening Balance'))
+const allOutTxsForMaxMin = computed(() => allOutTxs.value.filter(t => t.name !== 'Opening Balance'))
+const allMaxIn  = computed<number | null>(() => allInTxsForMaxMin.value.length  ? Math.max(...allInTxsForMaxMin.value.map(t => t.amount))  : null)
+const allMinIn  = computed<number | null>(() => allInTxsForMaxMin.value.length  ? Math.min(...allInTxsForMaxMin.value.map(t => t.amount))  : null)
+const allMaxOut = computed<number | null>(() => allOutTxsForMaxMin.value.length ? Math.max(...allOutTxsForMaxMin.value.map(t => t.amount)) : null)
+const allMinOut = computed<number | null>(() => allOutTxsForMaxMin.value.length ? Math.min(...allOutTxsForMaxMin.value.map(t => t.amount)) : null)
 const allAvgIn  = computed<number | null>(() => allInTxs.value.length  ? allIn.value  / allInTxs.value.length  : null)
 const allAvgOut = computed<number | null>(() => allOutTxs.value.length ? allOut.value / allOutTxs.value.length : null)
 
-// ── Page-scoped stats (Opening Balance excluded) ────────────
-const pagedForStats  = computed(() => pagedTransactions.value.filter(t => t.name !== 'Opening Balance'))
-const pageInTxs  = computed(() => pagedForStats.value.filter(t => t.type === 'in'))
-const pageOutTxs = computed(() => pagedForStats.value.filter(t => t.type === 'out'))
+// ── Page-scoped stats ────────────
+const pageInTxs  = computed(() => pagedTransactions.value.filter(t => t.type === 'in'))
+const pageOutTxs = computed(() => pagedTransactions.value.filter(t => t.type === 'out'))
 const pageIn     = computed(() => pageInTxs.value.reduce((s, t) => s + t.amount, 0))
 const pageOut    = computed(() => pageOutTxs.value.reduce((s, t) => s + t.amount, 0))
 const pageNet    = computed(() => pageIn.value - pageOut.value)
-const pageMaxIn  = computed<number | null>(() => pageInTxs.value.length  ? Math.max(...pageInTxs.value.map(t => t.amount))  : null)
-const pageMinIn  = computed<number | null>(() => pageInTxs.value.length  ? Math.min(...pageInTxs.value.map(t => t.amount))  : null)
-const pageMaxOut = computed<number | null>(() => pageOutTxs.value.length ? Math.max(...pageOutTxs.value.map(t => t.amount)) : null)
-const pageMinOut = computed<number | null>(() => pageOutTxs.value.length ? Math.min(...pageOutTxs.value.map(t => t.amount)) : null)
+const pageInTxsForMaxMin  = computed(() => pageInTxs.value.filter(t => t.name !== 'Opening Balance'))
+const pageOutTxsForMaxMin = computed(() => pageOutTxs.value.filter(t => t.name !== 'Opening Balance'))
+const pageMaxIn  = computed<number | null>(() => pageInTxsForMaxMin.value.length  ? Math.max(...pageInTxsForMaxMin.value.map(t => t.amount))  : null)
+const pageMinIn  = computed<number | null>(() => pageInTxsForMaxMin.value.length  ? Math.min(...pageInTxsForMaxMin.value.map(t => t.amount))  : null)
+const pageMaxOut = computed<number | null>(() => pageOutTxsForMaxMin.value.length ? Math.max(...pageOutTxsForMaxMin.value.map(t => t.amount)) : null)
+const pageMinOut = computed<number | null>(() => pageOutTxsForMaxMin.value.length ? Math.min(...pageOutTxsForMaxMin.value.map(t => t.amount)) : null)
 const pageAvgIn  = computed<number | null>(() => pageInTxs.value.length  ? pageIn.value  / pageInTxs.value.length  : null)
 const pageAvgOut = computed<number | null>(() => pageOutTxs.value.length ? pageOut.value / pageOutTxs.value.length : null)
 
@@ -537,18 +539,19 @@ const selectedCount = computed(() =>
   filteredTransactions.value.filter(t => selectedIds.value.has(t.id)).length
 )
 
-// ── Selection-scoped stats (Opening Balance excluded) ────────
+// ── Selection-scoped stats ────────
 const selectedTransactions = computed(() => filteredTransactions.value.filter(t => selectedIds.value.has(t.id)))
-const selectedForStats = computed(() => selectedTransactions.value.filter(t => t.name !== 'Opening Balance'))
-const selInTxs   = computed(() => selectedForStats.value.filter(t => t.type === 'in'))
-const selOutTxs  = computed(() => selectedForStats.value.filter(t => t.type === 'out'))
+const selInTxs   = computed(() => selectedTransactions.value.filter(t => t.type === 'in'))
+const selOutTxs  = computed(() => selectedTransactions.value.filter(t => t.type === 'out'))
 const selIn  = computed(() => selInTxs.value.reduce((s, t) => s + t.amount, 0))
 const selOut = computed(() => selOutTxs.value.reduce((s, t) => s + t.amount, 0))
 const selNet = computed(() => selIn.value - selOut.value)
-const selMaxIn   = computed<number | null>(() => selInTxs.value.length  ? Math.max(...selInTxs.value.map(t => t.amount))  : null)
-const selMinIn   = computed<number | null>(() => selInTxs.value.length  ? Math.min(...selInTxs.value.map(t => t.amount))  : null)
-const selMaxOut  = computed<number | null>(() => selOutTxs.value.length ? Math.max(...selOutTxs.value.map(t => t.amount)) : null)
-const selMinOut  = computed<number | null>(() => selOutTxs.value.length ? Math.min(...selOutTxs.value.map(t => t.amount)) : null)
+const selInTxsForMaxMin  = computed(() => selInTxs.value.filter(t => t.name !== 'Opening Balance'))
+const selOutTxsForMaxMin = computed(() => selOutTxs.value.filter(t => t.name !== 'Opening Balance'))
+const selMaxIn   = computed<number | null>(() => selInTxsForMaxMin.value.length  ? Math.max(...selInTxsForMaxMin.value.map(t => t.amount))  : null)
+const selMinIn   = computed<number | null>(() => selInTxsForMaxMin.value.length  ? Math.min(...selInTxsForMaxMin.value.map(t => t.amount))  : null)
+const selMaxOut  = computed<number | null>(() => selOutTxsForMaxMin.value.length ? Math.max(...selOutTxsForMaxMin.value.map(t => t.amount)) : null)
+const selMinOut  = computed<number | null>(() => selOutTxsForMaxMin.value.length ? Math.min(...selOutTxsForMaxMin.value.map(t => t.amount)) : null)
 const selAvgIn   = computed<number | null>(() => selInTxs.value.length  ? selIn.value  / selInTxs.value.length  : null)
 const selAvgOut  = computed<number | null>(() => selOutTxs.value.length ? selOut.value / selOutTxs.value.length : null)
 
