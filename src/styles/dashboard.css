@@ -426,3 +426,99 @@ button.dash-stat-card:hover { border-color: var(--color-zinc-500); }
   min-width: 2.5rem;
   text-align: right;
 }
+
+/* ── Finance cards ───────────────────────────────────────────── */
+.dash-fin-card {
+  background: #ffffff;
+  border: 1.5px solid var(--color-zinc-200);
+  border-left: 3px solid #ef4444;
+  padding: 0.7rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.dark .dash-fin-card { background: var(--color-zinc-800); border-color: var(--color-zinc-700); border-left-color: #ef4444; }
+
+.dash-fin-card--sav { border-left-color: #10b981; }
+.dark .dash-fin-card--sav { border-left-color: #34d399; }
+
+.dash-fin-card-top {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.dash-fin-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dash-fin-name {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--color-zinc-900);
+  flex: 1;
+}
+.dark .dash-fin-name { color: var(--color-zinc-100); }
+
+.dash-fin-badge {
+  font-size: 0.55rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.2rem;
+  background: var(--color-zinc-200);
+  color: var(--color-zinc-500);
+}
+.dark .dash-fin-badge { background: var(--color-zinc-700); color: var(--color-zinc-400); }
+
+.dash-fin-badge--red   { background: #fee2e2; color: #b91c1c; }
+.dash-fin-badge--green { background: #d1fae5; color: #065f46; }
+.dark .dash-fin-badge--red   { background: #450a0a; color: #fca5a5; }
+.dark .dash-fin-badge--green { background: #064e3b; color: #6ee7b7; }
+
+.dash-fin-bar-track {
+  height: 5px;
+  background: var(--color-zinc-200);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.dark .dash-fin-bar-track { background: var(--color-zinc-700); }
+
+.dash-fin-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s;
+}
+
+.dash-fin-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.5rem;
+}
+
+.dash-fin-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+}
+
+.dash-fin-stat-label {
+  font-size: 0.52rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--color-zinc-400);
+}
+
+.dash-fin-stat-val {
+  font-size: 0.78rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-zinc-900);
+}
+.dark .dash-fin-stat-val { color: var(--color-zinc-100); }

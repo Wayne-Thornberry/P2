@@ -4,11 +4,13 @@ import { useTransactionStore } from '../stores/transactionStore'
 import { useAccountStore }     from '../stores/accountStore'
 import { useBudgetStore }      from '../stores/budgetStore'
 import { useSettingsStore }    from '../stores/settingsStore'
+import { useLoanStore }        from '../stores/loanStore'
 
 const txStore      = useTransactionStore()
 const accountStore = useAccountStore()
 const budgetStore  = useBudgetStore()
 const settings     = useSettingsStore()
+const loanStore    = useLoanStore()
 
 function formatMoney(v: number): string { return settings.formatMoney(v) }
 
@@ -103,6 +105,93 @@ function getAccountName(id: string | null): string {
   if (!id) return '—'
   return accountStore.accounts.find(a => a.id === id)?.name ?? id
 }
+
+// ── Finance summary ───────────────────────────────────────────
+const activeLoans = computed(() => loanStore.loans.filter(l => !l.archived))
+const activeSavings = computed(() => loanStore.savings.filter(s => !s.archived))
+
+const totalMonthlyPayments = computed(() =>
+  Math.round(activeLoans.value.reduce((s, l) => s + loanStore.monthlyPayment(l), 0) * 100) / 100
+)
+
+const totalLoanRemaining = computed(() => {
+  return Math.round(activeLoans.value.reduce((l, loan) => {
+    const rows = loanStore.calcAmortization(loan)
+    const nowYM = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}`
+    const row = rows.find(r => r.date >= nowYM)
+    return l + (row?.openingBalance ?? loan.principal)
+  }, 0) * 100) / 100
+})
+
+const totalProjectedSavings = computed(() => {
+  return Math.round(activeSavings.value.reduce((s, sav) => {
+    if (sav.linkedAccountId) return s + loanStore.accountNetBalance(sav.linkedAccountId)
+    const elapsedMonths = Math.max(0,
+      (_now.getFullYear() - new Date(sav.startDate).getFullYear()) * 12 +
+      _now.getMonth() - new Date(sav.startDate).getMonth()
+    )
+    const proj = loanStore.calcSavingsProjection(sav, elapsedMonths)
+    return s + (proj[proj.length - 1]?.balance ?? sav.startBalance)
+  }, 0) * 100) / 100
+})
+
+const finNetPosition = computed(() =>
+  Math.round((totalProjectedSavings.value - totalLoanRemaining.value) * 100) / 100
+)
+
+interface LoanDashRow {
+  id: number; name: string; color: string; apr: number
+  principal: number; remaining: number; pctPaid: number
+  monthlyPayment: number; payoffDate: string
+}
+
+const loanDashRows = computed((): LoanDashRow[] =>
+  activeLoans.value.map(loan => {
+    const rows = loanStore.calcAmortization(loan)
+    const nowYM = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}`
+    const row = rows.find(r => r.date >= nowYM)
+    const remaining = row?.openingBalance ?? 0
+    const pctPaid = loan.principal > 0
+      ? Math.round(((loan.principal - remaining) / loan.principal) * 100)
+      : 100
+    const payoffRow = rows[rows.length - 1]
+    const payoffDate = payoffRow
+      ? new Date(payoffRow.date + '-01').toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
+      : '—'
+    return {
+      id: loan.id, name: loan.name, color: loan.color, apr: loan.apr,
+      principal: loan.principal, remaining, pctPaid,
+      monthlyPayment: loanStore.monthlyPayment(loan), payoffDate,
+    }
+  })
+)
+
+interface SavDashRow {
+  id: number; name: string; color: string; apr: number
+  startBalance: number; projectedNow: number; interestEarned: number; compoundFreq: string
+}
+
+const savDashRows = computed((): SavDashRow[] =>
+  activeSavings.value.map(sav => {
+    const elapsedMonths = Math.max(0,
+      (_now.getFullYear() - new Date(sav.startDate).getFullYear()) * 12 +
+      _now.getMonth() - new Date(sav.startDate).getMonth()
+    )
+    const proj = loanStore.calcSavingsProjection(sav, elapsedMonths)
+    const projectedNow = sav.linkedAccountId
+      ? loanStore.accountNetBalance(sav.linkedAccountId)
+      : (proj[proj.length - 1]?.balance ?? sav.startBalance)
+    return {
+      id: sav.id, name: sav.name, color: sav.color, apr: sav.apr,
+      startBalance: sav.startBalance,
+      projectedNow,
+      interestEarned: Math.round((projectedNow - sav.startBalance) * 100) / 100,
+      compoundFreq: sav.compoundFreq,
+    }
+  })
+)
+
+const hasFinance = computed(() => activeLoans.value.length > 0 || activeSavings.value.length > 0)
 
 </script>
 
@@ -264,6 +353,105 @@ function getAccountName(id: string | null): string {
       </div>
 
     </div>
+
+    <!-- Finance at a Glance -->
+    <section v-if="hasFinance" class="dash-section">
+      <div class="dash-section-header">
+        <h2 class="dash-section-title">Finance</h2>
+        <button class="dash-link" @click="emit('navigate', 'finance')">View Finance</button>
+      </div>
+
+      <!-- Top stat row -->
+      <div class="dash-stat-grid">
+        <div v-if="activeLoans.length > 0" class="dash-stat-card">
+          <span class="dash-stat-label">Monthly Loan Payments</span>
+          <span class="dash-stat-value money-negative">{{ formatMoney(totalMonthlyPayments) }}</span>
+          <span class="dash-stat-sub">{{ activeLoans.length }} active loan{{ activeLoans.length !== 1 ? 's' : '' }}</span>
+        </div>
+        <div v-if="activeLoans.length > 0" class="dash-stat-card">
+          <span class="dash-stat-label">Loan Debt Remaining</span>
+          <span class="dash-stat-value money-negative">{{ formatMoney(totalLoanRemaining) }}</span>
+          <span class="dash-stat-sub">outstanding balance</span>
+        </div>
+        <div v-if="activeSavings.length > 0" class="dash-stat-card">
+          <span class="dash-stat-label">Savings Balance</span>
+          <span class="dash-stat-value money-positive">{{ formatMoney(totalProjectedSavings) }}</span>
+          <span class="dash-stat-sub">{{ activeSavings.length }} savings account{{ activeSavings.length !== 1 ? 's' : '' }}</span>
+        </div>
+        <div v-if="hasFinance" class="dash-stat-card">
+          <span class="dash-stat-label">Net Finance Position</span>
+          <span class="dash-stat-value" :class="finNetPosition >= 0 ? 'money-positive' : 'money-negative'">{{ formatMoney(finNetPosition) }}</span>
+          <span class="dash-stat-sub">savings minus debt</span>
+        </div>
+      </div>
+
+      <div class="dash-two-col" style="gap:1rem">
+
+        <!-- Loans -->
+        <div v-if="loanDashRows.length > 0" class="dash-col" style="gap:0.5rem">
+          <span class="dash-section-title">Loans</span>
+          <div v-for="row in loanDashRows" :key="row.id" class="dash-fin-card">
+            <div class="dash-fin-card-top">
+              <span class="dash-fin-dot" :style="{ background: row.color }" />
+              <span class="dash-fin-name">{{ row.name }}</span>
+              <span class="dash-fin-badge dash-fin-badge--red">{{ row.apr }}% APR</span>
+            </div>
+            <div class="dash-fin-bar-track">
+              <div
+                class="dash-fin-bar-fill"
+                :style="{ width: Math.max(2, row.pctPaid) + '%', background: row.color }"
+              />
+            </div>
+            <div class="dash-fin-stats">
+              <span class="dash-fin-stat">
+                <span class="dash-fin-stat-label">Remaining</span>
+                <span class="dash-fin-stat-val money-negative">{{ formatMoney(row.remaining) }}</span>
+              </span>
+              <span class="dash-fin-stat">
+                <span class="dash-fin-stat-label">Monthly</span>
+                <span class="dash-fin-stat-val money-negative">{{ formatMoney(row.monthlyPayment) }}</span>
+              </span>
+              <span class="dash-fin-stat">
+                <span class="dash-fin-stat-label">Paid off</span>
+                <span class="dash-fin-stat-val">{{ row.pctPaid }}%</span>
+              </span>
+              <span class="dash-fin-stat">
+                <span class="dash-fin-stat-label">Payoff</span>
+                <span class="dash-fin-stat-val">{{ row.payoffDate }}</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Savings accounts -->
+        <div v-if="savDashRows.length > 0" class="dash-col" style="gap:0.5rem">
+          <span class="dash-section-title">Savings Accounts</span>
+          <div v-for="row in savDashRows" :key="row.id" class="dash-fin-card dash-fin-card--sav">
+            <div class="dash-fin-card-top">
+              <span class="dash-fin-dot" :style="{ background: row.color }" />
+              <span class="dash-fin-name">{{ row.name }}</span>
+              <span class="dash-fin-badge dash-fin-badge--green">{{ row.apr }}% APR</span>
+              <span class="dash-fin-badge">{{ row.compoundFreq }}</span>
+            </div>
+            <div class="dash-fin-stats">
+              <span class="dash-fin-stat">
+                <span class="dash-fin-stat-label">Opening</span>
+                <span class="dash-fin-stat-val">{{ formatMoney(row.startBalance) }}</span>
+              </span>
+              <span class="dash-fin-stat">
+                <span class="dash-fin-stat-label">Now</span>
+                <span class="dash-fin-stat-val money-positive">{{ formatMoney(row.projectedNow) }}</span>
+              </span>
+              <span class="dash-fin-stat">
+                <span class="dash-fin-stat-label">Earned</span>
+                <span class="dash-fin-stat-val money-positive">+{{ formatMoney(row.interestEarned) }}</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
 
   </div>
 </template>
