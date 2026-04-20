@@ -31,8 +31,21 @@ const txItemFilter     = ref<number | undefined>(undefined)
 const txNameFilter     = ref('')
 const txTypeFilter     = ref<'all' | 'in' | 'out'>('all')
 const txFocusSearch    = ref(false)
+const convCurrStr      = ref('')
+const convRateStr      = ref('')
 const settings         = useSettingsStore()
 const currentCountry   = computed(() => getCountryById(settings.country))
+
+function applyConversion(): void {
+  const rate = parseFloat(convRateStr.value)
+  const cur  = convCurrStr.value.trim().toUpperCase()
+  if (!rate || rate <= 0 || cur.length < 3) return
+  settings.activateConversion(rate, cur)
+}
+
+function revertConversion(): void {
+  settings.deactivateConversion()
+}
 
 function switchCountry(id: string): void {
   countryMenuOpen.value = false
@@ -77,6 +90,7 @@ function confirmBackupRestore(): void {
 
 function navigate(page: string): void {
   sidebarOpen.value = false
+  settings.deactivateConversion()
   if (page === 'transactions') {
     txMonthFilter.value   = ''
     txAccountFilter.value = undefined
@@ -90,6 +104,7 @@ function navigate(page: string): void {
 }
 
 function onGlobalSearchSelect(tx: Transaction): void {
+  settings.deactivateConversion()
   txMonthFilter.value   = ''
   txAccountFilter.value = undefined
   txItemFilter.value    = undefined
@@ -101,6 +116,7 @@ function onGlobalSearchSelect(tx: Transaction): void {
 }
 
 function onViewTransactions(yearMonth: string): void {
+  settings.deactivateConversion()
   txMonthFilter.value   = yearMonth
   txAccountFilter.value = undefined
   txItemFilter.value    = undefined
@@ -110,6 +126,7 @@ function onViewTransactions(yearMonth: string): void {
 }
 
 function onViewAccountTransactions(accountId: string): void {
+  settings.deactivateConversion()
   txMonthFilter.value   = ''
   txAccountFilter.value = accountId
   txItemFilter.value    = undefined
@@ -119,6 +136,7 @@ function onViewAccountTransactions(accountId: string): void {
 }
 
 function onViewItemTransactions(itemId: number, yearMonth: string): void {
+  settings.deactivateConversion()
   txMonthFilter.value   = yearMonth
   txAccountFilter.value = undefined
   txItemFilter.value    = itemId
@@ -129,6 +147,7 @@ function onViewItemTransactions(itemId: number, yearMonth: string): void {
 }
 
 function onReportViewTransactions(opts: { month?: string; accountId?: string; name?: string; type?: 'in' | 'out' }): void {
+  settings.deactivateConversion()
   txMonthFilter.value   = opts.month ?? ''
   txAccountFilter.value = opts.accountId ?? undefined
   txItemFilter.value    = undefined
@@ -233,6 +252,42 @@ const breadcrumbSegments = computed(() =>
 
         <!-- Global search -->
         <GlobalSearch class="ml-auto" @viewTransaction="onGlobalSearchSelect" />
+
+        <!-- FX conversion widget -->
+        <div class="fx-widget shrink-0">
+          <template v-if="!settings.isConverting">
+            <input
+              v-model="convCurrStr"
+              placeholder="USD"
+              maxlength="4"
+              class="fx-input fx-input--cur"
+              title="Target currency code (e.g. USD)"
+              spellcheck="false"
+            />
+            <input
+              v-model="convRateStr"
+              placeholder="1.00"
+              type="number"
+              min="0.000001"
+              step="0.0001"
+              class="fx-input fx-input--rate"
+              title="Conversion rate (multiply by)"
+            />
+            <button
+              class="fx-btn"
+              title="Convert all money values"
+              @click="applyConversion"
+            >FX</button>
+          </template>
+          <template v-else>
+            <span class="fx-active-label">
+              {{ settings.conversionCurrency }} &times;{{ settings.conversionRate }}
+            </span>
+            <button class="fx-btn fx-btn--revert" title="Revert to original currency" @click="revertConversion">
+              <i class="pi pi-times" />
+            </button>
+          </template>
+        </div>
 
         <!-- Country switcher -->
         <div class="relative shrink-0">
@@ -364,6 +419,108 @@ const breadcrumbSegments = computed(() =>
 .fade-leave-active { transition: opacity 0.15s ease; }
 .fade-enter-from,
 .fade-leave-to    { opacity: 0; }
+
+/* ── FX conversion widget ────────────────────────────────────── */
+.fx-widget {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.fx-input {
+  height: 1.5rem;
+  padding: 0 0.375rem;
+  border-radius: 0.25rem;
+  font-size: 0.7rem;
+  font-family: ui-monospace, monospace;
+  font-weight: 600;
+  border: 1.5px solid #d4d4d8;
+  background: #ffffff;
+  color: #18181b;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.fx-input:focus {
+  border-color: #6366f1;
+}
+
+.fx-input--cur  { width: 2.75rem; text-transform: uppercase; }
+.fx-input--rate { width: 4rem; }
+
+.dark .fx-input {
+  border-color: #52525b;
+  background: #27272a;
+  color: #f4f4f5;
+}
+
+.dark .fx-input:focus {
+  border-color: #818cf8;
+}
+
+.fx-btn {
+  height: 1.5rem;
+  padding: 0 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border: 1.5px solid #6366f1;
+  background: transparent;
+  color: #6366f1;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.fx-btn:hover {
+  background: #6366f1;
+  color: #ffffff;
+}
+
+.dark .fx-btn {
+  border-color: #818cf8;
+  color: #818cf8;
+}
+
+.dark .fx-btn:hover {
+  background: #818cf8;
+  color: #1e1b4b;
+}
+
+.fx-btn--revert {
+  border-color: #f59e0b;
+  color: #f59e0b;
+}
+
+.fx-btn--revert:hover {
+  background: #f59e0b;
+  color: #ffffff;
+}
+
+.dark .fx-btn--revert {
+  border-color: #fbbf24;
+  color: #fbbf24;
+}
+
+.dark .fx-btn--revert:hover {
+  background: #fbbf24;
+  color: #1c1917;
+}
+
+.fx-active-label {
+  font-size: 0.65rem;
+  font-weight: 800;
+  font-family: ui-monospace, monospace;
+  letter-spacing: 0.04em;
+  color: #f59e0b;
+  white-space: nowrap;
+}
+
+.dark .fx-active-label {
+  color: #fbbf24;
+}
 </style>
 
 <!-- Global themed confirm dialog (outside the root div, no z-index conflict) -->

@@ -125,15 +125,33 @@ export const useSettingsStore = defineStore('settings', () => {
     }))
   })
 
+  // ── Currency conversion ──────────────────────────────────────
+  const isConverting       = ref<boolean>(false)
+  const conversionRate     = ref<number>(1)
+  const conversionCurrency = ref<string>('')
+
+  function activateConversion(rate: number, targetCurrency: string): void {
+    conversionRate.value     = rate
+    conversionCurrency.value = targetCurrency.toUpperCase()
+    isConverting.value       = true
+  }
+
+  function deactivateConversion(): void {
+    isConverting.value = false
+  }
+
   // ── Formatters ───────────────────────────────────────────────
   function formatMoney(amount: number): string {
+    // Apply conversion rate if active
+    const raw   = isConverting.value ? amount * conversionRate.value : amount
+    const cur   = isConverting.value ? conversionCurrency.value : currency.value
     // Round to nearest cent first, then snap -0 → 0
-    const cents = Math.round(amount * 100)
+    const cents = Math.round(raw * 100)
     const safe  = cents === 0 ? 0 : cents / 100
     try {
       return new Intl.NumberFormat(locale.value, {
         style: 'currency',
-        currency: currency.value,
+        currency: cur,
         minimumFractionDigits: 2,
       }).format(safe)
     } catch {
@@ -176,5 +194,5 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
-  return { theme, locale, currency, country, setupComplete, setCountry, dateStyle, timeStyle, balanceCutoffTxId, formatMoney, formatDate, formatCreatedAt }
+  return { theme, locale, currency, country, setupComplete, setCountry, dateStyle, timeStyle, balanceCutoffTxId, formatMoney, formatDate, formatCreatedAt, isConverting, conversionRate, conversionCurrency, activateConversion, deactivateConversion }
 })
