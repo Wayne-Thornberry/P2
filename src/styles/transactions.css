@@ -598,6 +598,32 @@
   background: #1e3a5f;
 }
 
+/* ── Jump-to-pin button ──────────────────────────────────────────── */
+
+.tx-jump-pin-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.6rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.25rem 0.55rem;
+  border: 2px solid #fcd34d;
+  color: #d97706;
+  background: none;
+  cursor: pointer;
+  transition: background-color 0.12s;
+}
+
+.dark .tx-jump-pin-btn {
+  border-color: #92400e;
+  color: #fbbf24;
+}
+
+.tx-jump-pin-btn:hover { background-color: #fef3c7; }
+.dark .tx-jump-pin-btn:hover { background-color: #451a03; }
+
 /* ── Clear filters button (lives in summary bar now) ─────────────── */
 
 .tx-clear-btn {
@@ -1228,7 +1254,7 @@
 .tx-col-notes   { width: 14rem; font-size: 0.78rem; color: var(--color-zinc-500); }
 .dark .tx-col-notes { color: var(--color-zinc-400); }
 .tx-col-added   { width: 10rem; }
-.tx-col-action  { width: 4.5rem; text-align: center; resize: none; }
+.tx-col-action  { width: 2.5rem; text-align: center; resize: none; }
 .tx-col-check   { width: 2.5rem; text-align: center; resize: none; }
 
 /* Balance column — dimmed when outside cutoff window */

@@ -26,6 +26,19 @@ function setPinTx(id: number): void {
   settings.balanceCutoffTxId = settings.balanceCutoffTxId === id ? null : id
 }
 
+function jumpToPin(): void {
+  const pinId = cutoffTxId.value
+  if (pinId === null) return
+  const pinIdx = filteredTransactions.value.findIndex(t => t.id === pinId)
+  if (pinIdx === -1) return
+  const targetPage = Math.floor(pinIdx / pageSize.value) + 1
+  if (page.value !== targetPage) page.value = targetPage
+  nextTick(() => {
+    const el = document.querySelector('.tx-row-cutoff')
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  })
+}
+
 const { moneyFocus, moneyBlur } = useMoneyInput()
 
 // -- Formatting (delegated to settingsStore) --
@@ -77,6 +90,7 @@ const filterAmountMinStr = ref('')
 const filterAmountMaxStr = ref('')
 const filterDateFrom     = ref('')
 const filterDateTo       = ref('')
+const filterFlagged      = ref(false)
 
 watch(() => props.accountFilter, v => { filterAccountId.value = v ?? null })
 watch(() => props.itemFilter,    v => { filterItemId.value    = v ?? null })
@@ -125,7 +139,7 @@ const hasActiveFilters = computed(() =>
   filterSearch.value !== '' || filterYear.value !== '' || filterMonthNum.value !== '' ||
   filterType.value !== 'all' || filterAccountId.value !== null || filterItemId.value !== null ||
   filterAmountMinStr.value !== '' || filterAmountMaxStr.value !== '' ||
-  filterDateFrom.value !== '' || filterDateTo.value !== ''
+  filterDateFrom.value !== '' || filterDateTo.value !== '' || filterFlagged.value
 )
 
 function clearFilters(): void {
@@ -139,6 +153,7 @@ function clearFilters(): void {
   filterAmountMaxStr.value = ''
   filterDateFrom.value     = ''
   filterDateTo.value       = ''
+  filterFlagged.value      = false
 }
 
 // ── Sort ───────────────────────────────────────────────────────
@@ -219,6 +234,7 @@ const filteredTransactions = computed(() => {
   if (amtMax !== null && !isNaN(amtMax)) list = list.filter(t => t.amount <= amtMax + 0.005)
   if (filterDateFrom.value) list = list.filter(t => t.date >= filterDateFrom.value)
   if (filterDateTo.value)   list = list.filter(t => t.date <= filterDateTo.value)
+  if (filterFlagged.value)  list = list.filter(t => !!t.flagged)
   list.sort((a, b) => {
     const col = sortCol.value
     // Default: newest date first when no sort column active
@@ -255,7 +271,7 @@ const pagedTransactions = computed(() => {
   return filteredTransactions.value.slice(start, start + pageSize.value)
 })
 
-watch([filterSearch, filterYear, filterMonthNum, filterType, filterAccountId, filterItemId, filterAmountMinStr, filterAmountMaxStr, filterDateFrom, filterDateTo, pageSize, sortCol, sortDir], () => { page.value = 1 })
+watch([filterSearch, filterYear, filterMonthNum, filterType, filterAccountId, filterItemId, filterAmountMinStr, filterAmountMaxStr, filterDateFrom, filterDateTo, filterFlagged, pageSize, sortCol, sortDir], () => { page.value = 1 })
 
 // ── Running balance per transaction ─────────────────────────
 // Computed from the filtered set, chronological oldest→newest.
@@ -308,9 +324,10 @@ const runningBalanceMap = computed<Map<number, number>>(() => {
   return map
 })
 
-// ── All-filtered stats ──────────────────────────────────────
-const allInTxs  = computed(() => filteredTransactions.value.filter(t => t.type === 'in'))
-const allOutTxs = computed(() => filteredTransactions.value.filter(t => t.type === 'out'))
+// ── All-filtered stats (Opening Balance excluded) ──────────
+const filteredForStats = computed(() => filteredTransactions.value.filter(t => t.name !== 'Opening Balance'))
+const allInTxs  = computed(() => filteredForStats.value.filter(t => t.type === 'in'))
+const allOutTxs = computed(() => filteredForStats.value.filter(t => t.type === 'out'))
 const allIn     = computed(() => allInTxs.value.reduce((s, t) => s + t.amount, 0))
 const allOut    = computed(() => allOutTxs.value.reduce((s, t) => s + t.amount, 0))
 const allNet    = computed(() => allIn.value - allOut.value)
@@ -318,11 +335,13 @@ const allMaxIn  = computed<number | null>(() => allInTxs.value.length  ? Math.ma
 const allMinIn  = computed<number | null>(() => allInTxs.value.length  ? Math.min(...allInTxs.value.map(t => t.amount))  : null)
 const allMaxOut = computed<number | null>(() => allOutTxs.value.length ? Math.max(...allOutTxs.value.map(t => t.amount)) : null)
 const allMinOut = computed<number | null>(() => allOutTxs.value.length ? Math.min(...allOutTxs.value.map(t => t.amount)) : null)
-const allAvg    = computed<number | null>(() => filteredTransactions.value.length ? filteredTransactions.value.reduce((s, t) => s + t.amount, 0) / filteredTransactions.value.length : null)
+const allAvgIn  = computed<number | null>(() => allInTxs.value.length  ? allIn.value  / allInTxs.value.length  : null)
+const allAvgOut = computed<number | null>(() => allOutTxs.value.length ? allOut.value / allOutTxs.value.length : null)
 
-// ── Page-scoped stats ─────────────────────────────────────────
-const pageInTxs  = computed(() => pagedTransactions.value.filter(t => t.type === 'in'))
-const pageOutTxs = computed(() => pagedTransactions.value.filter(t => t.type === 'out'))
+// ── Page-scoped stats (Opening Balance excluded) ────────────
+const pagedForStats  = computed(() => pagedTransactions.value.filter(t => t.name !== 'Opening Balance'))
+const pageInTxs  = computed(() => pagedForStats.value.filter(t => t.type === 'in'))
+const pageOutTxs = computed(() => pagedForStats.value.filter(t => t.type === 'out'))
 const pageIn     = computed(() => pageInTxs.value.reduce((s, t) => s + t.amount, 0))
 const pageOut    = computed(() => pageOutTxs.value.reduce((s, t) => s + t.amount, 0))
 const pageNet    = computed(() => pageIn.value - pageOut.value)
@@ -330,7 +349,8 @@ const pageMaxIn  = computed<number | null>(() => pageInTxs.value.length  ? Math.
 const pageMinIn  = computed<number | null>(() => pageInTxs.value.length  ? Math.min(...pageInTxs.value.map(t => t.amount))  : null)
 const pageMaxOut = computed<number | null>(() => pageOutTxs.value.length ? Math.max(...pageOutTxs.value.map(t => t.amount)) : null)
 const pageMinOut = computed<number | null>(() => pageOutTxs.value.length ? Math.min(...pageOutTxs.value.map(t => t.amount)) : null)
-const pageAvg    = computed<number | null>(() => pagedTransactions.value.length ? pagedTransactions.value.reduce((s, t) => s + t.amount, 0) / pagedTransactions.value.length : null)
+const pageAvgIn  = computed<number | null>(() => pageInTxs.value.length  ? pageIn.value  / pageInTxs.value.length  : null)
+const pageAvgOut = computed<number | null>(() => pageOutTxs.value.length ? pageOut.value / pageOutTxs.value.length : null)
 
 // ── Shared draft type ─────────────────────────────────────────
 type RowDraft = {
@@ -517,24 +537,27 @@ const selectedCount = computed(() =>
   filteredTransactions.value.filter(t => selectedIds.value.has(t.id)).length
 )
 
-// ── Selection-scoped stats ────────────────────────────────────
+// ── Selection-scoped stats (Opening Balance excluded) ────────
 const selectedTransactions = computed(() => filteredTransactions.value.filter(t => selectedIds.value.has(t.id)))
-const selIn  = computed(() => selectedTransactions.value.filter(t => t.type === 'in').reduce((s, t) => s + t.amount, 0))
-const selOut = computed(() => selectedTransactions.value.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0))
+const selectedForStats = computed(() => selectedTransactions.value.filter(t => t.name !== 'Opening Balance'))
+const selInTxs   = computed(() => selectedForStats.value.filter(t => t.type === 'in'))
+const selOutTxs  = computed(() => selectedForStats.value.filter(t => t.type === 'out'))
+const selIn  = computed(() => selInTxs.value.reduce((s, t) => s + t.amount, 0))
+const selOut = computed(() => selOutTxs.value.reduce((s, t) => s + t.amount, 0))
 const selNet = computed(() => selIn.value - selOut.value)
-const selInTxs   = computed(() => selectedTransactions.value.filter(t => t.type === 'in'))
-const selOutTxs  = computed(() => selectedTransactions.value.filter(t => t.type === 'out'))
 const selMaxIn   = computed<number | null>(() => selInTxs.value.length  ? Math.max(...selInTxs.value.map(t => t.amount))  : null)
 const selMinIn   = computed<number | null>(() => selInTxs.value.length  ? Math.min(...selInTxs.value.map(t => t.amount))  : null)
 const selMaxOut  = computed<number | null>(() => selOutTxs.value.length ? Math.max(...selOutTxs.value.map(t => t.amount)) : null)
 const selMinOut  = computed<number | null>(() => selOutTxs.value.length ? Math.min(...selOutTxs.value.map(t => t.amount)) : null)
-const selAvg     = computed<number | null>(() => selectedTransactions.value.length ? selectedTransactions.value.reduce((s, t) => s + t.amount, 0) / selectedTransactions.value.length : null)
+const selAvgIn   = computed<number | null>(() => selInTxs.value.length  ? selIn.value  / selInTxs.value.length  : null)
+const selAvgOut  = computed<number | null>(() => selOutTxs.value.length ? selOut.value / selOutTxs.value.length : null)
 
 // ── Display stats (selection row: selection > page) ───────────
 const displayIn     = computed(() => selectedCount.value > 0 ? selIn.value    : pageIn.value)
 const displayOut    = computed(() => selectedCount.value > 0 ? selOut.value   : pageOut.value)
 const displayNet    = computed(() => selectedCount.value > 0 ? selNet.value   : pageNet.value)
-const displayAvg    = computed<number | null>(() => selectedCount.value > 0 ? selAvg.value    : pageAvg.value)
+const displayAvgIn  = computed<number | null>(() => selectedCount.value > 0 ? selAvgIn.value  : pageAvgIn.value)
+const displayAvgOut = computed<number | null>(() => selectedCount.value > 0 ? selAvgOut.value : pageAvgOut.value)
 
 // Filter to exact amount (called from summary bar stat clicks)
 function filterByAmount(v: number): void {
@@ -579,17 +602,6 @@ async function deleteSelected(): Promise<void> {
   clearSelection()
 }
 
-async function confirmDeleteTx(id: number, cancelEditAfter: boolean): Promise<void> {
-  const ok = await confirm({
-    title: 'Delete transaction?',
-    message: 'Permanently delete this transaction? This cannot be undone.',
-    confirmLabel: 'Delete',
-    danger: true,
-  })
-  if (!ok) return
-  store.deleteTransaction(id)
-  if (cancelEditAfter) cancelEdit()
-}
 
 // ── Bulk actions ───────────────────────────────────────────────
 const bulkItemIdStr    = ref('')
@@ -629,7 +641,7 @@ const historyExpanded = ref(false)
 
         <!-- Row 1: All filtered transactions -->
         <div class="tx-summary-row">
-          <span class="tx-summary-scope tx-summary-scope--all">All</span>
+          <span class="tx-summary-scope tx-summary-scope--all">{{ hasActiveFilters ? 'Filtered' : 'All' }}</span>
           <span class="tx-summary-item">
             <span class="tx-summary-label">In</span>
             <button class="tx-summary-stat-btn money-positive" :class="{ 'tx-summary-stat-btn--active': filterType === 'in' }" @click="filterType = filterType === 'in' ? 'all' : 'in'" title="Filter to In transactions">{{ formatMoney(allIn) }}</button>
@@ -660,10 +672,14 @@ const historyExpanded = ref(false)
             <span class="tx-summary-label">Min Out</span>
             <button class="tx-summary-stat-btn money-negative" @click="filterByAmount(allMinOut!)" title="Filter to this amount">{{ formatMoney(allMinOut) }}</button>
           </span>
-          <span class="tx-summary-divider" v-if="allAvg !== null" />
-          <span class="tx-summary-item" v-if="allAvg !== null">
-            <span class="tx-summary-label">Avg</span>
-            <span class="tx-summary-value">{{ formatMoney(allAvg) }}</span>
+          <span class="tx-summary-divider" v-if="allAvgIn !== null || allAvgOut !== null" />
+          <span class="tx-summary-item" v-if="allAvgIn !== null">
+            <span class="tx-summary-label">Avg In</span>
+            <span class="tx-summary-value money-positive">{{ formatMoney(allAvgIn) }}</span>
+          </span>
+          <span class="tx-summary-item" v-if="allAvgOut !== null">
+            <span class="tx-summary-label">Avg Out</span>
+            <span class="tx-summary-value money-negative">{{ formatMoney(allAvgOut) }}</span>
           </span>
           <span class="tx-summary-count">{{ totalCount }} total</span>
         </div>
@@ -713,6 +729,13 @@ const historyExpanded = ref(false)
               <i class="pi pi-arrow-down-left text-xs" /> Out
             </button>
           </div>
+        </div>
+
+        <div class="tx-filter-group">
+          <label class="tx-filter-label">Flagged</label>
+          <button :class="['toggle-btn', filterFlagged && 'toggle-btn-active']" @click="filterFlagged = !filterFlagged" title="Show only flagged transactions">
+            <i class="pi" :class="filterFlagged ? 'pi-flag-fill' : 'pi-flag'" /> Flagged
+          </button>
         </div>
 
         <div class="tx-filter-group tx-filter-group-grow">
@@ -771,6 +794,9 @@ const historyExpanded = ref(false)
         </div>
 
         <div class="tx-filter-clear-wrap">
+          <button v-if="cutoffTxId !== null" class="tx-jump-pin-btn" @click="jumpToPin" title="Jump to pinned transaction">
+            <i class="pi pi-map-marker" /> Pin
+          </button>
           <button v-if="hasActiveFilters" class="tx-clear-btn" @click="clearFilters">
             <i class="pi pi-times" /> Clear
           </button>
@@ -805,9 +831,13 @@ const historyExpanded = ref(false)
             <span class="tx-bulk-stat-label">Net</span>
             <span :class="displayNet >= 0 ? 'money-positive' : 'money-negative'">{{ formatMoney(displayNet) }}</span>
           </span>
-          <span class="tx-bulk-stat" v-if="displayAvg !== null">
-            <span class="tx-bulk-stat-label">Avg</span>
-            <span>{{ formatMoney(displayAvg) }}</span>
+          <span class="tx-bulk-stat" v-if="displayAvgIn !== null">
+            <span class="tx-bulk-stat-label">Avg In</span>
+            <span class="money-positive">{{ formatMoney(displayAvgIn) }}</span>
+          </span>
+          <span class="tx-bulk-stat" v-if="displayAvgOut !== null">
+            <span class="tx-bulk-stat-label">Avg Out</span>
+            <span class="money-negative">{{ formatMoney(displayAvgOut) }}</span>
           </span>
           <span class="tx-bulk-stat" v-if="selMaxIn !== null">
             <span class="tx-bulk-stat-label">Max In</span>
@@ -1026,9 +1056,6 @@ const historyExpanded = ref(false)
                   <button class="tx-flag-btn" :class="{ 'tx-flag-btn--active': tx.flagged }" title="Flag / unflag" @click.stop="store.patchTransaction(tx.id, { flagged: !tx.flagged })">
                     <i class="pi" :class="tx.flagged ? 'pi-flag-fill' : 'pi-flag'" />
                   </button>
-                  <button class="tx-delete-btn" title="Delete" @click.stop="confirmDeleteTx(tx.id, true)">
-                    <i class="pi pi-times" />
-                  </button>
                 </td>
               </tr>
 
@@ -1064,9 +1091,6 @@ const historyExpanded = ref(false)
                 <td class="tx-col-action" @click.stop>
                   <button class="tx-flag-btn" :class="{ 'tx-flag-btn--active': tx.flagged }" title="Flag / unflag" @click.stop="store.patchTransaction(tx.id, { flagged: !tx.flagged })">
                     <i class="pi" :class="tx.flagged ? 'pi-flag-fill' : 'pi-flag'" />
-                  </button>
-                  <button class="tx-delete-btn" title="Delete" @click.stop="confirmDeleteTx(tx.id, false)">
-                    <i class="pi pi-times" />
                   </button>
                 </td>
               </tr>
@@ -1198,10 +1222,14 @@ const historyExpanded = ref(false)
             <span class="tx-summary-label">Min Out</span>
             <button class="tx-summary-stat-btn money-negative" @click="filterByAmount(pageMinOut!)" title="Filter to this amount">{{ formatMoney(pageMinOut) }}</button>
           </span>
-          <span class="tx-summary-divider" v-if="pageAvg !== null" />
-          <span class="tx-summary-item" v-if="pageAvg !== null">
-            <span class="tx-summary-label">Avg</span>
-            <span class="tx-summary-value">{{ formatMoney(pageAvg) }}</span>
+          <span class="tx-summary-divider" v-if="pageAvgIn !== null || pageAvgOut !== null" />
+          <span class="tx-summary-item" v-if="pageAvgIn !== null">
+            <span class="tx-summary-label">Avg In</span>
+            <span class="tx-summary-value money-positive">{{ formatMoney(pageAvgIn) }}</span>
+          </span>
+          <span class="tx-summary-item" v-if="pageAvgOut !== null">
+            <span class="tx-summary-label">Avg Out</span>
+            <span class="tx-summary-value money-negative">{{ formatMoney(pageAvgOut) }}</span>
           </span>
           <span class="tx-summary-count">{{ pagedTransactions.length }} on page</span>
         </div>

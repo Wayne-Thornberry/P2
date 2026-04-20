@@ -717,3 +717,66 @@ button.rpt-stat-link:hover {
   text-align: right;
   flex-shrink: 0;
 }
+
+/* ── Transaction Heatmap ──────────────────────────────────────── */
+.rpt-heatmap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+}
+
+.rpt-heatmap-months {
+  display: grid;
+  grid-template-columns: repeat(53, 12px);
+  gap: 2px;
+  padding-left: 0;
+}
+
+.rpt-heatmap-month-label {
+  font-size: 0.6rem;
+  color: var(--color-zinc-500);
+  white-space: nowrap;
+  grid-row: 1;
+}
+
+.rpt-heatmap-grid {
+  display: flex;
+  gap: 2px;
+}
+
+.rpt-heatmap-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rpt-heatmap-cell {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.rpt-heatmap-cell--clickable {
+  cursor: pointer;
+}
+
+.rpt-heatmap-cell--clickable:hover {
+  opacity: 0.75;
+  outline: 1px solid var(--color-zinc-400);
+}
+
+.rpt-heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 0.2rem;
+}
+
+.rpt-heatmap-legend-label {
+  font-size: 0.6rem;
+  color: var(--color-zinc-400);
+  margin: 0 0.2rem;
+}

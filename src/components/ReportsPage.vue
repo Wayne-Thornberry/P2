@@ -169,6 +169,66 @@ function topByName(txs: typeof txStore.transactions, type: 'in' | 'out', n = 10)
 const yearTopIn  = computed(() => topByName(txStore.transactions.filter(t => t.date.startsWith(String(yearViewYear.value))), 'in'))
 const yearTopOut = computed(() => topByName(txStore.transactions.filter(t => t.date.startsWith(String(yearViewYear.value))), 'out'))
 
+// ── Year transaction heatmap ───────────────────────────────────
+const yearHeatmapData = computed(() => {
+  const year   = yearViewYear.value
+  const txsByDay = new Map<string, number>()
+  for (const t of txStore.transactions) {
+    if (!t.date.startsWith(String(year))) continue
+    if (t.name === 'Opening Balance') continue
+    txsByDay.set(t.date, (txsByDay.get(t.date) ?? 0) + 1)
+  }
+
+  const jan1     = new Date(year, 0, 1)
+  const startDow = jan1.getDay()
+  const dec31    = new Date(year, 11, 31)
+  const endDow   = dec31.getDay()
+
+  const gridStart = new Date(jan1); gridStart.setDate(gridStart.getDate() - startDow)
+  const gridEnd   = new Date(dec31); gridEnd.setDate(gridEnd.getDate() + (6 - endDow))
+
+  const days: { date: string | null; count: number; inYear: boolean }[] = []
+  const d = new Date(gridStart)
+  while (d <= gridEnd) {
+    const dateStr = d.toISOString().slice(0, 10)
+    const inYear  = d.getFullYear() === year
+    days.push({ date: inYear ? dateStr : null, count: inYear ? (txsByDay.get(dateStr) ?? 0) : 0, inYear })
+    d.setDate(d.getDate() + 1)
+  }
+
+  const weeks: typeof days[] = []
+  for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7))
+
+  const maxCount = Math.max(1, ...days.filter(dy => dy.inYear).map(dy => dy.count))
+
+  const monthLabels: { week: number; label: string }[] = []
+  let lastMonth = -1
+  for (let w = 0; w < weeks.length; w++) {
+    for (const day of weeks[w]) {
+      if (!day.date) continue
+      const m = parseInt(day.date.slice(5, 7), 10) - 1
+      if (m !== lastMonth) {
+        monthLabels.push({ week: w, label: new Date(year, m, 1).toLocaleString(settings.locale, { month: 'short' }) })
+        lastMonth = m
+        break
+      }
+    }
+  }
+
+  return { weeks, maxCount, monthLabels }
+})
+
+function heatmapCellColor(count: number, inYear: boolean): string {
+  if (!inYear) return 'transparent'
+  if (count === 0) return isDark.value ? '#27272a' : '#e4e4e7'
+  const max = yearHeatmapData.value.maxCount
+  const pct = count / max
+  if (pct <= 0.25) return isDark.value ? '#14532d' : '#bbf7d0'
+  if (pct <= 0.5)  return isDark.value ? '#166534' : '#4ade80'
+  if (pct <= 0.75) return isDark.value ? '#15803d' : '#22c55e'
+  return isDark.value ? '#16a34a' : '#16a34a'
+}
+
 // ──────────────────────────────────────────────────────────────
 // MONTHLY TAB DATA
 // ──────────────────────────────────────────────────────────────
@@ -960,6 +1020,50 @@ watch(yearViewYear, y => {
                 </tr>
               </tbody>
             </table>
+          </div>
+          <!-- Transaction Heatmap -->
+          <div class="reports-card reports-card-span3">
+            <h3 class="reports-card-title">Transaction Activity — {{ yearViewYear }}</h3>
+            <div v-if="yearViewTxCount === 0" class="rpt-empty">No transactions for {{ yearViewYear }}.</div>
+            <div v-else class="rpt-heatmap">
+              <!-- Month labels -->
+              <div class="rpt-heatmap-months">
+                <span
+                  v-for="ml in yearHeatmapData.monthLabels"
+                  :key="ml.week"
+                  class="rpt-heatmap-month-label"
+                  :style="{ gridColumnStart: ml.week + 1 }"
+                >{{ ml.label }}</span>
+              </div>
+              <!-- Day rows (Sun–Sat) -->
+              <div class="rpt-heatmap-grid">
+                <div
+                  v-for="(week, wi) in yearHeatmapData.weeks"
+                  :key="wi"
+                  class="rpt-heatmap-col"
+                >
+                  <div
+                    v-for="(day, di) in week"
+                    :key="di"
+                    class="rpt-heatmap-cell"
+                    :style="{ background: heatmapCellColor(day.count, day.inYear) }"
+                    :title="day.date ? (day.count > 0 ? day.date + ': ' + day.count + ' transaction' + (day.count !== 1 ? 's' : '') : day.date + ': no transactions') : ''"
+                    @click="day.date && day.count > 0 && goTx({ month: day.date })"
+                    :class="{ 'rpt-heatmap-cell--clickable': day.date && day.count > 0 }"
+                  />
+                </div>
+              </div>
+              <!-- Legend -->
+              <div class="rpt-heatmap-legend">
+                <span class="rpt-heatmap-legend-label">Less</span>
+                <div class="rpt-heatmap-cell" :style="{ background: heatmapCellColor(0, true) }" />
+                <div class="rpt-heatmap-cell" :style="{ background: heatmapCellColor(Math.ceil(yearHeatmapData.maxCount * 0.25), true) }" />
+                <div class="rpt-heatmap-cell" :style="{ background: heatmapCellColor(Math.ceil(yearHeatmapData.maxCount * 0.5), true) }" />
+                <div class="rpt-heatmap-cell" :style="{ background: heatmapCellColor(Math.ceil(yearHeatmapData.maxCount * 0.75), true) }" />
+                <div class="rpt-heatmap-cell" :style="{ background: heatmapCellColor(yearHeatmapData.maxCount, true) }" />
+                <span class="rpt-heatmap-legend-label">More</span>
+              </div>
+            </div>
           </div>
         </div>
       </template>
