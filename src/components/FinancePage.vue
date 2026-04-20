@@ -293,18 +293,17 @@ interface SavStats {
 
 function savStats(sav: SavingsAccountRecord): SavStats {
   const freqMap: Record<string, number> = { monthly: 12, quarterly: 4, annually: 1 }
-  const ppy   = freqMap[sav.compoundFreq]
-  const r     = sav.apr / 100 / ppy
-  const ppm   = ppy / 12
+  const ppy = freqMap[sav.compoundFreq]
+  const r   = sav.apr / 100 / ppy
 
-  const start   = new Date(sav.startDate + 'T00:00:00')
-  const now     = new Date()
-  const elapsed = Math.max(0, (now.getFullYear() - start.getFullYear()) * 12 + now.getMonth() - start.getMonth())
+  const start        = new Date(sav.startDate + 'T00:00:00')
+  const elapsedDays  = Math.max(0, (Date.now() - start.getTime()) / 86400000)
+  const elapsedPeriods = elapsedDays / 365.25 * ppy
 
-  const projectedNow  = Math.round(sav.startBalance * Math.pow(1 + r, elapsed * ppm) * 100) / 100
+  const projectedNow   = Math.round(sav.startBalance * Math.pow(1 + r, elapsedPeriods) * 100) / 100
   const interestEarned = Math.round((projectedNow - sav.startBalance) * 100) / 100
-  const proj5y  = Math.round(sav.startBalance * Math.pow(1 + r, 60  * ppm) * 100) / 100
-  const proj10y = Math.round(sav.startBalance * Math.pow(1 + r, 120 * ppm) * 100) / 100
+  const proj5y  = Math.round(sav.startBalance * Math.pow(1 + r, 5  * ppy) * 100) / 100
+  const proj10y = Math.round(sav.startBalance * Math.pow(1 + r, 10 * ppy) * 100) / 100
   const actualBalance = sav.linkedAccountId ? store.accountNetBalance(sav.linkedAccountId) : null
 
   return { projectedNow, interestEarned, actualBalance, proj5y, proj10y }
