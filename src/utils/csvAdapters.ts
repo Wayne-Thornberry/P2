@@ -83,6 +83,7 @@ export type MultiCsvResult = {
 import boiAdapter from './adapters/boiAdapter';
 import revolutAdapter from './adapters/revolutAdapter';
 import sebAdapter from './adapters/sebAdapter';
+import kandusBankinAdapter from './adapters/kandusBankinAdapter';
 import genericAdapter from './adapters/genericAdapter.ts';
 import { detectDelimiter, splitCsvLine } from './csvUtils';
 
@@ -90,6 +91,7 @@ export const CSV_ADAPTERS: readonly CsvAdapter[] = [
   boiAdapter,
   revolutAdapter,
   sebAdapter,
+  kandusBankinAdapter,
   genericAdapter, // Must remain last — lowest-confidence fallback
 ];
 

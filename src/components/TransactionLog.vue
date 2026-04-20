@@ -1152,6 +1152,9 @@ const historyExpanded = ref(false)
                 <td class="tx-col-notes" :title="tx.notes">{{ tx.notes ?? '' }}</td>
                 <td class="tx-created-at">{{ formatCreatedAt(tx.createdAt) }}</td>
                 <td class="tx-col-action" @click.stop>
+                  <button class="tx-edit-btn" title="Edit" @click.stop="startEdit(tx)">
+                    <i class="pi pi-pencil" />
+                  </button>
                   <button class="tx-flag-btn" :class="{ 'tx-flag-btn--active': tx.flagged }" title="Flag / unflag" @click.stop="store.patchTransaction(tx.id, { flagged: !tx.flagged })">
                     <i class="pi" :class="tx.flagged ? 'pi-flag-fill' : 'pi-flag'" />
                   </button>
