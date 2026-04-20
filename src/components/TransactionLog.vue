@@ -602,6 +602,28 @@ async function deleteSelected(): Promise<void> {
   clearSelection()
 }
 
+const copyFeedback = ref(false)
+async function copySelected(): Promise<void> {
+  const rows = selectedTransactions.value
+  if (!rows.length) return
+  const header = ['Date', 'Name', 'Type', 'Amount', 'Account', 'Item', 'Notes']
+  const lines  = rows.map(t => [
+    t.date,
+    t.name,
+    t.type,
+    t.amount.toFixed(2),
+    getAccountName(t.accountId),
+    getItemName(t.itemId),
+    t.notes ?? '',
+  ].map(v => (String(v).includes('\t') ? `"${v}"` : v)).join('\t'))
+  const text = [header.join('\t'), ...lines].join('\n')
+  try {
+    await navigator.clipboard.writeText(text)
+    copyFeedback.value = true
+    setTimeout(() => { copyFeedback.value = false }, 1800)
+  } catch { /* clipboard unavailable */ }
+}
+
 
 // ── Bulk actions ───────────────────────────────────────────────
 const bulkItemIdStr    = ref('')
@@ -886,6 +908,9 @@ const historyExpanded = ref(false)
         <span class="tx-bulk-sep" />
 
         <!-- Actions -->
+        <button class="tx-bulk-copy-btn" @click="copySelected" :title="copyFeedback ? 'Copied!' : 'Copy to clipboard'">
+          <i :class="copyFeedback ? 'pi pi-check' : 'pi pi-copy'" /> {{ copyFeedback ? 'Copied!' : 'Copy' }}
+        </button>
         <button class="tx-bulk-delete-btn" @click="deleteSelected">
           <i class="pi pi-trash" /> Delete
         </button>

@@ -286,6 +286,25 @@
   background: #2563eb;
 }
 
+.tx-bulk-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.6rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.25rem 0.55rem;
+  border: 2px solid var(--color-zinc-300);
+  color: var(--color-zinc-600);
+  background: none;
+  cursor: pointer;
+  transition: background-color 0.12s, color 0.12s, border-color 0.12s;
+}
+.dark .tx-bulk-copy-btn { border-color: var(--color-zinc-600); color: var(--color-zinc-400); }
+.tx-bulk-copy-btn:hover { background-color: var(--color-zinc-100); color: var(--color-zinc-900); }
+.dark .tx-bulk-copy-btn:hover { background-color: var(--color-zinc-800); color: var(--color-zinc-100); }
+
 .tx-bulk-delete-btn {
   display: inline-flex;
   align-items: center;
