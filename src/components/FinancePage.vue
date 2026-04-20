@@ -274,6 +274,7 @@ function loanStats(loan: LoanRecord): LoanStats {
   const scheduledPct          = Math.min(100, Math.round((paidOff / loan.termMonths) * 100))
 
   // Actual-payment-aware figures when a linked account exists
+  // Drive entirely from transactions — don't use elapsed months so same-month payments work
   let actualBalance: number | null = null
   let interestPaid = scheduledInterestPaid
   let pct          = scheduledPct
@@ -288,24 +289,34 @@ function loanStats(loan: LoanRecord): LoanStats {
       }
     }
 
-    const r = loan.apr / 100 / 12
-    let balance = loan.principal
-    let intAcc  = 0
+    if (payByMonth.size > 0) {
+      const r      = loan.apr / 100 / 12
+      let balance  = loan.principal
+      let intAcc   = 0
+      const nowYM  = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+      const cursor = new Date(start)
 
-    for (let i = 0; i < paidOff && balance > 0.005; i++) {
-      const d = new Date(start)
-      d.setMonth(d.getMonth() + i + 1)
-      const ym      = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-      const payment = payByMonth.get(ym) ?? monthly   // fall back to scheduled if no tx recorded
-      const interest       = balance * r
-      const principalPaid  = Math.max(0, Math.min(payment - interest, balance))
-      intAcc  += interest
-      balance  = Math.max(0, balance - principalPaid)
+      // Walk every month from loan start through today, apply actual payments
+      for (let i = 0; i <= loan.termMonths && balance > 0.005; i++) {
+        const ym = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`
+        if (ym > nowYM) break
+        const payment = payByMonth.get(ym) ?? 0
+        if (payment > 0) {
+          const interest      = balance * r
+          const principalPaid = Math.max(0, Math.min(payment - interest, balance))
+          intAcc  += interest
+          balance  = Math.max(0, balance - principalPaid)
+        }
+        cursor.setMonth(cursor.getMonth() + 1)
+      }
+
+      actualBalance = Math.round(balance * 100) / 100
+      interestPaid  = Math.round(intAcc * 100) / 100
+      pct           = Math.min(100, Math.round(((loan.principal - actualBalance) / loan.principal) * 100))
+    } else {
+      // No payments recorded yet — show the opening balance
+      actualBalance = loan.principal
     }
-
-    actualBalance = Math.round(balance * 100) / 100
-    interestPaid  = Math.round(intAcc * 100) / 100
-    pct           = Math.min(100, Math.round(((loan.principal - actualBalance) / loan.principal) * 100))
   }
 
   const remaining = loan.termMonths - paidOff
