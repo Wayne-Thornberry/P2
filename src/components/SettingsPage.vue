@@ -7,13 +7,16 @@ import { useAccountStore } from '../stores/accountStore'
 import { useTemplateStore } from '../stores/templateStore'
 import { generateBudgetItems } from '../data/budgetSeedData'
 import { BUDGET_TEMPLATE } from '../data/budgetTemplate'
-import { downloadExport, importFromFile } from '../utils/persistence'
+import { downloadExport, importFromFile, downloadAllCountries } from '../utils/persistence'
+import { getCountryById } from '../data/countries'
+import { useConfirm } from '../composables/useConfirm'
 
 const settings       = useSettingsStore()
 const budgetStore    = useBudgetStore()
 const txnStore       = useTransactionStore()
 const accountStore   = useAccountStore()
 const templateStore  = useTemplateStore()
+const { confirm }    = useConfirm()
 
 // ── Data export / import ──────────────────────────────────────
 const importError   = ref<string | null>(null)
@@ -46,10 +49,20 @@ function handleImportClick(): void {
   input.click()
 }
 
-function clearAllData(): void {
-  if (!confirm('This will permanently delete all accounts, transactions, budget items, and templates. Settings will be kept. This cannot be undone. Continue?')) return
-  const keys = ['clearbook_accounts', 'clearbook_transactions', 'clearbook_budget', 'clearbook_template']
-  for (const key of keys) localStorage.removeItem(key)
+async function clearAllData(): Promise<void> {
+  const ok = await confirm({
+    title: 'Delete all data?',
+    message: 'This will permanently delete all accounts, transactions, budget items, templates, savings goals and import history for the current country. Settings will be kept.\n\nThis cannot be undone.',
+    confirmLabel: 'Delete Everything',
+    danger: true,
+  })
+  if (!ok) return
+  const country = settings.country
+  const dataSuffixes = ['accounts', 'transactions', 'budget', 'template', 'savings_goals', 'import_history']
+  for (const suffix of dataSuffixes) {
+    if (country) localStorage.removeItem(`clearbook_${suffix}_${country}`)
+    localStorage.removeItem(`clearbook_${suffix}`)
+  }
   window.location.reload()
 }
 
@@ -217,24 +230,8 @@ function generateTransactions(): void {
   _flashMsg(msgTx, `${totalAdded} transaction${totalAdded !== 1 ? 's' : ''} added for ${label}.`)
 }
 
-// ── Balance cutoff helpers ───────────────────────────────────
-const cutoffTransactionCount = computed(() => {
-  const c = settings.balanceCutoffDate
-  if (!c) return txnStore.transactions.length
-  return txnStore.transactions.filter(t => t.date >= c).length
-})
+// ── Balance cutoff helpers removed — cutoff is now a pin on a transaction row ──
 
-const cutoffSumPreview = computed(() => {
-  const c = settings.balanceCutoffDate
-  const txs = c ? txnStore.transactions.filter(t => t.date >= c) : txnStore.transactions
-  const sum = Math.round(txs.reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0) * 100) / 100
-  return c ? Math.round((settings.openingBalance + sum) * 100) / 100 : sum
-})
-
-function clearCutoff(): void {
-  settings.balanceCutoffDate = ''
-  settings.openingBalance    = 0
-}
 const LOCALES = [
   { value: 'en-US', label: 'English (United States)' },
   { value: 'en-GB', label: 'English (United Kingdom)' },
@@ -425,6 +422,30 @@ const previewCreated  = computed(() => settings.formatCreatedAt(PREVIEW_ISO))
       </div>
     </div>
 
+    <!-- Country ─────────────────────────────────────────────── -->
+    <div class="settings-section">
+      <h2 class="settings-section-title">Country &amp; Currency</h2>
+      <div class="settings-row">
+        <div class="settings-label">
+          <span class="settings-label-text">Current country</span>
+          <span class="settings-label-hint">Determines currency, locale, and available bank imports</span>
+        </div>
+        <div class="settings-control settings-country-row">
+          <span class="settings-country-display">
+            <template v-if="getCountryById(settings.country)">
+              {{ getCountryById(settings.country)!.flag }}
+              {{ getCountryById(settings.country)!.name }}
+              &mdash; {{ getCountryById(settings.country)!.currency }}
+            </template>
+            <span v-else class="settings-label-hint">Not set</span>
+          </span>
+          <button class="debug-btn" @click="settings.country = ''">
+            Change Country
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Locale & Currency ───────────────────────────────────── -->
     <div class="settings-section">
       <h2 class="settings-section-title">Locale &amp; Currency</h2>
@@ -535,66 +556,6 @@ const previewCreated  = computed(() => settings.formatCreatedAt(PREVIEW_ISO))
       </div>
     </div>
 
-    <!-- Balance Cutoff ──────────────────────────────────────── -->
-    <div class="settings-section settings-section--full">
-      <h2 class="settings-section-title">Balance Cutoff</h2>
-      <p class="settings-section-hint">
-        If you have imported historical transactions that don't reflect your real current balance
-        (e.g. a data gap between years), set a cutoff date and enter your known opening balance
-        as of that date. <strong>Total Funds Available</strong> will then be calculated as:
-        <em>Opening Balance + sum of all transactions on or after the cutoff date</em>.
-        Leave blank to use the all-time total (default).
-      </p>
-
-      <div class="settings-row">
-        <div class="settings-label">
-          <span class="settings-label-text">Cutoff Date</span>
-          <span class="settings-label-hint">Only transactions on or after this date count toward Total Funds.</span>
-        </div>
-        <div class="settings-control settings-cutoff-row">
-          <input
-            type="date"
-            class="settings-input"
-            :value="settings.balanceCutoffDate"
-            @change="settings.balanceCutoffDate = ($event.target as HTMLInputElement).value"
-          />
-          <button v-if="settings.balanceCutoffDate" class="debug-btn debug-btn-danger" @click="clearCutoff">
-            <i class="pi pi-times text-xs" /> Clear Cutoff
-          </button>
-        </div>
-      </div>
-
-      <div class="settings-row" v-if="settings.balanceCutoffDate">
-        <div class="settings-label">
-          <span class="settings-label-text">Opening Balance</span>
-          <span class="settings-label-hint">Your known account balance as of the cutoff date (can be negative).</span>
-        </div>
-        <div class="settings-control">
-          <input
-            type="number"
-            step="0.01"
-            class="settings-input"
-            style="max-width:12rem"
-            :value="settings.openingBalance"
-            @change="settings.openingBalance = parseFloat(($event.target as HTMLInputElement).value) || 0"
-          />
-        </div>
-      </div>
-
-      <div v-if="settings.balanceCutoffDate" class="settings-cutoff-preview">
-        <i class="pi pi-info-circle" />
-        <span>
-          <strong>{{ cutoffTransactionCount }}</strong> transaction{{ cutoffTransactionCount === 1 ? '' : 's' }}
-          on or after {{ settings.balanceCutoffDate }}.
-          Calculated Total Funds: <strong :class="cutoffSumPreview >= 0 ? 'money-positive' : 'money-negative'">{{ settings.formatMoney(cutoffSumPreview) }}</strong>
-        </span>
-      </div>
-      <div v-else class="settings-cutoff-preview settings-cutoff-preview--off">
-        <i class="pi pi-info-circle" />
-        No cutoff set — all <strong>{{ txnStore.transactions.length }}</strong> transactions are included in Total Funds.
-      </div>
-    </div>
-
     <!-- Data ────────────────────────────────────────────────── -->
     <div class="settings-section">
       <h2 class="settings-section-title">Data</h2>
@@ -602,12 +563,25 @@ const previewCreated  = computed(() => settings.formatCreatedAt(PREVIEW_ISO))
       <div class="settings-row">
         <div class="settings-label">
           <span class="settings-label-text">Export</span>
-          <span class="settings-label-hint">Download all data (accounts, transactions, budget, template, settings) as a single JSON backup file.</span>
+          <span class="settings-label-hint">Download all data for the current country as a JSON backup file.</span>
         </div>
         <div class="settings-control">
           <button class="debug-btn" @click="handleExport">
             <i class="pi pi-download text-xs mr-1.5" />
             Export Backup
+          </button>
+        </div>
+      </div>
+
+      <div class="settings-row">
+        <div class="settings-label">
+          <span class="settings-label-text">Export All Countries</span>
+          <span class="settings-label-hint">Download one JSON backup file per country that has data stored on this device.</span>
+        </div>
+        <div class="settings-control">
+          <button class="debug-btn" @click="downloadAllCountries">
+            <i class="pi pi-download text-xs mr-1.5" />
+            Download All Countries
           </button>
         </div>
       </div>

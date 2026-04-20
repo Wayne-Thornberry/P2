@@ -13,4 +13,5 @@ export interface Transaction {
   itemId: number | null   // null = N/A
   accountId: string | null
   notes?: string          // optional memo
+  flagged?: boolean       // user-set flag
 }

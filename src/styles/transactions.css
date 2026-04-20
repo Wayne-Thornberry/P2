@@ -1218,6 +1218,7 @@
 }
 
 /* Column sizes */
+.tx-col-markers { width: 2rem; text-align: center; resize: none; padding: 0 !important; }
 .tx-col-date    { width: 9rem; white-space: nowrap; }
 .tx-col-money   { width: 8.5rem; text-align: right; font-family: monospace; font-variant-numeric: tabular-nums; }
 .tx-col-balance { width: 8.5rem; text-align: right; font-family: monospace; font-variant-numeric: tabular-nums; font-weight: 600; font-size: 0.8rem; border-left: 1px solid var(--color-zinc-200); padding-left: 0.65rem !important; }
@@ -1227,8 +1228,75 @@
 .tx-col-notes   { width: 14rem; font-size: 0.78rem; color: var(--color-zinc-500); }
 .dark .tx-col-notes { color: var(--color-zinc-400); }
 .tx-col-added   { width: 10rem; }
-.tx-col-action  { width: 2.5rem; text-align: center; resize: none; }
+.tx-col-action  { width: 4.5rem; text-align: center; resize: none; }
 .tx-col-check   { width: 2.5rem; text-align: center; resize: none; }
+
+/* Balance column — dimmed when outside cutoff window */
+.tx-balance-hidden {
+  color: var(--color-zinc-400) !important;
+  font-style: italic;
+}
+.dark .tx-balance-hidden { color: var(--color-zinc-600) !important; }
+
+/* Cutoff pin row — top border marks where balance restarts */
+.tx-row-cutoff > td {
+  border-top: 2px solid #f59e0b !important;
+}
+
+/* Flagged row — subtle amber tint */
+.tx-row-flagged {
+  background-color: rgba(245, 158, 11, 0.06) !important;
+}
+.dark .tx-row-flagged {
+  background-color: rgba(245, 158, 11, 0.10) !important;
+}
+
+/* Pin button */
+.tx-pin-btn {
+  background: none;
+  border: none;
+  padding: 0.15rem 0.3rem;
+  cursor: pointer;
+  color: var(--color-zinc-300);
+  font-size: 0.65rem;
+  opacity: 0;
+  transition: opacity 0.1s, color 0.1s;
+  line-height: 1;
+}
+.tx-row:hover .tx-pin-btn,
+.tx-pending-row .tx-pin-btn {
+  opacity: 1;
+}
+.tx-pin-btn--active {
+  color: #f59e0b !important;
+  opacity: 1 !important;
+}
+.tx-pin-btn:hover {
+  color: #f59e0b;
+}
+
+/* Flag button */
+.tx-flag-btn {
+  background: none;
+  border: none;
+  padding: 0.15rem 0.2rem;
+  cursor: pointer;
+  color: var(--color-zinc-400);
+  font-size: 0.6rem;
+  opacity: 0;
+  transition: opacity 0.1s, color 0.1s;
+  line-height: 1;
+}
+.tx-row:hover .tx-flag-btn {
+  opacity: 1;
+}
+.tx-flag-btn--active {
+  color: #f59e0b !important;
+  opacity: 1 !important;
+}
+.tx-flag-btn:hover {
+  color: #f59e0b;
+}
 
 
 .tx-created-at {

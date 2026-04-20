@@ -5,6 +5,7 @@ import { useSettingsStore } from '../stores/settingsStore'
 import { useTransactionStore } from '../stores/transactionStore'
 import { useMoneyInput } from '../composables/useMoneyInput'
 import { getTodayStr } from '../utils/date'
+import { SUPPORTED_COUNTRIES, getCountryById } from '../data/countries'
 
 const accountStore = useAccountStore()
 const settings     = useSettingsStore()
@@ -149,26 +150,7 @@ function commitReconcile(id: string): void {
   cancelReconcile()
 }
 
-// ── Quick Add: Irish Banks ─────────────────────────────────────
-interface IrishBank {
-  id: string
-  abbr: string
-  name: string
-  color: string
-  prefix: string
-}
-
-const IRISH_BANKS: IrishBank[] = [
-  { id: 'boi',    abbr: 'BOI',  name: 'Bank of Ireland', color: '#003B6F', prefix: 'BOI'          },
-  { id: 'aib',    abbr: 'AIB',  name: 'AIB',             color: '#007B5E', prefix: 'AIB'          },
-  { id: 'ptsb',   abbr: 'PTSB', name: 'Permanent TSB',   color: '#006B3F', prefix: 'PTSB'         },
-  { id: 'anpost', abbr: 'AP',   name: 'An Post',         color: '#CC1A1A', prefix: 'An Post'      },
-  { id: 'cu',     abbr: 'CU',   name: 'Credit Union',    color: '#003B8E', prefix: 'Credit Union' },
-  { id: 'rev',    abbr: 'R',    name: 'Revolut',         color: '#191C1F', prefix: 'Revolut'      },
-  { id: 'n26',    abbr: 'N26',  name: 'N26',             color: '#23B07D', prefix: 'N26'          },
-  { id: 'wise',   abbr: 'W',    name: 'Wise',            color: '#00B9A0', prefix: 'Wise'         },
-]
-
+// ── Quick Add: banks for the user's country ───────────────────
 const ACCOUNT_TYPES = [
   'Current Account',
   'Savings Account',
@@ -178,9 +160,11 @@ const ACCOUNT_TYPES = [
   'Loan Account',
 ]
 
-const selectedBank = ref<IrishBank | null>(null)
+const userCountry = computed(() => getCountryById(settings.country) ?? null)
 
-function selectBank(bank: IrishBank): void {
+const selectedBank = ref<(typeof SUPPORTED_COUNTRIES[0]['banks'][0]) | null>(null)
+
+function selectBank(bank: typeof SUPPORTED_COUNTRIES[0]['banks'][0]): void {
   selectedBank.value = selectedBank.value?.id === bank.id ? null : bank
 }
 
@@ -192,7 +176,7 @@ function getNextAccountName(baseName: string): string {
   return `${baseName} (${n})`
 }
 
-function quickAddAccount(bank: IrishBank, type: string): void {
+function quickAddAccount(bank: typeof SUPPORTED_COUNTRIES[0]['banks'][0], type: string): void {
   const name = getNextAccountName(`${bank.prefix} ${type}`)
   const id   = accountStore.addAccount(name)
   openingBalanceAccountId.value = id
@@ -246,6 +230,8 @@ function quickAddAccount(bank: IrishBank, type: string): void {
               <span class="accounts-row-meta">{{ accountTxCount(acc.id) }} transaction{{ accountTxCount(acc.id) !== 1 ? 's' : '' }}</span>
             </template>
           </div>
+
+          <!-- Currency select -->
 
           <!-- Balance -->
           <span
@@ -355,38 +341,41 @@ function quickAddAccount(bank: IrishBank, type: string): void {
       </div>
     </div>
 
-    <!-- Quick Add from Irish Banks -->
+    <!-- Quick Add: banks for your country -->
     <div class="settings-section">
       <p class="settings-section-title">Quick Add</p>
-      <div class="bank-picker-grid">
-        <button
-          v-for="bank in IRISH_BANKS"
-          :key="bank.id"
-          class="bank-tile"
-          :class="{ 'bank-tile--active': selectedBank?.id === bank.id }"
-          :style="{ '--bank-color': bank.color }"
-          :title="bank.name"
-          @click="selectBank(bank)"
-        >
-          <span class="bank-tile-badge">{{ bank.abbr }}</span>
-          <span class="bank-tile-name">{{ bank.name }}</span>
-        </button>
-      </div>
-      <Transition name="slide-down">
-        <div v-if="selectedBank" class="bank-type-picker">
-          <span class="bank-type-label">Add {{ selectedBank.name }} account</span>
-          <div class="bank-type-btns">
-            <button
-              v-for="type in ACCOUNT_TYPES"
-              :key="type"
-              class="acct-btn bank-type-btn"
-              @click="quickAddAccount(selectedBank, type)"
-            >
-              {{ type }}
-            </button>
-          </div>
+      <div v-if="!userCountry" class="accounts-empty">No country configured. Check Settings.</div>
+      <template v-else>
+        <div class="bank-picker-grid">
+          <button
+            v-for="bank in userCountry.banks"
+            :key="bank.id"
+            class="bank-tile"
+            :class="{ 'bank-tile--active': selectedBank?.id === bank.id }"
+            :style="{ '--bank-color': bank.color }"
+            :title="bank.name"
+            @click="selectBank(bank)"
+          >
+            <span class="bank-tile-badge">{{ bank.abbr }}</span>
+            <span class="bank-tile-name">{{ bank.name }}</span>
+          </button>
         </div>
-      </Transition>
+        <Transition name="slide-down">
+          <div v-if="selectedBank" class="bank-type-picker">
+            <span class="bank-type-label">Add {{ selectedBank.name }} account</span>
+            <div class="bank-type-btns">
+              <button
+                v-for="type in ACCOUNT_TYPES"
+                :key="type"
+                class="acct-btn bank-type-btn"
+                @click="quickAddAccount(selectedBank, type)"
+              >
+                {{ type }}
+              </button>
+            </div>
+          </div>
+        </Transition>
+      </template>
     </div>
 
   </div>

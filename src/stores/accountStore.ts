@@ -2,28 +2,54 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import type { Account } from '../types/transaction'
 import { useTransactionStore } from './transactionStore'
+import { useSettingsStore } from './settingsStore'
 
 let _nextAccId = 10
 
 export const useAccountStore = defineStore('accounts', () => {
-  const _saved = (() => {
+  const settings = useSettingsStore()
+
+  function _key(): string {
+    return settings.country ? `clearbook_accounts_${settings.country}` : 'clearbook_accounts'
+  }
+
+  function _load() {
     try {
-      let raw = localStorage.getItem('clearbook_accounts')
+      const key = _key()
+      let raw = localStorage.getItem(key)
+      // One-time migration from bare key for existing installs
+      if (raw === null && settings.country) {
+        raw = localStorage.getItem('clearbook_accounts')
+        if (raw !== null) {
+          localStorage.setItem(key, raw)
+          localStorage.removeItem('clearbook_accounts')
+        }
+      }
       if (raw === null) {
         raw = localStorage.getItem('p2_accounts')
         if (raw !== null) localStorage.removeItem('p2_accounts')
       }
       return JSON.parse(raw ?? 'null')
     } catch { return null }
-  })()
+  }
+
+  const _saved = _load()
 
   // No default accounts — user adds their own (or uses Generate Sample Data)
   const accounts = ref<Account[]>(_saved?.accounts ?? [])
   if (_saved?.nextId != null) _nextAccId = _saved.nextId
 
   watch(accounts, (val) => {
-    localStorage.setItem('clearbook_accounts', JSON.stringify({ accounts: val, nextId: _nextAccId }))
+    localStorage.setItem(_key(), JSON.stringify({ accounts: val, nextId: _nextAccId }))
   }, { deep: true })
+
+  // Reload when country changes
+  watch(() => settings.country, (newCountry) => {
+    if (!newCountry) return
+    const saved = _load()
+    _nextAccId = saved?.nextId ?? 10
+    accounts.value = saved?.accounts ?? []
+  })
 
   function addAccount(name: string): string {
     const trimmed = name.trim()
@@ -48,12 +74,13 @@ export const useAccountStore = defineStore('accounts', () => {
     if (acc) acc.name = name.trim() || acc.name
   }
 
+
   function loadSeedData(): void {
     accounts.value = [
-      { id: 'acc-s1', name: 'Checking Account' },
-      { id: 'acc-s2', name: 'Savings Account' },
-      { id: 'acc-s3', name: 'Credit Card' },
-      { id: 'acc-s4', name: 'Cash' },
+      { id: 'acc-s1', name: 'Checking Account'  },
+      { id: 'acc-s2', name: 'Savings Account'   },
+      { id: 'acc-s3', name: 'Credit Card'        },
+      { id: 'acc-s4', name: 'Cash'               },
       { id: 'acc-s5', name: 'Investment Account' },
     ]
   }

@@ -11,6 +11,7 @@ import { getTodayStr } from '../utils/date'
 import Toast from 'primevue/toast'
 import BudgetTable from './BudgetTable.vue'
 import AssignPanel from './AssignPanel.vue'
+import { useConfirm } from '../composables/useConfirm'
 
 const store        = useBudgetStore()
 const txStore      = useTransactionStore()
@@ -18,6 +19,7 @@ const monthStore   = useMonthStore()
 const settings     = useSettingsStore()
 const accountStore = useAccountStore()
 const toast        = useToast()
+const { confirm }  = useConfirm()
 
 const isMonthEmpty = computed(() => store.items.length === 0)
 
@@ -43,9 +45,15 @@ function cancelAddCategory(): void {
   addingCategory.value = false
 }
 
-function handlePopulateTemplate(): void {
+async function handlePopulateTemplate(): Promise<void> {
   if (!isMonthEmpty.value) {
-    if (!confirm(`This will replace all ${store.items.length} item(s) for ${monthStore.label} with the default template. Continue?`)) return
+    const ok = await confirm({
+      title: 'Apply template?',
+      message: `This will replace all ${store.items.length} item(s) for ${monthStore.label} with the default template.`,
+      confirmLabel: 'Apply',
+      danger: true,
+    })
+    if (!ok) return
   }
   store.populateFromTemplate()
   toast.add({ severity: 'success', summary: 'Template applied', detail: `Budget populated for ${monthStore.label}.`, life: 3000 })
@@ -198,17 +206,29 @@ function fundFully(): void {
   toast.add({ severity: 'success', summary: 'Funded', detail: `${rows.length} item${rows.length !== 1 ? 's' : ''} fully funded.`, life: 3000 })
 }
 
-function handleDeleteItem(id: number): void {
+async function handleDeleteItem(id: number): Promise<void> {
   const item = store.items.find(i => i.id === id)
   if (!item) return
-  if (!confirm(`Remove "${item.name}" from ${monthStore.label}? This only affects this month.`)) return
+  const ok = await confirm({
+    title: 'Remove item?',
+    message: `Remove "${item.name}" from ${monthStore.label}? This only affects this month.`,
+    confirmLabel: 'Remove',
+    danger: true,
+  })
+  if (!ok) return
   store.deleteItem(id)
   toast.add({ severity: 'info', summary: 'Item removed', detail: `"${item.name}" removed from ${monthStore.label}.`, life: 3000 })
 }
 
-function handleDeleteCategory(category: string): void {
+async function handleDeleteCategory(category: string): Promise<void> {
   const count = store.items.filter(i => i.category === category).length
-  if (!confirm(`Remove the "${category}" category and all ${count} item${count !== 1 ? 's' : ''} from ${monthStore.label}? This only affects this month.`)) return
+  const ok = await confirm({
+    title: 'Remove category?',
+    message: `Remove the "${category}" category and all ${count} item${count !== 1 ? 's' : ''} from ${monthStore.label}? This only affects this month.`,
+    confirmLabel: 'Remove',
+    danger: true,
+  })
+  if (!ok) return
   store.deleteCategory(category)
   toast.add({ severity: 'info', summary: 'Category removed', detail: `"${category}" and ${count} item${count !== 1 ? 's' : ''} removed from ${monthStore.label}.`, life: 3000 })
 }

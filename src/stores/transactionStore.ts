@@ -7,23 +7,48 @@ import { useSettingsStore } from './settingsStore'
 let _nextId = 500
 
 export const useTransactionStore = defineStore('transactions', () => {
-  const _saved = (() => {
+  const settings = useSettingsStore()
+
+  function _key(): string {
+    return settings.country ? `clearbook_transactions_${settings.country}` : 'clearbook_transactions'
+  }
+
+  function _load() {
     try {
-      let raw = localStorage.getItem('clearbook_transactions')
+      const key = _key()
+      let raw = localStorage.getItem(key)
+      // One-time migration from bare key for existing installs
+      if (raw === null && settings.country) {
+        raw = localStorage.getItem('clearbook_transactions')
+        if (raw !== null) {
+          localStorage.setItem(key, raw)
+          localStorage.removeItem('clearbook_transactions')
+        }
+      }
       if (raw === null) {
         raw = localStorage.getItem('p2_transactions')
         if (raw !== null) localStorage.removeItem('p2_transactions')
       }
       return JSON.parse(raw ?? 'null')
     } catch { return null }
-  })()
+  }
+
+  const _saved = _load()
 
   const transactions = ref<Transaction[]>(_saved?.transactions ?? [])
   if (_saved?.nextId != null) _nextId = _saved.nextId
 
   watch(transactions, (val) => {
-    localStorage.setItem('clearbook_transactions', JSON.stringify({ transactions: val, nextId: _nextId }))
+    localStorage.setItem(_key(), JSON.stringify({ transactions: val, nextId: _nextId }))
   }, { deep: true })
+
+  // Reload when country changes
+  watch(() => settings.country, (newCountry) => {
+    if (!newCountry) return
+    const saved = _load()
+    _nextId = saved?.nextId ?? 500
+    transactions.value = saved?.transactions ?? []
+  })
 
   function addTransaction(t: Omit<Transaction, 'id' | 'createdAt'>): void {
     transactions.value.unshift({
@@ -73,17 +98,25 @@ export const useTransactionStore = defineStore('transactions', () => {
   }
 
   // Running balance across all accounts, respecting optional balance cutoff setting.
-  // When a cutoff date is set: totalFunds = openingBalance + sum of transactions on/after that date.
+  // When a cutoff tx is pinned: totalFunds = sum of transactions from that tx's date onwards.
   // When no cutoff: all-time sum (original behaviour).
   const totalFunds = computed(() => {
-    const settings = useSettingsStore()
-    const cutoff = settings.balanceCutoffDate
-    const txs = cutoff
-      ? transactions.value.filter(t => t.date >= cutoff)
-      : transactions.value
-    const sum = Math.round(txs.reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0) * 100) / 100
-    return cutoff ? Math.round((settings.openingBalance + sum) * 100) / 100 : sum
+    const cutoffTxId = settings.balanceCutoffTxId
+    if (!cutoffTxId) {
+      return Math.round(transactions.value.reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0) * 100) / 100
+    }
+    const pinnedTx = transactions.value.find(t => t.id === cutoffTxId)
+    if (!pinnedTx) {
+      return Math.round(transactions.value.reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0) * 100) / 100
+    }
+    const txs = transactions.value.filter(t => t.date >= pinnedTx.date)
+    return Math.round(txs.reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0) * 100) / 100
   })
+
+  function patchTransaction(id: number, patch: Partial<Omit<Transaction, 'id' | 'createdAt'>>): void {
+    const tx = transactions.value.find(t => t.id === id)
+    if (tx) Object.assign(tx, patch)
+  }
 
   function addOpeningBalance(accountId: string, amount: number, date: string): void {
     if (amount === 0) return
@@ -114,5 +147,5 @@ export const useTransactionStore = defineStore('transactions', () => {
     }
   }
 
-  return { transactions, totalFunds, addTransaction, deleteTransaction, updateTransaction, addOpeningBalance, getItemActivity, getUnassignedActivity, unassignItem, loadSeedData, $import }
+  return { transactions, totalFunds, addTransaction, deleteTransaction, updateTransaction, patchTransaction, addOpeningBalance, getItemActivity, getUnassignedActivity, unassignItem, loadSeedData, $import }
 })
