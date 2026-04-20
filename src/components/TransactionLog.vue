@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import type { Transaction } from '../types/transaction'
 import { useTransactionStore } from '../stores/transactionStore'
 import { useAccountStore } from '../stores/accountStore'
@@ -602,6 +602,18 @@ async function deleteSelected(): Promise<void> {
   clearSelection()
 }
 
+// ── Duplicate selected ────────────────────────────────────────
+function duplicateSelected(): void {
+  const rows = selectedTransactions.value
+  for (const t of rows) {
+    store.addTransaction({
+      name: t.name, date: getTodayStr(), type: t.type,
+      amount: t.amount, itemId: t.itemId, accountId: t.accountId, notes: t.notes,
+    })
+  }
+  clearSelection()
+}
+
 const copyFeedback = ref(false)
 async function copySelected(): Promise<void> {
   const rows = selectedTransactions.value
@@ -624,6 +636,23 @@ async function copySelected(): Promise<void> {
   } catch { /* clipboard unavailable */ }
 }
 
+
+// ── Global keyboard handler (Enter=submit, Esc=cancel, even when focus is outside row)
+function handleGlobalKey(e: KeyboardEvent): void {
+  const active = document.activeElement
+  const inEditRow    = editRowRef.value?.contains(active) ?? false
+  const inPendingRow = (pendingRowRef.value as HTMLElement | null)?.contains(active) ?? false
+  if (inEditRow || inPendingRow) return // per-input @keydown handlers already cover this
+  if (e.key === 'Enter') {
+    if (editingId.value !== null) { e.preventDefault(); commitEdit() }
+    else if (pending.value) { e.preventDefault(); commitTransaction() }
+  } else if (e.key === 'Escape') {
+    if (editingId.value !== null) { e.preventDefault(); cancelEdit() }
+    else if (pending.value) { e.preventDefault(); cancelTransaction() }
+  }
+}
+onMounted(() => window.addEventListener('keydown', handleGlobalKey))
+onUnmounted(() => window.removeEventListener('keydown', handleGlobalKey))
 
 // ── Bulk actions ───────────────────────────────────────────────
 const bulkItemIdStr    = ref('')
@@ -911,6 +940,9 @@ const historyExpanded = ref(false)
         <button class="tx-bulk-copy-btn" @click="copySelected" :title="copyFeedback ? 'Copied!' : 'Copy to clipboard'">
           <i :class="copyFeedback ? 'pi pi-check' : 'pi pi-copy'" /> {{ copyFeedback ? 'Copied!' : 'Copy' }}
         </button>
+        <button class="tx-bulk-duplicate-btn" @click="duplicateSelected">
+          <i class="pi pi-clone" /> Duplicate
+        </button>
         <button class="tx-bulk-delete-btn" @click="deleteSelected">
           <i class="pi pi-trash" /> Delete
         </button>
@@ -918,6 +950,13 @@ const historyExpanded = ref(false)
           <i class="pi pi-times" /> Deselect
         </button>
 
+      </div>
+
+      <!-- Top toolbar: add transaction -->
+      <div class="tx-top-toolbar">
+        <button class="add-item-btn" :disabled="!!pending || editingId !== null" @click="startTransaction">
+          <i class="pi pi-plus" /> Add Transaction
+        </button>
       </div>
 
       <!-- Table -->
@@ -1087,9 +1126,8 @@ const historyExpanded = ref(false)
               <!-- Display row -->
               <tr
                 v-else
-                class="tx-row tx-row-clickable"
+                class="tx-row"
                 :class="{ 'tx-row-selected': isSelected(tx.id), 'tx-row-cutoff': tx.id === cutoffTxId, 'tx-row-flagged': tx.flagged }"
-                @click="startEdit(tx)"
               >
                 <td class="tx-col-markers" @click.stop>
                   <button class="tx-pin-btn" :class="{ 'tx-pin-btn--active': tx.id === cutoffTxId }" :title="tx.id === cutoffTxId ? 'Remove balance cutoff pin' : 'Pin: calculate balance from here'" @click.stop="setPinTx(tx.id)">
@@ -1312,9 +1350,6 @@ const historyExpanded = ref(false)
 
       <!-- Footer -->
       <div class="tx-footer">
-        <button class="add-item-btn" :disabled="!!pending || editingId !== null" @click="startTransaction">
-          <i class="pi pi-plus" /> Add Transaction
-        </button>
         <button class="tx-export-btn" @click="exportCsv" :title="selectedCount > 0 ? `Export ${selectedCount} selected` : `Export all ${totalCount} filtered`">
           <i class="pi pi-download" /> Export CSV{{ selectedCount > 0 ? ` (${selectedCount})` : '' }}
         </button>

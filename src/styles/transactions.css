@@ -1511,6 +1511,58 @@
 
 /* ── Footer ──────────────────────────────────────────────────── */
 
+/* Edit button (shown in action cell on hover) */
+.tx-edit-btn {
+  background: none;
+  border: none;
+  padding: 0.15rem 0.2rem;
+  cursor: pointer;
+  color: var(--color-zinc-400);
+  font-size: 0.6rem;
+  opacity: 0;
+  transition: opacity 0.1s, color 0.1s;
+  line-height: 1;
+}
+.tx-row:hover .tx-edit-btn {
+  opacity: 1;
+}
+.tx-edit-btn:hover {
+  color: #6366f1;
+}
+
+/* Top toolbar (Add Transaction) */
+.tx-top-toolbar {
+  display: flex;
+  align-items: center;
+  padding: 0.35rem 0.75rem;
+  background-color: var(--color-zinc-100);
+  border-bottom: 1px solid var(--color-zinc-300);
+}
+.dark .tx-top-toolbar {
+  background-color: var(--color-zinc-800);
+  border-bottom-color: var(--color-zinc-600);
+}
+
+/* Duplicate button in bulk bar */
+.tx-bulk-duplicate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.6rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.25rem 0.55rem;
+  border: 2px solid var(--color-zinc-300);
+  color: var(--color-zinc-600);
+  background: none;
+  cursor: pointer;
+  transition: background-color 0.12s, color 0.12s, border-color 0.12s;
+}
+.dark .tx-bulk-duplicate-btn { border-color: var(--color-zinc-600); color: var(--color-zinc-400); }
+.tx-bulk-duplicate-btn:hover { background-color: var(--color-zinc-100); color: var(--color-zinc-900); }
+.dark .tx-bulk-duplicate-btn:hover { background-color: var(--color-zinc-800); color: var(--color-zinc-100); }
+
 .tx-footer {
   display: flex;
   align-items: center;
