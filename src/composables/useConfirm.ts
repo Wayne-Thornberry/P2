@@ -1,4 +1,4 @@
-import { ref, shallowRef } from 'vue'
+import { shallowRef } from 'vue'
 
 export interface ConfirmOptions {
   title: string

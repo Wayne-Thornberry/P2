@@ -133,7 +133,6 @@ const boiAdapter: CsvAdapter = {
       // Backward from anchor toward end (older rows) — forward-calculate
       runningBalance = withBalance[anchorIdx].balance!;
       for (let i = anchorIdx + 1; i < withBalance.length; i++) {
-        const row = withBalance[i];
         // Balance BEFORE this (older) row = balance after anchor, minus net of rows between
         // Simpler: each step going older, undo the row above (newer)
         const prev = withBalance[i - 1];
