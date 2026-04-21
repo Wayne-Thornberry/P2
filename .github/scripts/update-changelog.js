@@ -1,14 +1,18 @@
 // Called by the release workflow to update CHANGELOG.md and write a release body.
 // Env vars expected: REPO, PREV_TAG, NEW_VERSION
-'use strict'
+import { execSync } from 'child_process'
+import { readFileSync, writeFileSync } from 'fs'
+import { join, dirname } from 'path'
+import { fileURLToPath } from 'url'
+import { createRequire } from 'module'
 
-const { execSync } = require('child_process')
-const fs = require('fs')
-const path = require('path')
+const __filename = fileURLToPath(import.meta.url)
+const __dirname  = dirname(__filename)
+const _require   = createRequire(import.meta.url)
 
 const repo       = process.env.REPO        || ''
 const prevTag    = process.env.PREV_TAG    || ''
-const newVersion = process.env.NEW_VERSION || require('../../package.json').version
+const newVersion = process.env.NEW_VERSION || _require('../../package.json').version
 const today      = new Date().toISOString().split('T')[0]
 
 // ── Collect commits since last tag ───────────────────────────────────────────
@@ -37,8 +41,8 @@ const newSection = [
 ].join('\n')
 
 // ── Update CHANGELOG.md ───────────────────────────────────────────────────────
-const changelogPath = path.join(__dirname, '../../CHANGELOG.md')
-let changelog = fs.readFileSync(changelogPath, 'utf8')
+const changelogPath = join(__dirname, '../../CHANGELOG.md')
+let changelog = readFileSync(changelogPath, 'utf8')
 
 // Insert new version section after the [Unreleased] separator
 if (changelog.includes('## [Unreleased]\n\n---\n\n')) {
@@ -65,7 +69,7 @@ changelog = changelog.replace(
   `${unreleasedLink}\n${versionLink}`
 )
 
-fs.writeFileSync(changelogPath, changelog)
+writeFileSync(changelogPath, changelog)
 console.log(`CHANGELOG.md updated for v${newVersion}`)
 
 // ── Write release body for GitHub Release ────────────────────────────────────
@@ -79,6 +83,6 @@ const bodyLines = [
   `See [CHANGELOG.md](https://github.com/${repo}/blob/main/CHANGELOG.md) for full history.`,
 ]
 
-const bodyPath = path.join(__dirname, '../release-body.md')
-fs.writeFileSync(bodyPath, bodyLines.join('\n'))
+const bodyPath = join(__dirname, '../release-body.md')
+writeFileSync(bodyPath, bodyLines.join('\n'))
 console.log('Release body written to .github/release-body.md')
