@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.0] - 2026-04-21
+
+### Changed
+- Merge branch 'main' of https://github.com/Wayne-Thornberry/P2
+- feat(transactions): add locking mechanism for transactions
+
+---
+
 ## [1.1.0] - 2026-04-21
 
 ### Changed
@@ -35,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed-position pagination navigation arrows in Transaction log
 - MIT License
 
-[Unreleased]: https://github.com/Wayne-Thornberry/P2/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/Wayne-Thornberry/P2/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/Wayne-Thornberry/P2/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/Wayne-Thornberry/P2/compare/v1.0.20...v1.1.0
 [1.0.0]: https://github.com/Wayne-Thornberry/P2/releases/tag/v1.0.0
