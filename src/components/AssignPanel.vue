@@ -89,10 +89,6 @@ const allCategories = computed<string[]>(() => {
   return result
 })
 
-function itemsInCategory(cat: string): BudgetItem[] {
-  return budgetStore.items.filter(i => i.category === cat)
-}
-
 const browseText        = ref('')
 const browseNewCategory = ref('')
 
@@ -132,7 +128,7 @@ function assign(itemId: number): void {
     itemId,
     accountId: tx.accountId,
   })
-  browseItemId.value = ''
+  browseText.value = ''
 
   // Look for other unassigned transactions with the same merchant name (fuzzy match across all months)
   const txClean = txFriendlyName(tx)

@@ -4,7 +4,6 @@ import { useBudgetStore } from '../stores/budgetStore'
 import { useTransactionStore } from '../stores/transactionStore'
 import { useMonthStore } from '../stores/monthStore'
 import { useSettingsStore } from '../stores/settingsStore'
-import { useAccountStore } from '../stores/accountStore'
 import type { BudgetItem, BudgetRow } from '../types/budget'
 import { useToast } from 'primevue/usetoast'
 import Toast from 'primevue/toast'
@@ -16,7 +15,6 @@ const store        = useBudgetStore()
 const txStore      = useTransactionStore()
 const monthStore   = useMonthStore()
 const settings     = useSettingsStore()
-const accountStore = useAccountStore()
 const toast        = useToast()
 const { confirm }  = useConfirm()
 const { budgetFunds, excludedAccountIds } = useBudgetFunds()
@@ -81,7 +79,7 @@ const excludedAccountCount = computed(() => excludedAccountIds.value.size)
 
 const monthlyNet = computed(() =>
   txStore.transactions
-    .filter(t => monthStore.matchesActive(t.date) && !excludedAccountIds.value.has(t.accountId))
+    .filter(t => monthStore.matchesActive(t.date) && (t.accountId === null || !excludedAccountIds.value.has(t.accountId)))
     .reduce((sum, t) => sum + (t.type === 'in' ? t.amount : -t.amount), 0)
 )
 

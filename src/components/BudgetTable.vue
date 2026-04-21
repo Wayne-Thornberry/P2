@@ -335,7 +335,7 @@ function onCellEditComplete(event: { data: BudgetItem; newData: BudgetItem; fiel
               v-if="data.activity !== 0"
               class="activity-unassign-btn"
               title="Unassign all transactions for this item"
-              @click.stop="fundingModal = { item: data, mode: 'refund', selectedAccountId: '', amount: 0 }"
+              @click.stop="fundingModal = { item: data, mode: 'refund' }"
             >
               <i class="pi pi-undo" />
             </button>

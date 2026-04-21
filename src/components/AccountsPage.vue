@@ -327,10 +327,6 @@ function cycleAccountType(id: string, current: 'asset' | 'savings' | 'liability'
   accountStore.updateAccount(id, { type: next, excludeFromBudget: undefined })
 }
 
-function setAccountType(id: string, type: 'asset' | 'savings' | 'liability'): void {
-  accountStore.updateAccount(id, { type, excludeFromBudget: undefined })
-}
-
 function setBankId(id: string, bankId: string): void {
   accountStore.updateAccount(id, { bankId: bankId || undefined })
 }
