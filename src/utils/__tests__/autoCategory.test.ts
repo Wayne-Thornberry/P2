@@ -4,7 +4,7 @@ import type { BudgetItem } from '../../types/budget'
 
 // Minimal BudgetItem factory
 function item(id: number, name: string, category = ''): BudgetItem {
-  return { id, name, category, assigned: 0 }
+  return { id, name, category, assigned: 0, activity: 0 }
 }
 
 const ITEMS: BudgetItem[] = [

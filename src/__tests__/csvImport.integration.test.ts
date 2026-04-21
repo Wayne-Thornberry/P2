@@ -29,12 +29,13 @@ function freshPinia() {
   return pinia
 }
 
-function dayBefore(iso: string): string {
+function _dayBefore(iso: string): string {
   const d = new Date(iso); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10)
 }
-function dayAfter(iso: string): string {
+function _dayAfter(iso: string): string {
   const d = new Date(iso); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10)
 }
+void _dayBefore; void _dayAfter
 
 /** Simulates the handleImport() logic from CsvImportDialog for a clean/new account. */
 function importClean(
@@ -154,8 +155,10 @@ describe('Import scenario C — two overlapping files dropped at once', () => {
 
   it('deduplicates rows shared between files', () => {
     const accStore = useAccountStore()
-    const txStore  = useTransactionStore()
-    const accId    = accStore.addAccount('Checking')
+    const _txStore  = useTransactionStore()
+    void _txStore
+    const _accId    = accStore.addAccount('Checking')
+    void _accId
 
     // JAN_FEB_OVERLAP has 2 Jan rows + 2 Feb rows
     // JAN_CSV has 3 Jan rows (2 of which match JAN_FEB_OVERLAP)
