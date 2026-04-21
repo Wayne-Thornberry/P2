@@ -158,8 +158,9 @@ function handleImport(): void {
   const newOldest = result.allRows[0]?.isoDate ?? ''
   const newNewest = result.allRows[result.allRows.length - 1]?.isoDate ?? ''
 
-  const isBackfill    = hasExisting && newNewest < earliestExisting
-  const hasForwardGap = hasExisting && newOldest > _dayAfter(latestExisting)
+  const isBackfill          = hasExisting && newNewest < earliestExisting
+  const isExtendingBackward = hasExisting && !isBackfill && newOldest < earliestExisting
+  const hasForwardGap       = hasExisting && newOldest > _dayAfter(latestExisting)
 
   // 3. Pre-compute forward gap amount using PRE-IMPORT balance
   let forwardGapAmount = 0
@@ -176,6 +177,12 @@ function handleImport(): void {
   // 4. Handle Opening Balance transaction
   if (isBackfill) {
     // Replace old (later) Opening Balance with the new, earlier one
+    if (existingOBTx) txStore.deleteTransaction(existingOBTx.id)
+    if (result.openingBalance !== null && result.openingDate) {
+      txStore.addOpeningBalance(accountId, result.openingBalance, result.openingDate)
+    }
+  } else if (isExtendingBackward) {
+    // New data starts before existing records but also overlaps — update OB to the earlier one
     if (existingOBTx) txStore.deleteTransaction(existingOBTx.id)
     if (result.openingBalance !== null && result.openingDate) {
       txStore.addOpeningBalance(accountId, result.openingBalance, result.openingDate)

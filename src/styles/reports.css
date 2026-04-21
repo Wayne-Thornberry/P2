@@ -4,7 +4,6 @@
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-  max-width: 1400px;
   width: 100%;
 }
 
@@ -133,10 +132,24 @@
 /* ── Breakdown sub-tab strip ─────────────────────────────────── */
 .bdown-header {
   display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.bdown-header-row {
+  display: flex;
   align-items: center;
   gap: 1rem;
   flex-wrap: wrap;
-  margin-bottom: 0.75rem;
+}
+
+/* Account selector strip */
+.bdown-account-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
 }
 
 .bdown-filter {
@@ -497,6 +510,17 @@ button.rpt-stat-link:hover {
 
 .dark .reports-stat-value {
   color: var(--color-zinc-100);
+}
+
+/* Sub-label beneath a stat value (e.g. month name) */
+.rpt-stat-sub {
+  font-size: 0.62rem;
+  color: var(--color-zinc-400);
+  line-height: 1;
+}
+
+.dark .rpt-stat-sub {
+  color: var(--color-zinc-500);
 }
 
 /* ── Charts grid ───────────────────────────────────────────────── */
