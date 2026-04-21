@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0] - 2026-04-21
+
+### Changed
+- refactor: migrate to ES module syntax in update-changelog script
+- feat: update workflows and add changelog automation; integrate app versioning in AboutPage
+
+---
+
 ## [1.0.0] - 2026-04-19
 
 ### Added
@@ -27,5 +35,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed-position pagination navigation arrows in Transaction log
 - MIT License
 
-[Unreleased]: https://github.com/Wayne-Thornberry/P2/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/Wayne-Thornberry/P2/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/Wayne-Thornberry/P2/compare/v1.0.20...v1.1.0
 [1.0.0]: https://github.com/Wayne-Thornberry/P2/releases/tag/v1.0.0
