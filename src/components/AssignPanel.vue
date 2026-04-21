@@ -109,6 +109,7 @@ const browseIsNew = computed(() =>
 
 // ── Bulk suggest ───────────────────────────────────────────────
 type BulkSuggest = {
+  tx:       Transaction   // pending: not yet committed to the store
   txName:   string
   itemId:   number
   itemName: string
@@ -116,10 +117,7 @@ type BulkSuggest = {
 }
 const bulkSuggest = ref<BulkSuggest | null>(null)
 
-// ── Actions ────────────────────────────────────────────────────
-function assign(itemId: number): void {
-  const tx = current.value
-  if (!tx) return
+function _commitAssign(tx: Transaction, itemId: number): void {
   txStore.updateTransaction(tx.id, {
     name:      tx.name,
     date:      tx.date,
@@ -128,41 +126,53 @@ function assign(itemId: number): void {
     itemId,
     accountId: tx.accountId,
   })
+}
+
+// ── Actions ────────────────────────────────────────────────────
+function assign(itemId: number): void {
+  const tx = current.value
+  if (!tx) return
+
   browseText.value = ''
 
-  // Look for other unassigned transactions with the same merchant name (fuzzy match across all months)
+  // Check for similar unassigned transactions BEFORE committing anything
   const txClean = txFriendlyName(tx)
   const similar = txStore.transactions.filter(
     t => t.itemId === null && t.id !== tx.id && txNamesMatch(txFriendlyName(t), txClean)
   )
+
   if (similar.length > 0) {
+    // Defer assignment — let user decide scope first
     const item = budgetStore.items.find(i => i.id === itemId)
     bulkSuggest.value = {
+      tx,
       txName:   tx.name,
       itemId,
       itemName: item?.name ?? 'this item',
       matches:  similar,
     }
+    return
   }
+
+  // No similar transactions — assign immediately
+  _commitAssign(tx, itemId)
 }
 
 function confirmBulkAssign(): void {
   if (!bulkSuggest.value) return
-  const { matches, itemId } = bulkSuggest.value
-  for (const tx of matches) {
-    txStore.updateTransaction(tx.id, {
-      name:      tx.name,
-      date:      tx.date,
-      type:      tx.type,
-      amount:    tx.amount,
-      itemId,
-      accountId: tx.accountId,
-    })
+  const { tx, matches, itemId } = bulkSuggest.value
+  _commitAssign(tx, itemId)
+  for (const t of matches) {
+    _commitAssign(t, itemId)
   }
   bulkSuggest.value = null
 }
 
 function dismissBulkSuggest(): void {
+  if (!bulkSuggest.value) return
+  const { tx, itemId } = bulkSuggest.value
+  // Assign only the current transaction
+  _commitAssign(tx, itemId)
   bulkSuggest.value = null
 }
 
