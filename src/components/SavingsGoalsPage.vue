@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useSavingsGoalStore } from '../stores/savingsGoalStore'
 import type { SavingsGoal } from '../stores/savingsGoalStore'
 import { useSettingsStore } from '../stores/settingsStore'
@@ -11,6 +11,9 @@ const settings = useSettingsStore()
 const accounts = useAccountStore()
 
 function fmt(v: number): string { return settings.formatMoney(v) }
+
+const props = defineProps<{ focusGoalId?: number }>()
+const highlightedGoalId = ref<number | null>(null)
 
 // ── New goal form ─────────────────────────────────────────────
 const showNewForm          = ref(false)
@@ -81,6 +84,17 @@ function submitContrib(): void {
 // ── Filters ───────────────────────────────────────────────────
 const showArchived = ref(false)
 const activeGoals  = computed(() => store.goals.filter(g => showArchived.value || !g.archived))
+
+watch(() => props.focusGoalId, (id) => {
+  if (!id) return
+  const goal = store.goals.find(g => g.id === id)
+  if (goal?.archived) showArchived.value = true
+  highlightedGoalId.value = id
+  nextTick(() => {
+    document.querySelector(`[data-goal-id="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setTimeout(() => { highlightedGoalId.value = null }, 2200)
+  })
+}, { immediate: true })
 
 // ── Date helpers ──────────────────────────────────────────────
 const _now = new Date()
@@ -180,7 +194,7 @@ function monthlyNeeded(goal: SavingsGoal): number | null {
 
     <!-- Goals grid -->
     <div v-if="activeGoals.length > 0" class="sg-grid">
-      <div v-for="goal in activeGoals" :key="goal.id" class="sg-card" :class="{ 'sg-card--archived': goal.archived }">
+      <div v-for="goal in activeGoals" :key="goal.id" class="sg-card" :class="{ 'sg-card--archived': goal.archived, 'sg-card--highlighted': highlightedGoalId === goal.id }" :data-goal-id="goal.id">
 
         <!-- Goal header -->
         <div class="sg-card-header">

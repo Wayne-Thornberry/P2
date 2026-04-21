@@ -8,6 +8,7 @@ import { useTransactionStore } from '../stores/transactionStore'
 import { useAccountStore } from '../stores/accountStore'
 import { useMonthStore } from '../stores/monthStore'
 import { useSettingsStore } from '../stores/settingsStore'
+import { useBudgetFunds } from '../composables/useBudgetFunds'
 import { getTodayStr } from '../utils/date'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
@@ -35,6 +36,7 @@ const transactionStore = useTransactionStore()
 const accountStore     = useAccountStore()
 const monthStore       = useMonthStore()
 const settings         = useSettingsStore()
+const { budgetFunds }  = useBudgetFunds()
 
 // Balance per account for the modal
 const accountBalanceMap = computed(() => {
@@ -46,8 +48,8 @@ const accountBalanceMap = computed(() => {
   return map
 })
 
-// Running balance across all accounts (from store)
-const totalFundsAvailable = computed(() => transactionStore.totalFunds)
+// Running balance excluding liability accounts (from composable)
+const totalFundsAvailable = computed(() => budgetFunds.value)
 
 const tableItems = computed<BudgetRow[]>(() =>
   props.items.map(i => {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useTransactionStore } from '../stores/transactionStore'
 import { useAccountStore } from '../stores/accountStore'
 import { useSettingsStore } from '../stores/settingsStore'
@@ -132,17 +132,22 @@ const canImport = computed(() => {
   return selectedAccountId.value !== ''
 })
 
+const importing = ref(false)
+
 // ── Run the import ────────────────────────────────────────────
-function handleImport(): void {
-  if (!canImport.value) return
+async function handleImport(): Promise<void> {
+  if (!canImport.value || importing.value) return
   const result = processedResult.value
   if (!result || result.allRows.length === 0) return
+
+  importing.value = true
+  await nextTick() // let the spinner render before blocking the main thread
 
   // 1. Resolve or create account
   let accountId: string
   if (selectedAccountId.value === 'new') {
     const name = newAccountName.value.trim()
-    if (!name) return
+    if (!name) { importing.value = false; return }
     accountId = accountStore.addAccount(name)
   } else {
     accountId = selectedAccountId.value
@@ -176,24 +181,20 @@ function handleImport(): void {
 
   // 4. Handle Opening Balance transaction
   if (isBackfill) {
-    // Replace old (later) Opening Balance with the new, earlier one
     if (existingOBTx) txStore.deleteTransaction(existingOBTx.id)
     if (result.openingBalance !== null && result.openingDate) {
       txStore.addOpeningBalance(accountId, result.openingBalance, result.openingDate)
     }
   } else if (isExtendingBackward) {
-    // New data starts before existing records but also overlaps — update OB to the earlier one
     if (existingOBTx) txStore.deleteTransaction(existingOBTx.id)
     if (result.openingBalance !== null && result.openingDate) {
       txStore.addOpeningBalance(accountId, result.openingBalance, result.openingDate)
     }
   } else if (!hasExisting) {
-    // Brand-new account or account with no transactions
     if (result.openingBalance !== null && result.openingDate) {
       txStore.addOpeningBalance(accountId, result.openingBalance, result.openingDate)
     }
   }
-  // Forward / overlap: keep existing Opening Balance unchanged
 
   // 5. Insert forward gap bridge BEFORE importing rows
   if (hasForwardGap && forwardGapAmount > 0 && result.openingDate) {
@@ -203,45 +204,37 @@ function handleImport(): void {
     })
   }
 
-  // 6. Import all rows, deduplicating against existing transactions
-  // Count-based dedup: allows legitimately repeated transactions (same date/amount/name)
-  // while still skipping rows that are already in the store from a previous import.
+  // 6. Deduplicate rows against existing transactions, then bulk-insert new ones.
+  // Count-based: allows legitimately repeated transactions while skipping already-imported rows.
   const existingKeyCounts = new Map<string, number>()
   for (const t of txStore.transactions.filter(t => t.accountId === accountId)) {
     const key = `${t.date}|${t.name}|${t.amount}|${t.type}`
     existingKeyCounts.set(key, (existingKeyCounts.get(key) ?? 0) + 1)
   }
-  // eslint-disable-next-line no-console
-  console.info('[IMPORT] Existing transaction keys:', Array.from(existingKeyCounts.entries()).slice(0, 10), '...')
 
   const consumedCounts = new Map<string, number>()
   let actualNet = 0
-  let count     = 0
+  const batch: Array<{ name: string; date: string; type: 'in' | 'out'; amount: number; itemId: null; accountId: string }> = []
+
   for (const row of result.allRows) {
-    const key = `${row.isoDate}|${row.details}|${row.amount}|${row.type}`
+    const key      = `${row.isoDate}|${row.details}|${row.amount}|${row.type}`
     const existing = existingKeyCounts.get(key) ?? 0
     const consumed = consumedCounts.get(key) ?? 0
-    // eslint-disable-next-line no-console
-    console.debug('[IMPORT] Row:', { row, key, existing, consumed })
     if (consumed < existing) {
-      // This occurrence matches an already-imported row — skip it
       consumedCounts.set(key, consumed + 1)
-      // Log skipped row
-      // eslint-disable-next-line no-console
-      console.warn('[IMPORT] Skipped duplicate row:', row)
     } else {
-      // New occurrence — import it
-      txStore.addTransaction({ name: row.details, date: row.isoDate, type: row.type, amount: row.amount, itemId: null, accountId })
+      batch.push({ name: row.details, date: row.isoDate, type: row.type, amount: row.amount, itemId: null, accountId })
       actualNet = Math.round((actualNet + (row.type === 'in' ? row.amount : -row.amount)) * 100) / 100
-      count++
     }
   }
-  // eslint-disable-next-line no-console
-  console.info('[IMPORT] Finished import loop. Imported:', count, 'Skipped:', result.allRows.length - count)
 
-  // 7. Inter-CSV gap adjustments (bridges between non-adjacent files)
+  // Single bulk insert — O(n) instead of O(n²), one localStorage write instead of n
+  txStore.bulkAddTransactions(batch)
+  const count = batch.length
+
+  // 7. Inter-CSV gap adjustments
   for (const gap of result.gapAdjustments) {
-    const key = `${gap.date}|Balance Adjustment|${gap.amount}|${gap.type}`
+    const key      = `${gap.date}|Balance Adjustment|${gap.amount}|${gap.type}`
     const existing = existingKeyCounts.get(key) ?? 0
     const consumed = consumedCounts.get(key) ?? 0
     if (consumed < existing) {
@@ -251,7 +244,7 @@ function handleImport(): void {
     }
   }
 
-  // 8. Backfill gap bridge — computed after dedup so the amount is exact
+  // 8. Backfill gap bridge
   if (isBackfill && earliestExisting) {
     const oldOBSigned = existingOBTx
       ? (existingOBTx.type === 'in' ? existingOBTx.amount : -existingOBTx.amount)
@@ -267,6 +260,7 @@ function handleImport(): void {
   }
 
   // 9. Record import history and close
+  importing.value = false
   emit('done', count)
   if (count > 0) {
     historyStore.addRecord({
@@ -455,14 +449,16 @@ function handleImport(): void {
 
           <!-- Footer -->
           <div class="csv-dialog-footer">
-            <button class="csv-dialog-cancel-btn" @click="emit('close')">Cancel</button>
+            <button class="csv-dialog-cancel-btn" :disabled="importing" @click="emit('close')">Cancel</button>
             <button
               class="csv-dialog-import-btn"
-              :disabled="!canImport"
+              :disabled="!canImport || importing"
               @click="handleImport"
             >
-              <i class="pi pi-check" />
-              Import {{ processedResult?.allRows.length ?? 0 }} Transaction{{ (processedResult?.allRows.length ?? 0) !== 1 ? 's' : '' }}
+              <i v-if="importing" class="pi pi-spin pi-spinner" />
+              <i v-else class="pi pi-check" />
+              <span v-if="importing">Importing…</span>
+              <span v-else>Import {{ processedResult?.allRows.length ?? 0 }} Transaction{{ (processedResult?.allRows.length ?? 0) !== 1 ? 's' : '' }}</span>
             </button>
           </div>
 

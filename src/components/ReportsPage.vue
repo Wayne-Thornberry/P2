@@ -6,6 +6,7 @@ import { useAccountStore } from '../stores/accountStore'
 import { useBudgetStore } from '../stores/budgetStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useLoanStore } from '../stores/loanStore'
+import { UNASSIGNED_ACCOUNT_ID, UNASSIGNED_ACCOUNT } from '../types/transaction'
 
 Chart.register(...registerables)
 
@@ -30,6 +31,11 @@ const PALETTE = [
 // ── Navigation emit ───────────────────────────────────────────
 const emit = defineEmits<{
   viewTransactions: [opts: { month?: string; accountId?: string; name?: string; type?: 'in' | 'out' }]
+}>()
+
+const props = defineProps<{
+  initialAccountId?:      string
+  initialBreakdownMonth?: string
 }>()
 
 function goTx(opts: { month?: string; accountId?: string; name?: string; type?: 'in' | 'out' }): void {
@@ -58,19 +64,28 @@ const selectedMonthKey = ref(_nowKey)
 // ── Account filter ───────────────────────────────────────────────
 const selectedAccountId = ref<string | null>(null)
 
+const unassignedTxCount = computed(() =>
+  txStore.transactions.filter(t => t.accountId === null).length
+)
+
 function withAccFilter(txs: typeof txStore.transactions): typeof txStore.transactions {
-  return selectedAccountId.value ? txs.filter(t => t.accountId === selectedAccountId.value) : txs
+  if (!selectedAccountId.value) return txs
+  if (selectedAccountId.value === UNASSIGNED_ACCOUNT_ID) return txs.filter(t => t.accountId === null)
+  return txs.filter(t => t.accountId === selectedAccountId.value)
 }
 
-const selectedAccount = computed(() =>
-  selectedAccountId.value ? (accountStore.accounts.find(a => a.id === selectedAccountId.value) ?? null) : null
-)
+const selectedAccount = computed(() => {
+  if (!selectedAccountId.value) return null
+  if (selectedAccountId.value === UNASSIGNED_ACCOUNT_ID) return UNASSIGNED_ACCOUNT
+  return accountStore.accounts.find(a => a.id === selectedAccountId.value) ?? null
+})
 
 const allTimeAccountBalance = computed(() => {
   if (!selectedAccountId.value) return 0
-  return txStore.transactions
-    .filter(t => t.accountId === selectedAccountId.value)
-    .reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0)
+  const txs = selectedAccountId.value === UNASSIGNED_ACCOUNT_ID
+    ? txStore.transactions.filter(t => t.accountId === null)
+    : txStore.transactions.filter(t => t.accountId === selectedAccountId.value)
+  return txs.reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0)
 })
 
 // ── Year selectors ─────────────────────────────────────────────
@@ -114,14 +129,17 @@ function barColor(pct: number): string {
 // ──────────────────────────────────────────────────────────────
 // YEARS TAB DATA (all-time, year-over-year)
 // ──────────────────────────────────────────────────────────────
-const totalIn  = computed(() => txStore.transactions.filter(t => t.type === 'in').reduce((s, t) => s + t.amount, 0))
-const totalOut = computed(() => txStore.transactions.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0))
+const filteredTxs = computed(() => withAccFilter(txStore.transactions))
+
+const totalIn  = computed(() => filteredTxs.value.filter(t => t.type === 'in').reduce((s, t) => s + t.amount, 0))
+const totalOut = computed(() => filteredTxs.value.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0))
 const net      = computed(() => totalIn.value - totalOut.value)
+const filteredTxCount = computed(() => filteredTxs.value.length)
 
 // ── Overview enhanced stats ──────────────────────────────────────
 const allMonthlyFlow = computed(() => {
   const map = new Map<string, { in: number; out: number }>()
-  for (const t of txStore.transactions) {
+  for (const t of filteredTxs.value) {
     const key = t.date.substring(0, 7)
     const e = map.get(key) ?? { in: 0, out: 0 }
     if (t.type === 'in') e.in += t.amount; else e.out += t.amount
@@ -152,7 +170,7 @@ const overviewAvgMonthlySpend = computed(() => {
 
 const yearlyFlow = computed(() =>
   availableYears.value.slice().reverse().map(y => {
-    const txs  = txStore.transactions.filter(t => t.date.startsWith(String(y)))
+    const txs  = filteredTxs.value.filter(t => t.date.startsWith(String(y)))
     const yIn  = txs.filter(t => t.type === 'in').reduce((s, t) => s + t.amount, 0)
     const yOut = txs.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0)
     return { year: y, label: String(y), in: yIn, out: yOut }
@@ -169,7 +187,7 @@ const yearSummary = computed(() =>
     in:          y.in,
     out:         y.out,
     net:         Math.round((y.in - y.out) * 100) / 100,
-    count:       txStore.transactions.filter(t => t.date.startsWith(String(y.year))).length,
+    count:       filteredTxs.value.filter(t => t.date.startsWith(String(y.year))).length,
     savingsRate: y.in > 0 ? Math.round(((y.in - y.out) / y.in) * 100) : 0,
   }))
 )
@@ -345,17 +363,29 @@ const monthItems = computed(() => {
 // ──────────────────────────────────────────────────────────────
 // ACCOUNTS TAB DATA
 // ──────────────────────────────────────────────────────────────
-const accountStats = computed(() =>
-  accountStore.accounts.map(acc => {
+const accountStats = computed(() => {
+  const rows = accountStore.accounts.map(acc => {
     const allTxs  = txStore.transactions.filter(t => t.accountId === acc.id)
     const yearTxs = allTxs.filter(t => t.date.startsWith(String(yearViewYear.value)))
     const accIn   = yearTxs.filter(t => t.type === 'in').reduce((s, t) => s + t.amount, 0)
     const accOut  = yearTxs.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0)
-    // Balance is always all-time (cumulative)
     const balance = allTxs.reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0)
     return { id: acc.id, name: acc.name, totalIn: accIn, totalOut: accOut, balance, count: yearTxs.length }
-  }).sort((a, b) => b.balance - a.balance)
-)
+  })
+  const unassigned = txStore.transactions.filter(t => t.accountId === null)
+  if (unassigned.length > 0) {
+    const yearUnassigned = unassigned.filter(t => t.date.startsWith(String(yearViewYear.value)))
+    rows.push({
+      id:      UNASSIGNED_ACCOUNT_ID,
+      name:    'Unassigned',
+      totalIn:  yearUnassigned.filter(t => t.type === 'in').reduce((s, t) => s + t.amount, 0),
+      totalOut: yearUnassigned.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0),
+      balance:  unassigned.reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0),
+      count:    yearUnassigned.length,
+    })
+  }
+  return rows.sort((a, b) => b.balance - a.balance)
+})
 
 const trendMonths = computed(() => {
   const y = yearViewYear.value
@@ -395,6 +425,23 @@ const accountTrend = computed(() => {
 // yearAccountTrend: all accounts when no filter, single account when filtered
 const yearAccountTrend = computed(() => {
   if (!selectedAccountId.value) return accountTrend.value
+  if (selectedAccountId.value === UNASSIGNED_ACCOUNT_ID) {
+    const accTxs = txStore.transactions
+      .filter(t => t.accountId === null)
+      .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt))
+    const months = trendMonths.value
+    const balances: number[] = []
+    let running = 0
+    let txIdx   = 0
+    for (const { key } of months) {
+      while (txIdx < accTxs.length && accTxs[txIdx].date.substring(0, 7) <= key) {
+        const t = accTxs[txIdx++]
+        running = Math.round((running + (t.type === 'in' ? t.amount : -t.amount)) * 100) / 100
+      }
+      balances.push(running)
+    }
+    return [{ name: 'Unassigned', color: PALETTE[0], balances }]
+  }
   const acc = accountStore.accounts.find(a => a.id === selectedAccountId.value)
   if (!acc) return []
   const accTxs = txStore.transactions
@@ -1009,7 +1056,16 @@ function buildTab(tab: Tab): void {
   if (tab === 'finance')   nextTick(() => { finLoanCanvases.value.clear(); finSavCanvases.value.clear(); nextTick(() => buildFinance()) })
 }
 
-onMounted(() => nextTick(() => buildTab(activeTab.value)))
+onMounted(() => {
+  if (props.initialAccountId) selectedAccountId.value = props.initialAccountId
+  if (props.initialBreakdownMonth) {
+    activeTab.value       = 'breakdown'
+    breakdownSubTab.value = 'month'
+    selectedMonthKey.value = props.initialBreakdownMonth
+    yearViewYear.value     = parseInt(props.initialBreakdownMonth.substring(0, 4))
+  }
+  nextTick(() => buildTab(activeTab.value))
+})
 onUnmounted(destroyAll)
 
 watch(activeTab, tab => nextTick(() => buildTab(tab)))
@@ -1022,6 +1078,7 @@ watch([yearViewMonthlyFlow, accountTrend, yearAccountTrend, accountStats, dailyS
 })
 
 watch(selectedAccountId, () => {
+  if (activeTab.value === 'overall')   { destroyAll(); nextTick(() => buildOverall()) }
   if (activeTab.value === 'breakdown') { destroyAll(); nextTick(() => buildBreakdown()) }
 })
 
@@ -1067,6 +1124,30 @@ watch(yearViewYear, y => {
 
     <!-- YEARS -->
     <template v-if="activeTab === 'overall'">
+      <!-- Account filter -->
+      <div v-if="accountStore.accounts.length > 0" class="bdown-account-selector">
+        <span class="rpt-filter-label">Account</span>
+        <nav class="bdown-tabs" role="group">
+          <button
+            class="bdown-tab"
+            :class="{ 'bdown-tab--active': selectedAccountId === null }"
+            @click="selectedAccountId = null"
+          >All</button>
+          <button
+            v-for="acc in accountStore.accounts"
+            :key="acc.id"
+            class="bdown-tab"
+            :class="{ 'bdown-tab--active': selectedAccountId === acc.id }"
+            @click="selectedAccountId = acc.id"
+          >{{ acc.name }}</button>
+          <button
+            v-if="unassignedTxCount > 0"
+            class="bdown-tab bdown-tab--ghost"
+            :class="{ 'bdown-tab--active': selectedAccountId === '__unassigned__' }"
+            @click="selectedAccountId = '__unassigned__'"
+          >Unassigned</button>
+        </nav>
+      </div>
       <div class="reports-stats">
         <div class="reports-stat-card">
           <span class="reports-stat-label">All-Time In</span>
@@ -1082,7 +1163,7 @@ watch(yearViewYear, y => {
         </div>
         <div class="reports-stat-card">
           <span class="reports-stat-label">All-Time Transactions</span>
-          <span class="reports-stat-value">{{ txStore.transactions.length }}</span>
+          <span class="reports-stat-value">{{ filteredTxCount }}</span>
         </div>
         <div class="reports-stat-card">
           <span class="reports-stat-label">Years of Data</span>
@@ -1199,7 +1280,7 @@ watch(yearViewYear, y => {
             <button role="tab" class="bdown-tab" :class="{ 'bdown-tab--active': breakdownSubTab === 'range' }" @click="breakdownSubTab = 'range'">Range</button>
           </nav>
         </div>
-        <div v-if="accountStore.accounts.length > 1" class="bdown-account-selector">
+        <div v-if="accountStore.accounts.length > 0" class="bdown-account-selector">
           <span class="rpt-filter-label">Account</span>
           <nav class="bdown-tabs" role="group">
             <button
@@ -1214,6 +1295,12 @@ watch(yearViewYear, y => {
               :class="{ 'bdown-tab--active': selectedAccountId === acc.id }"
               @click="selectedAccountId = acc.id"
             >{{ acc.name }}</button>
+            <button
+              v-if="unassignedTxCount > 0"
+              class="bdown-tab bdown-tab--ghost"
+              :class="{ 'bdown-tab--active': selectedAccountId === '__unassigned__' }"
+              @click="selectedAccountId = '__unassigned__'"
+            >Unassigned</button>
           </nav>
         </div>
       </div>

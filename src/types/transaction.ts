@@ -1,6 +1,19 @@
+/** Sentinel ID for the virtual "Unassigned" account (transactions with accountId === null). */
+export const UNASSIGNED_ACCOUNT_ID = '__unassigned__' as const
+
+/** Virtual account object representing all transactions that have no account assigned. */
+export const UNASSIGNED_ACCOUNT: Account = {
+  id:   UNASSIGNED_ACCOUNT_ID,
+  name: 'Unassigned',
+  type: 'asset',
+}
+
 export interface Account {
-  id: string
-  name: string
+  id:                string
+  name:              string
+  type?:             'asset' | 'liability'  // default = 'asset'; liabilities excluded from budget by default
+  excludeFromBudget?: boolean               // explicit override: true = exclude, false = force include
+  archived?:         boolean                // historical/closed — transactions locked, excluded from budget
 }
 
 export interface Transaction {

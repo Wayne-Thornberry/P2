@@ -167,6 +167,24 @@ export const useTransactionStore = defineStore('transactions', () => {
     })
   }
 
+  /**
+   * Insert multiple transactions in a single reactive update.
+   * Use this for CSV imports to avoid O(n²) unshift cost and batch the
+   * localStorage write into one operation instead of one per row.
+   */
+  function bulkAddTransactions(rows: Array<Omit<Transaction, 'id' | 'createdAt'>>): void {
+    if (rows.length === 0) return
+    const now = new Date().toISOString()
+    const newTxs: Transaction[] = rows.map(t => ({
+      ...t,
+      notes:     t.notes?.trim() || undefined,
+      id:        _nextId++,
+      createdAt: now,
+    }))
+    // Single prepend — one reactive mutation → one watch firing → one localStorage write
+    transactions.value = [...newTxs, ...transactions.value]
+  }
+
   function loadSeedData(): void {
     transactions.value = generateSeedTransactions()
   }
@@ -184,5 +202,5 @@ export const useTransactionStore = defineStore('transactions', () => {
     }
   }
 
-  return { transactions, totalFunds, addTransaction, deleteTransaction, updateTransaction, patchTransaction, lockTransactions, unlockTransactions, lockOnOrBefore, unlockOnOrBefore, lockAll, unlockAll, addOpeningBalance, getItemActivity, getUnassignedActivity, unassignItem, loadSeedData, $import }
+  return { transactions, totalFunds, addTransaction, bulkAddTransactions, deleteTransaction, updateTransaction, patchTransaction, lockTransactions, unlockTransactions, lockOnOrBefore, unlockOnOrBefore, lockAll, unlockAll, addOpeningBalance, getItemActivity, getUnassignedActivity, unassignItem, loadSeedData, $import }
 })

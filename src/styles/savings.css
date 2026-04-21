@@ -232,6 +232,16 @@
 
 .sg-card--archived { opacity: 0.55; filter: grayscale(0.4); }
 
+@keyframes sg-highlight-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99,102,241,0); }
+  30%       { box-shadow: 0 0 0 4px rgba(99,102,241,0.5); }
+  60%       { box-shadow: 0 0 0 2px rgba(99,102,241,0.3); }
+}
+
+.sg-card--highlighted {
+  animation: sg-highlight-pulse 2.2s ease;
+}
+
 /* Card header */
 .sg-card-header {
   display: flex;

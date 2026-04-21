@@ -728,7 +728,16 @@
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.03em;
   line-height: 1;
-  margin-bottom: 0.85rem;
+  margin-bottom: 0.25rem;
+}
+
+.budget-funds-card-excluded {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.62rem;
+  color: var(--color-zinc-400);
+  margin-bottom: 0.7rem;
 }
 
 .budget-funds-card-footer {

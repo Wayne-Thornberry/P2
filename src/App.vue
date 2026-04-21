@@ -34,6 +34,12 @@ const txTypeFilter     = ref<'all' | 'in' | 'out'>('all')
 const txFocusSearch    = ref(false)
 const convCurrStr      = ref('')
 const convRateStr      = ref('')
+// ── Cross-page navigation state ───────────────────────────────
+const reportsInitAccountId      = ref<string | undefined>(undefined)
+const reportsInitBreakdownMonth = ref<string | undefined>(undefined)
+const savingsGoalFocusId        = ref<number | undefined>(undefined)
+const financeFocusKind          = ref<'loan' | 'savings' | undefined>(undefined)
+const financeFocusId            = ref<number | undefined>(undefined)
 const settings         = useSettingsStore()
 const currentCountry   = computed(() => getCountryById(settings.country))
 
@@ -48,11 +54,15 @@ function revertConversion(): void {
   settings.deactivateConversion()
 }
 
+const countryLoading = ref(false)
+
 function switchCountry(id: string): void {
   countryMenuOpen.value = false
   if (id === settings.country) return
+  countryLoading.value = true
   settings.setCountry(id)
-  window.location.reload()
+  // Small delay so the spinner renders before the page freezes on reload
+  setTimeout(() => window.location.reload(), 50)
 }
 const { isDraggingOver, csvDialogVisible, pendingCsvFiles, backupDropVisible, pendingBackupJson, onDragEnter, onDragOver, onDragLeave, onDrop } = useCsvDrop()
 const { confirm } = useConfirm()
@@ -100,6 +110,11 @@ function navigate(page: string): void {
     txTypeFilter.value    = 'all'
     txFocusSearch.value   = false
   }
+  reportsInitAccountId.value      = undefined
+  reportsInitBreakdownMonth.value = undefined
+  savingsGoalFocusId.value        = undefined
+  financeFocusKind.value          = undefined
+  financeFocusId.value            = undefined
   activeNavItem.value = page
   currentPage.value = page
 }
@@ -159,6 +174,37 @@ function onReportViewTransactions(opts: { month?: string; accountId?: string; na
   currentPage.value     = 'transactions'
 }
 
+function onViewAccountInReports(accountId: string): void {
+  settings.deactivateConversion()
+  reportsInitAccountId.value      = accountId
+  reportsInitBreakdownMonth.value = undefined
+  activeNavItem.value = 'reports'
+  currentPage.value   = 'reports'
+}
+
+function onViewBreakdown(month: string, accountId: string): void {
+  settings.deactivateConversion()
+  reportsInitAccountId.value      = accountId
+  reportsInitBreakdownMonth.value = month
+  activeNavItem.value = 'reports'
+  currentPage.value   = 'reports'
+}
+
+function onViewSavingsGoal(goalId: number): void {
+  settings.deactivateConversion()
+  savingsGoalFocusId.value = goalId
+  activeNavItem.value = 'savings'
+  currentPage.value   = 'savings'
+}
+
+function onViewFinance(kind: 'loan' | 'savings', id: number): void {
+  settings.deactivateConversion()
+  financeFocusKind.value = kind
+  financeFocusId.value   = id
+  activeNavItem.value = 'finance'
+  currentPage.value   = 'finance'
+}
+
 // ── Breadcrumb ─────────────────────────────────────────────────
 interface BreadcrumbSegment {
   label: string
@@ -195,6 +241,14 @@ const breadcrumbSegments = computed(() =>
 
     <!-- First-run setup overlay -->
     <SetupScreen v-if="!settings.setupComplete" />
+
+    <!-- Country-switch loading overlay -->
+    <Transition name="fade">
+      <div v-if="countryLoading" class="app-loading-overlay">
+        <i class="pi pi-spin pi-spinner app-loading-spinner" />
+        <span class="app-loading-label">Switching country…</span>
+      </div>
+    </Transition>
 
     <!-- Global CSV drop overlay -->
     <Transition name="fade">
@@ -336,10 +390,10 @@ const breadcrumbSegments = computed(() =>
         <BudgetTabs v-else-if="currentPage === 'budget'" @navigate="currentPage = $event" @viewTransactions="onViewTransactions" @viewItemTransactions="onViewItemTransactions" />
         <TemplatePage v-else-if="currentPage === 'template'" />
         <TransactionLog v-else-if="currentPage === 'transactions'" :monthFilter="txMonthFilter" :accountFilter="txAccountFilter" :itemFilter="txItemFilter" :nameFilter="txNameFilter" :typeFilter="txTypeFilter" :focusSearch="txFocusSearch" />
-        <AccountsPage v-else-if="currentPage === 'accounts'" @viewTransactions="onViewAccountTransactions" />
-        <ReportsPage  v-else-if="currentPage === 'reports'" @viewTransactions="onReportViewTransactions" />
-        <SavingsGoalsPage v-else-if="currentPage === 'savings'" />
-        <FinancePage      v-else-if="currentPage === 'finance'" />
+        <AccountsPage v-else-if="currentPage === 'accounts'" @viewTransactions="onViewAccountTransactions" @viewInReports="onViewAccountInReports" @viewBreakdown="onViewBreakdown" @viewSavingsGoal="onViewSavingsGoal" @viewFinance="onViewFinance" />
+        <ReportsPage  v-else-if="currentPage === 'reports'" :initialAccountId="reportsInitAccountId" :initialBreakdownMonth="reportsInitBreakdownMonth" @viewTransactions="onReportViewTransactions" />
+        <SavingsGoalsPage v-else-if="currentPage === 'savings'" :focusGoalId="savingsGoalFocusId" />
+        <FinancePage      v-else-if="currentPage === 'finance'" :focusKind="financeFocusKind" :focusId="financeFocusId" />
         <SettingsPage v-else-if="currentPage === 'settings'" />
         <AboutPage    v-else-if="currentPage === 'about'" />
       </main>
@@ -360,6 +414,32 @@ const breadcrumbSegments = computed(() =>
 </template>
 
 <style scoped>
+/* ── Country-switch loading overlay ──────────────────────────── */
+.app-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(3px);
+}
+
+.app-loading-spinner {
+  font-size: 2.5rem;
+  color: #ffffff;
+}
+
+.app-loading-label {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #ffffff;
+  letter-spacing: 0.02em;
+}
+
 /* ── Global CSV drop overlay ─────────────────────────────────── */
 .app-drop-overlay {
   position: fixed;
