@@ -342,6 +342,16 @@
 
 .fn-card--archived { opacity: 0.55; }
 
+@keyframes fn-highlight-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99,102,241,0); }
+  30%       { box-shadow: 0 0 0 4px rgba(99,102,241,0.5); }
+  60%       { box-shadow: 0 0 0 2px rgba(99,102,241,0.3); }
+}
+
+.fn-card--highlighted {
+  animation: fn-highlight-pulse 2.2s ease;
+}
+
 /* ── Card header ─────────────────────────────────────────────── */
 .fn-card-header {
   display: flex;

@@ -6,8 +6,10 @@ import { useTransactionStore } from '../stores/transactionStore'
 import { useSavingsGoalStore } from '../stores/savingsGoalStore'
 import { useLoanStore } from '../stores/loanStore'
 import { useMoneyInput } from '../composables/useMoneyInput'
+import { useConfirm } from '../composables/useConfirm'
 import { getTodayStr } from '../utils/date'
 import { SUPPORTED_COUNTRIES, getCountryById } from '../data/countries'
+import { UNASSIGNED_ACCOUNT_ID } from '../types/transaction'
 
 const accountStore  = useAccountStore()
 const settings      = useSettingsStore()
@@ -16,13 +18,21 @@ const goalStore     = useSavingsGoalStore()
 const loanStore     = useLoanStore()
 
 const { moneyFocus, moneyBlur } = useMoneyInput()
+const { confirm } = useConfirm()
 
-const emit = defineEmits<{ viewTransactions: [accountId: string] }>()
+const emit = defineEmits<{
+  viewTransactions: [accountId: string]
+  viewInReports:    [accountId: string]
+  viewBreakdown:    [month: string, accountId: string]
+  viewSavingsGoal:  [goalId: number]
+  viewFinance:      [kind: 'loan' | 'savings', id: number]
+}>()
 
 function formatMoney(v: number): string { return settings.formatMoney(v) }
 
 // â”€â”€ Add account â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const newName     = ref('')
+const newType     = ref<'asset' | 'liability'>('asset')
 const addInputRef = ref<HTMLInputElement | null>(null)
 
 const openingBalanceAccountId = ref<string | null>(null)
@@ -36,8 +46,9 @@ function commitAdd(): void {
   if (openingBalanceAccountId.value !== null) {
     openingBalanceAccountId.value = null
   }
-  const id = accountStore.addAccount(name)
+  const id = accountStore.addAccount(name, newType.value)
   newName.value = ''
+  newType.value = 'asset'
   openingBalanceAccountId.value = id
   openingBalanceStr.value       = '0'
   openingBalanceDate.value      = getTodayStr()
@@ -85,17 +96,78 @@ function cancelRename(): void {
   editName.value  = ''
 }
 
-// â”€â”€ Remove account â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const confirmRemoveId = ref<string | null>(null)
+// ── Remove / unlink account ───────────────────────────────────────────────────────────────────────────────────────────
+async function requestRemove(id: string): Promise<void> {
+  const acc = accountStore.accounts.find(a => a.id === id)
+  if (!acc) return
+  const txCount   = txStore.transactions.filter(t => t.accountId === id).length
+  const goalCount = goalStore.goals.filter(g => g.linkedAccountId === id).length
+  const loanCount = loanStore.loans.filter(l => l.linkedAccountId === id).length
+  const savCount  = loanStore.savings.filter(s => s.linkedAccountId === id).length
 
-function requestRemove(id: string): void { confirmRemoveId.value = id }
-function confirmRemove(): void {
-  if (confirmRemoveId.value) accountStore.removeAccount(confirmRemoveId.value)
-  confirmRemoveId.value = null
+  const linked: string[] = []
+  if (txCount   > 0) linked.push(`${txCount} transaction${txCount !== 1 ? 's' : ''}`)
+  if (goalCount > 0) linked.push(`${goalCount} savings goal${goalCount !== 1 ? 's' : ''}`)
+  if (loanCount + savCount > 0) linked.push(`${loanCount + savCount} finance record${loanCount + savCount !== 1 ? 's' : ''} (will be unlinked only)`)
+
+  const detail = linked.length
+    ? `This will permanently delete: ${linked.join(', ')}. This cannot be undone.`
+    : 'This cannot be undone.'
+
+  const ok = await confirm({
+    title:        `Delete "${acc.name}"?`,
+    message:      detail,
+    confirmLabel: 'Delete Account',
+    danger:       true,
+  })
+  if (ok) accountStore.removeAccount(id)
 }
-function cancelRemove(): void { confirmRemoveId.value = null }
 
-// â”€â”€ Reconcile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+async function requestUnlinkTransactions(id: string): Promise<void> {
+  const acc = accountStore.accounts.find(a => a.id === id)
+  if (!acc) return
+  const txCount = txStore.transactions.filter(t => t.accountId === id).length
+  if (txCount === 0) return
+
+  const ok = await confirm({
+    title:        `Unlink transactions from "${acc.name}"?`,
+    message:      `${txCount} transaction${txCount !== 1 ? 's' : ''} will be set to unassigned. The account and transactions are kept — only the link is removed.`,
+    confirmLabel: 'Unlink',
+    danger:       false,
+  })
+  if (ok) accountStore.unlinkTransactions(id)
+}
+
+async function requestArchive(id: string): Promise<void> {
+  const acc = accountStore.accounts.find(a => a.id === id)
+  if (!acc) return
+  const txCount = txStore.transactions.filter(t => t.accountId === id).length
+  const linkedGoalCount    = goalStore.goals.filter(g => !g.archived && g.linkedAccountId === id).length
+  const linkedFinanceCount = [
+    ...loanStore.loans.filter(l => !l.archived && l.linkedAccountId === id),
+    ...loanStore.savings.filter(s => !s.archived && s.linkedAccountId === id),
+  ].length
+  const extras: string[] = []
+  if (txCount            > 0) extras.push(`${txCount} transaction${txCount !== 1 ? 's' : ''} will be locked`)
+  if (linkedGoalCount    > 0) extras.push(`${linkedGoalCount} savings goal${linkedGoalCount !== 1 ? 's' : ''} will be archived`)
+  if (linkedFinanceCount > 0) extras.push(`${linkedFinanceCount} finance record${linkedFinanceCount !== 1 ? 's' : ''} will be archived`)
+
+  const ok = await confirm({
+    title:        `Archive "${acc.name}"?`,
+    message:      extras.length > 0
+      ? `This account will be marked as historical. ${extras.join(', ')}.`
+      : 'This account will be marked as historical.',
+    confirmLabel: 'Archive',
+    danger:       false,
+  })
+  if (ok) accountStore.archiveAccount(id)
+}
+
+function requestUnarchive(id: string): void {
+  accountStore.unarchiveAccount(id)
+}
+
+// ── Reconcile ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 const reconcilingId      = ref<string | null>(null)
 const reconcileTargetStr = ref('')
 
@@ -142,7 +214,7 @@ function shortMonth(key: string): string {
   return new Date(y, m - 1, 1).toLocaleDateString(settings.locale, { month: 'short' })
 }
 
-const accountDetails = computed(() =>
+const _allAccountDetails = computed(() =>
   accountStore.accounts.map(acc => {
     const txs      = txStore.transactions.filter(t => t.accountId === acc.id)
     const balance  = txs.reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0)
@@ -167,23 +239,64 @@ const accountDetails = computed(() =>
       : null
 
     const linkedGoals = goalStore.goals
-      .filter(g => !g.archived && g.linkedAccountId === acc.id)
-      .map(g => ({ id: g.id, name: g.name, color: g.color }))
+      .filter(g => g.linkedAccountId === acc.id)
+      .map(g => ({ id: g.id, name: g.name, color: g.color, archived: g.archived }))
 
     const linkedFinance = [
       ...loanStore.loans
-        .filter(l => !l.archived && l.linkedAccountId === acc.id)
-        .map(l => ({ id: `loan-${l.id}`, name: l.name, color: l.color, kind: 'loan' as const })),
+        .filter(l => l.linkedAccountId === acc.id)
+        .map(l => ({ id: `loan-${l.id}`, rawId: l.id, name: l.name, color: l.color, kind: 'loan' as const, archived: l.archived })),
       ...loanStore.savings
-        .filter(s => !s.archived && s.linkedAccountId === acc.id)
-        .map(s => ({ id: `sav-${s.id}`, name: s.name, color: s.color, kind: 'savings' as const })),
+        .filter(s => s.linkedAccountId === acc.id)
+        .map(s => ({ id: `sav-${s.id}`, rawId: s.id, name: s.name, color: s.color, kind: 'savings' as const, archived: s.archived })),
     ]
 
-    return { id: acc.id, name: acc.name, balance, txCount, recent, thisMonthIn, thisMonthOut, lastMonthOut, spendTrend, maxOut, vsLastMonth, linkedGoals, linkedFinance }
+    return { id: acc.id, name: acc.name, balance, txCount, recent, thisMonthIn, thisMonthOut, lastMonthOut, spendTrend, maxOut, vsLastMonth, linkedGoals, linkedFinance,
+      type:             (acc.type ?? 'asset') as 'asset' | 'liability',
+      includedInBudget: acc.excludeFromBudget !== undefined ? !acc.excludeFromBudget : acc.type !== 'liability',
+      archived:         acc.archived ?? false,
+    }
   })
 )
 
-// â”€â”€ Quick Add â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const accountDetails         = computed(() => _allAccountDetails.value.filter(a => !a.archived))
+const archivedAccountDetails = computed(() => _allAccountDetails.value.filter(a => a.archived))
+const showArchivedAccounts   = ref(false)
+
+const unassignedDetails = computed(() => {
+  const txs = txStore.transactions.filter(t => t.accountId === null)
+  if (txs.length === 0) return null
+  const balance      = txs.reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0)
+  const txCount      = txs.length
+  const recent       = txs.slice().sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)).slice(0, 4)
+  const nowTxs       = txs.filter(t => t.date.startsWith(_nowKey))
+  const lastTxs      = txs.filter(t => t.date.startsWith(_lastKey))
+  const thisMonthIn  = nowTxs.filter(t => t.type === 'in').reduce((s, t) => s + t.amount, 0)
+  const thisMonthOut = nowTxs.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0)
+  const lastMonthOut = lastTxs.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0)
+  const spendTrend   = sixMonthKeys.map(key => ({
+    key, label: shortMonth(key),
+    out: txs.filter(t => t.date.startsWith(key) && t.type === 'out').reduce((s, t) => s + t.amount, 0),
+  }))
+  const maxOut       = Math.max(1, ...spendTrend.map(m => m.out))
+  const vsLastMonth  = lastMonthOut > 0 ? Math.round(((thisMonthOut - lastMonthOut) / lastMonthOut) * 100) : null
+  return { id: UNASSIGNED_ACCOUNT_ID, name: 'Unassigned', balance, txCount, recent, thisMonthIn, thisMonthOut, spendTrend, maxOut, vsLastMonth }
+})
+
+// ── Account type & budget helpers ─────────────────────────────────────────────────────────────────
+const LIABILITY_QUICK_TYPES = new Set(['Credit Card', 'Mortgage', 'Loan Account'])
+
+function setAccountType(id: string, type: 'asset' | 'liability'): void {
+  accountStore.updateAccount(id, { type, excludeFromBudget: undefined })
+}
+
+function toggleBudgetInclude(id: string, acc: { type: 'asset' | 'liability'; includedInBudget: boolean }): void {
+  const newIncluded = !acc.includedInBudget
+  const typeDefault = acc.type !== 'liability'
+  accountStore.updateAccount(id, { excludeFromBudget: newIncluded === typeDefault ? undefined : !newIncluded })
+}
+
+// ── Quick Add ──────────────────────────────────────────────────────────────────────────────────────
 const ACCOUNT_TYPES = ['Current Account', 'Savings Account', 'Joint Account', 'Credit Card', 'Mortgage', 'Loan Account']
 const userCountry   = computed(() => getCountryById(settings.country) ?? null)
 const selectedBank  = ref<(typeof SUPPORTED_COUNTRIES[0]['banks'][0]) | null>(null)
@@ -205,7 +318,8 @@ function quickAddAccount(bank: typeof SUPPORTED_COUNTRIES[0]['banks'][0], type: 
   if (openingBalanceAccountId.value !== null) {
     openingBalanceAccountId.value = null
   }
-  const id = accountStore.addAccount(getNextAccountName(`${bank.prefix} ${type}`))
+  const accType = LIABILITY_QUICK_TYPES.has(type) ? 'liability' : 'asset'
+  const id = accountStore.addAccount(getNextAccountName(`${bank.prefix} ${type}`), accType)
   openingBalanceAccountId.value = id
   openingBalanceStr.value       = '0'
   openingBalanceDate.value      = getTodayStr()
@@ -215,23 +329,11 @@ function quickAddAccount(bank: typeof SUPPORTED_COUNTRIES[0]['banks'][0], type: 
 <template>
   <div class="accounts-page">
 
-    <!-- Confirm delete dialog -->
-    <div v-if="confirmRemoveId !== null" class="accounts-overlay">
-      <div class="accounts-dialog">
-        <p class="accounts-dialog-title">Remove account?</p>
-        <p class="accounts-dialog-body">
-          Any transactions linked to this account will be set to <strong>unassigned</strong>. This cannot be undone.
-        </p>
-        <div class="accounts-dialog-actions">
-          <button class="acct-btn acct-btn-ghost" @click="cancelRemove">Cancel</button>
-          <button class="acct-btn acct-btn-danger" @click="confirmRemove">Remove</button>
-        </div>
-      </div>
-    </div>
+    <!-- Confirm delete dialog is now handled by useConfirm (ConfirmDialog.vue) -->
 
     <div class="acct-layout">
 
-      <!-- â”€â”€ Left: account cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+      <!-- ── Left: account cards ──────────────────────────────────────── -->
       <div class="acct-cards-area">
 
         <div v-if="accountDetails.length === 0" class="acct-empty-state">
@@ -264,16 +366,28 @@ function quickAddAccount(bank: typeof SUPPORTED_COUNTRIES[0]['banks'][0], type: 
               </template>
             </div>
             <div class="acct-card-actions">
-              <button class="acct-icon-btn" title="Transactions" @click="emit('viewTransactions', acc.id)">
-                <i class="pi pi-list" />
+              <button class="acct-icon-btn acct-icon-btn--labeled" title="View transactions for this account" @click="emit('viewTransactions', acc.id)">
+                <i class="pi pi-receipt" />
+                <span class="acct-btn-label">Txns</span>
               </button>
-              <button class="acct-icon-btn" title="Reconcile" @click="startReconcile(acc.id)">
-                <i class="pi pi-sliders-h" />
+              <button class="acct-icon-btn acct-icon-btn--labeled" title="Reconcile account balance" @click="startReconcile(acc.id)">
+                <i class="pi pi-calculator" />
+                <span class="acct-btn-label">Reconcile</span>
+              </button>
+              <button class="acct-icon-btn acct-icon-btn--labeled" title="View in Reports" @click="emit('viewInReports', acc.id)">
+                <i class="pi pi-chart-bar" />
+                <span class="acct-btn-label">Reports</span>
               </button>
               <button class="acct-icon-btn" title="Rename" @click="startRename(acc.id, acc.name)">
                 <i class="pi pi-pencil" />
               </button>
-              <button class="acct-icon-btn acct-icon-btn--danger" title="Remove" @click="requestRemove(acc.id)">
+              <button class="acct-icon-btn" title="Unlink transactions" @click="requestUnlinkTransactions(acc.id)">
+                <i class="pi pi-link" />
+              </button>
+              <button class="acct-icon-btn acct-icon-btn--muted" title="Archive account" @click="requestArchive(acc.id)">
+                <i class="pi pi-history" />
+              </button>
+              <button class="acct-icon-btn acct-icon-btn--danger" title="Delete account" @click="requestRemove(acc.id)">
                 <i class="pi pi-trash" />
               </button>
             </div>
@@ -285,7 +399,23 @@ function quickAddAccount(bank: typeof SUPPORTED_COUNTRIES[0]['banks'][0], type: 
           </div>
           <div class="acct-card-balance-label">All-time balance &middot; {{ acc.txCount }} transaction{{ acc.txCount !== 1 ? 's' : '' }}</div>
 
-          <!-- This month stats -->
+          <!-- Type badge + budget toggle -->
+          <div class="acct-type-row">
+            <button
+              class="acct-type-badge"
+              :class="acc.type === 'liability' ? 'acct-type-badge--liability' : 'acct-type-badge--asset'"
+              :title="acc.type === 'liability' ? 'Liability — click to change to Asset' : 'Asset — click to change to Liability'"
+              @click="setAccountType(acc.id, acc.type === 'liability' ? 'asset' : 'liability')"
+            >
+              <i :class="acc.type === 'liability' ? 'pi pi-credit-card' : 'pi pi-wallet'" />
+              {{ acc.type === 'liability' ? 'Liability' : 'Asset' }}
+            </button>
+            <label class="acct-budget-label" :class="{ 'acct-budget-label--excluded': !acc.includedInBudget }" :title="acc.includedInBudget ? 'Included in budget total' : 'Excluded from budget total'">
+              <input type="checkbox" class="acct-budget-checkbox" :checked="acc.includedInBudget" @change="toggleBudgetInclude(acc.id, acc)" />
+              <span>Budget</span>
+            </label>
+          </div>
+
           <div class="acct-month-stats">
             <div class="acct-month-stat">
               <span class="acct-month-label">This Month In</span>
@@ -310,11 +440,12 @@ function quickAddAccount(bank: typeof SUPPORTED_COUNTRIES[0]['banks'][0], type: 
 
           <!-- 6-month spend sparkbar -->
           <div class="acct-spark">
-            <div
+            <button
               v-for="bar in acc.spendTrend"
               :key="bar.key"
-              class="acct-spark-col"
-              :title="bar.label + ': ' + formatMoney(bar.out)"
+              class="acct-spark-col acct-spark-col--btn"
+              :title="bar.label + ': ' + formatMoney(bar.out) + ' — click to view in Reports'"
+              @click="emit('viewBreakdown', bar.key, acc.id)"
             >
               <div class="acct-spark-bar-wrap">
                 <div
@@ -324,44 +455,52 @@ function quickAddAccount(bank: typeof SUPPORTED_COUNTRIES[0]['banks'][0], type: 
                 />
               </div>
               <span class="acct-spark-label">{{ bar.label }}</span>
-            </div>
+            </button>
           </div>
 
           <!-- Recent transactions -->
           <div v-if="acc.recent.length > 0" class="acct-recent">
-            <div class="acct-recent-title">Recent</div>
-            <div v-for="tx in acc.recent" :key="tx.id" class="acct-recent-row">
+            <div class="acct-recent-title">Recent <span class="acct-recent-hint">— click to view all</span></div>
+            <button
+              v-for="tx in acc.recent"
+              :key="tx.id"
+              class="acct-recent-row acct-recent-row--link"
+              :title="'View transactions for ' + acc.name"
+              @click="emit('viewTransactions', acc.id)"
+            >
               <span class="acct-recent-date">{{ tx.date.slice(5).replace('-', '/') }}</span>
               <span class="acct-recent-name">{{ tx.name }}</span>
               <span class="acct-recent-amount" :class="tx.type === 'in' ? 'money-positive' : 'money-negative'">
                 {{ tx.type === 'in' ? '+' : '-' }}{{ formatMoney(tx.amount) }}
               </span>
-            </div>
+            </button>
           </div>
 
           <!-- Linked savings goals & finance -->
           <div v-if="acc.linkedGoals.length > 0 || acc.linkedFinance.length > 0" class="acct-links">
             <span class="acct-links-label">Linked</span>
             <div class="acct-links-chips">
-              <span
+              <button
                 v-for="g in acc.linkedGoals"
                 :key="g.id"
-                class="acct-link-chip acct-link-chip--goal"
+                class="acct-link-chip acct-link-chip--goal acct-link-chip--btn"
                 :style="{ '--chip-color': g.color }"
-                :title="'Savings Goal: ' + g.name"
+                :title="'Go to Savings Goal: ' + g.name"
+                @click="emit('viewSavingsGoal', g.id)"
               >
                 <i class="pi pi-flag" />{{ g.name }}
-              </span>
-              <span
+              </button>
+              <button
                 v-for="f in acc.linkedFinance"
                 :key="f.id"
-                class="acct-link-chip"
+                class="acct-link-chip acct-link-chip--btn"
                 :class="f.kind === 'loan' ? 'acct-link-chip--loan' : 'acct-link-chip--savings'"
                 :style="{ '--chip-color': f.color }"
-                :title="(f.kind === 'loan' ? 'Loan: ' : 'Savings Account: ') + f.name"
+                :title="(f.kind === 'loan' ? 'Go to Loan: ' : 'Go to Savings Account: ') + f.name"
+                @click="emit('viewFinance', f.kind, f.rawId)"
               >
                 <i :class="f.kind === 'loan' ? 'pi pi-credit-card' : 'pi pi-building-columns'" />{{ f.name }}
-              </span>
+              </button>
             </div>
           </div>
 
@@ -394,6 +533,151 @@ function quickAddAccount(bank: typeof SUPPORTED_COUNTRIES[0]['banks'][0], type: 
             </div>
           </div>
         </div>
+
+        <!-- ── Unassigned ghost card ──────────────────────────── -->
+        <div v-if="unassignedDetails" class="acct-card acct-card--ghost">
+          <div class="acct-card-header">
+            <div class="acct-card-name-wrap">
+              <span class="acct-card-name"><i class="pi pi-question-circle" style="opacity:0.5;margin-right:0.3rem" />{{ unassignedDetails.name }}</span>
+            </div>
+            <div class="acct-card-actions">
+              <button class="acct-icon-btn acct-icon-btn--labeled" title="View unassigned transactions" @click="emit('viewTransactions', unassignedDetails.id)">
+                <i class="pi pi-receipt" />
+                <span class="acct-btn-label">Txns</span>
+              </button>
+              <button class="acct-icon-btn acct-icon-btn--labeled" title="View in Reports" @click="emit('viewInReports', unassignedDetails.id)">
+                <i class="pi pi-chart-bar" />
+                <span class="acct-btn-label">Reports</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="acct-card-balance" :class="unassignedDetails.balance >= 0 ? 'money-positive' : 'money-negative'">
+            {{ formatMoney(unassignedDetails.balance) }}
+          </div>
+          <div class="acct-card-balance-label">
+            All-time balance &middot; {{ unassignedDetails.txCount }} transaction{{ unassignedDetails.txCount !== 1 ? 's' : '' }} &middot; <em>no account set</em>
+          </div>
+
+          <div class="acct-month-stats">
+            <div class="acct-month-stat">
+              <span class="acct-month-label">This Month In</span>
+              <span class="acct-month-value money-positive">{{ formatMoney(unassignedDetails.thisMonthIn) }}</span>
+            </div>
+            <div class="acct-month-stat">
+              <span class="acct-month-label">This Month Out</span>
+              <span class="acct-month-value money-negative">{{ formatMoney(unassignedDetails.thisMonthOut) }}</span>
+            </div>
+            <div class="acct-month-stat">
+              <span class="acct-month-label">vs Last Month</span>
+              <span v-if="unassignedDetails.vsLastMonth !== null" class="acct-month-value" :class="unassignedDetails.vsLastMonth <= 0 ? 'money-positive' : 'money-negative'">
+                {{ unassignedDetails.vsLastMonth > 0 ? '+' : '' }}{{ unassignedDetails.vsLastMonth }}%
+              </span>
+              <span v-else class="acct-month-value acct-muted">&mdash;</span>
+            </div>
+          </div>
+
+          <div class="acct-spark">
+            <button
+              v-for="bar in unassignedDetails.spendTrend"
+              :key="bar.key"
+              class="acct-spark-col acct-spark-col--btn"
+              :title="bar.label + ': ' + formatMoney(bar.out) + ' — click to view in Reports'"
+              @click="emit('viewBreakdown', bar.key, unassignedDetails.id)"
+            >
+              <div class="acct-spark-bar-wrap">
+                <div
+                  class="acct-spark-bar"
+                  :class="{ 'acct-spark-bar--current': bar.key === _nowKey }"
+                  :style="{ height: unassignedDetails.maxOut > 0 ? Math.max(4, Math.round((bar.out / unassignedDetails.maxOut) * 100)) + '%' : '4%' }"
+                />
+              </div>
+              <span class="acct-spark-label">{{ bar.label }}</span>
+            </button>
+          </div>
+
+          <div v-if="unassignedDetails.recent.length > 0" class="acct-recent">
+            <div class="acct-recent-title">Recent <span class="acct-recent-hint">— click to view all</span></div>
+            <button
+              v-for="tx in unassignedDetails.recent"
+              :key="tx.id"
+              class="acct-recent-row acct-recent-row--link"
+              title="View unassigned transactions"
+              @click="emit('viewTransactions', unassignedDetails.id)"
+            >
+              <span class="acct-recent-date">{{ tx.date.slice(5).replace('-', '/') }}</span>
+              <span class="acct-recent-name">{{ tx.name }}</span>
+              <span class="acct-recent-amount" :class="tx.type === 'in' ? 'money-positive' : 'money-negative'">
+                {{ tx.type === 'in' ? '+' : '-' }}{{ formatMoney(tx.amount) }}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        <!-- ── Archived accounts section ──────────────────────────── -->
+        <div v-if="archivedAccountDetails.length > 0" class="acct-archived-section">
+          <button class="acct-archived-header" @click="showArchivedAccounts = !showArchivedAccounts">
+            <i :class="showArchivedAccounts ? 'pi pi-chevron-down' : 'pi pi-chevron-right'" />
+            <span>Archived accounts</span>
+            <span class="acct-archived-count">{{ archivedAccountDetails.length }}</span>
+          </button>
+
+          <div v-if="showArchivedAccounts">
+            <div
+              v-for="acc in archivedAccountDetails"
+              :key="acc.id"
+              class="acct-card acct-card--archived"
+            >
+              <div class="acct-card-header">
+                <div class="acct-card-name-wrap">
+                  <span class="acct-card-name">{{ acc.name }}</span>
+                </div>
+                <div class="acct-card-actions">
+                  <button class="acct-icon-btn" title="View transactions" @click="emit('viewTransactions', acc.id)">
+                    <i class="pi pi-list" />
+                  </button>
+                  <button class="acct-icon-btn acct-icon-btn--restore" title="Unarchive account" @click="requestUnarchive(acc.id)">
+                    <i class="pi pi-replay" />
+                  </button>
+                  <button class="acct-icon-btn acct-icon-btn--danger" title="Delete account" @click="requestRemove(acc.id)">
+                    <i class="pi pi-trash" />
+                  </button>
+                </div>
+              </div>
+
+              <div class="acct-card-balance" :class="acc.balance >= 0 ? 'money-positive' : 'money-negative'">
+                {{ formatMoney(acc.balance) }}
+              </div>
+              <div class="acct-card-balance-label">{{ acc.txCount }} transaction{{ acc.txCount !== 1 ? 's' : '' }} &middot; archived</div>
+
+              <!-- Linked goals & finance (archived) -->
+              <div v-if="acc.linkedGoals.length > 0 || acc.linkedFinance.length > 0" class="acct-links">
+                <span class="acct-links-label">Linked</span>
+                <div class="acct-links-chips">
+                  <span
+                    v-for="g in acc.linkedGoals"
+                    :key="g.id"
+                    class="acct-link-chip acct-link-chip--goal"
+                    :style="{ '--chip-color': g.color }"
+                    :title="'Savings Goal: ' + g.name"
+                  >
+                    <i class="pi pi-flag" />{{ g.name }}
+                  </span>
+                  <span
+                    v-for="f in acc.linkedFinance"
+                    :key="f.id"
+                    class="acct-link-chip"
+                    :class="f.kind === 'loan' ? 'acct-link-chip--loan' : 'acct-link-chip--savings'"
+                    :style="{ '--chip-color': f.color }"
+                    :title="(f.kind === 'loan' ? 'Loan: ' : 'Savings Account: ') + f.name"
+                  >
+                    <i :class="f.kind === 'loan' ? 'pi pi-credit-card' : 'pi pi-building-columns'" />{{ f.name }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- â”€â”€ Right: management panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
@@ -402,6 +686,14 @@ function quickAddAccount(bank: typeof SUPPORTED_COUNTRIES[0]['banks'][0], type: 
         <!-- Add account -->
         <div class="settings-section">
           <p class="settings-section-title">Add Account</p>
+          <div class="acct-type-picker">
+            <button type="button" :class="['acct-type-pick-btn', newType === 'asset' ? 'acct-type-pick-btn--active' : '']" @click="newType = 'asset'">
+              <i class="pi pi-wallet" /> Asset
+            </button>
+            <button type="button" :class="['acct-type-pick-btn acct-type-pick-btn--liability', newType === 'liability' ? 'acct-type-pick-btn--active' : '']" @click="newType = 'liability'">
+              <i class="pi pi-credit-card" /> Liability
+            </button>
+          </div>
           <div class="acct-add-form">
             <input
               ref="addInputRef"

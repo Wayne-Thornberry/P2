@@ -12,6 +12,7 @@ import Toast from 'primevue/toast'
 import BudgetTable from './BudgetTable.vue'
 import AssignPanel from './AssignPanel.vue'
 import { useConfirm } from '../composables/useConfirm'
+import { useBudgetFunds } from '../composables/useBudgetFunds'
 
 const store        = useBudgetStore()
 const txStore      = useTransactionStore()
@@ -20,6 +21,7 @@ const settings     = useSettingsStore()
 const accountStore = useAccountStore()
 const toast        = useToast()
 const { confirm }  = useConfirm()
+const { budgetFunds, excludedAccountIds } = useBudgetFunds()
 
 const isMonthEmpty = computed(() => store.items.length === 0)
 
@@ -76,7 +78,8 @@ const emit = defineEmits<{
   viewItemTransactions: [itemId: number, yearMonth: string]
 }>()
 
-const totalFundsAvailable = computed(() => txStore.totalFunds)
+const totalFundsAvailable = computed(() => budgetFunds.value)
+const excludedAccountCount = computed(() => excludedAccountIds.value.size)
 
 const monthlyNet = computed(() =>
   txStore.transactions
@@ -278,6 +281,10 @@ function fundPartially(): void {
       </div>
       <div class="budget-funds-card-amount" :class="Math.round(totalFundsAvailable * 100) >= 0 ? 'money-positive' : 'money-negative'">
         {{ formatMoney(totalFundsAvailable) }}
+      </div>
+      <div v-if="excludedAccountCount > 0" class="budget-funds-card-excluded">
+        <i class="pi pi-eye-slash" />
+        {{ excludedAccountCount }} liability account{{ excludedAccountCount !== 1 ? 's' : '' }} excluded
       </div>
       <div class="budget-funds-card-footer">
         <span class="budget-funds-card-net">

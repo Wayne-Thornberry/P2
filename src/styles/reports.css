@@ -215,6 +215,15 @@
   box-shadow: 0 1px 3px rgba(0,0,0,0.4);
 }
 
+.bdown-tab--ghost {
+  border-style: dashed;
+  opacity: 0.8;
+}
+
+.bdown-tab--ghost.bdown-tab--active {
+  opacity: 1;
+}
+
 /* ── Range filter controls ─────────────────────────────────────── */
 
 .bdown-range-controls {

@@ -1,6 +1,7 @@
 ﻿<script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import type { Transaction } from '../types/transaction'
+import { UNASSIGNED_ACCOUNT_ID } from '../types/transaction'
 import { useTransactionStore } from '../stores/transactionStore'
 import { useAccountStore } from '../stores/accountStore'
 import { useBudgetStore } from '../stores/budgetStore'
@@ -253,7 +254,8 @@ const filteredTransactions = computed(() => {
     list = list.filter(t => t.type === filterType.value)
   }
   if (filterAccountId.value !== null) {
-    list = list.filter(t => t.accountId === filterAccountId.value)
+    if (filterAccountId.value === UNASSIGNED_ACCOUNT_ID || filterAccountId.value === '__none__') list = list.filter(t => t.accountId === null)
+    else list = list.filter(t => t.accountId === filterAccountId.value)
   }
   if (filterItemId.value !== null) {
     if (filterItemId.value === -1) list = list.filter(t => t.itemId === null)
@@ -925,6 +927,7 @@ const historyExpanded = ref(false)
           <label class="tx-filter-label">Account</label>
           <select v-model="filterAccountId" class="tx-filter-field tx-filter-select">
             <option :value="null">All accounts</option>
+            <option :value="UNASSIGNED_ACCOUNT_ID">— No account —</option>
             <option v-for="acc in accountStore.accounts" :key="acc.id" :value="acc.id">
               {{ acc.name }}
             </option>

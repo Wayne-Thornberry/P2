@@ -19,6 +19,9 @@ function fmt(v: number): string { return settings.formatMoney(v) }
 
 const today = getTodayStr()
 
+const props = defineProps<{ focusKind?: 'loan' | 'savings'; focusId?: number }>()
+const highlightedId = ref<number | null>(null)
+
 // ── Active tab ─────────────────────────────────────────────────
 const activeTab    = ref<'loans' | 'savings'>('loans')
 const showArchived = ref(false)
@@ -62,6 +65,31 @@ function toggleSavExpand(id: number): void {
 // ── Chart instances ───────────────────────────────────────────
 const loanCharts = new Map<number, Chart>()
 const savCharts  = new Map<number, Chart>()
+
+watch(() => props.focusId, (id) => {
+  if (!id || !props.focusKind) return
+  activeTab.value = props.focusKind === 'loan' ? 'loans' : 'savings'
+  if (props.focusKind === 'loan') {
+    const rec = store.loans.find(l => l.id === id)
+    if (rec?.archived) showArchived.value = true
+    if (!expandedLoanIds.value.includes(id)) {
+      expandedLoanIds.value.push(id)
+      nextTick(() => mountLoanChart(id))
+    }
+  } else {
+    const rec = store.savings.find(s => s.id === id)
+    if (rec?.archived) showArchived.value = true
+    if (!expandedSavIds.value.includes(id)) {
+      expandedSavIds.value.push(id)
+      nextTick(() => mountSavChart(id))
+    }
+  }
+  highlightedId.value = id
+  nextTick(() => {
+    document.querySelector(`[data-finance-id="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setTimeout(() => { highlightedId.value = null }, 2200)
+  })
+}, { immediate: true })
 
 onUnmounted(() => {
   loanCharts.forEach(c => c.destroy())
@@ -376,6 +404,24 @@ function accountNetBalance(accId: string): number {
       .reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0) * 100
   ) / 100
 }
+
+// For a loan account the original principal = the deepest negative running balance.
+// This handles both newly-created loans (OB stored as an 'out' for the full amount)
+// and imported existing loans (OB = 0, then the drawdown debit makes the balance
+// negative for the first time).
+function accountLoanPrincipal(accId: string): number {
+  const txs = txStore.transactions
+    .filter(t => t.accountId === accId)
+    .slice()
+    .sort((a, b) => a.date.localeCompare(b.date))
+  let running = 0
+  let minBalance = 0
+  for (const t of txs) {
+    running += t.type === 'in' ? t.amount : -t.amount
+    if (running < minBalance) minBalance = running
+  }
+  return Math.round(Math.abs(minBalance) * 100) / 100
+}
 const showLoanForm  = ref(false)
 const editLoanId    = ref<number | null>(null)
 const loanName           = ref('')
@@ -408,8 +454,8 @@ watch(loanAccount, (accId) => {
   const acc = accounts.accounts.find(a => a.id === accId)
   if (!acc) return
   loanName.value = acc.name
-  const bal = Math.abs(accountNetBalance(accId))
-  if (bal > 0) loanPrincipal.value = String(bal)
+  const principal = accountLoanPrincipal(accId)
+  if (principal > 0) loanPrincipal.value = String(principal)
   loanStart.value = accountEarliestDate(accId)
 })
 
@@ -630,7 +676,8 @@ function loanProgressLabel(loan: LoanRecord): string {
           v-for="loan in activeLoans"
           :key="loan.id"
           class="fn-card"
-          :class="{ 'fn-card--archived': loan.archived }"
+          :class="{ 'fn-card--archived': loan.archived, 'fn-card--highlighted': highlightedId === loan.id }"
+          :data-finance-id="loan.id"
         >
 
           <!-- Card header -->
@@ -797,7 +844,8 @@ function loanProgressLabel(loan: LoanRecord): string {
           v-for="sav in activeSavs"
           :key="sav.id"
           class="fn-card fn-card--sav"
-          :class="{ 'fn-card--archived': sav.archived }"
+          :class="{ 'fn-card--archived': sav.archived, 'fn-card--highlighted': highlightedId === sav.id }"
+          :data-finance-id="sav.id"
         >
 
           <div class="fn-card-header">
