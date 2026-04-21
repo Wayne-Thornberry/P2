@@ -157,11 +157,10 @@ export const useTransactionStore = defineStore('transactions', () => {
   }
 
   function addOpeningBalance(accountId: string, amount: number, date: string): void {
-    if (amount === 0) return
     addTransaction({
       name:      'Opening Balance',
       date,
-      type:      amount > 0 ? 'in' : 'out',
+      type:      amount >= 0 ? 'in' : 'out',
       amount:    Math.abs(amount),
       itemId:    null,
       accountId,

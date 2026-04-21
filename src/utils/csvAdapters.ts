@@ -219,12 +219,30 @@ export function processMultipleCsvFiles(
   );
 
 
-  // ── Step 4: merge rows, preserve verbatim order ──────────────────────────
-  // Just concatenate all rows from all files, in chronological file order, preserving row order within each file.
+  // ── Step 4: merge rows, count-based dedup across files ─────────────────────
+  // A row from file N is only added to allRows when the running merged count
+  // for that key is still below file N's own count for that key.
+  // Effect: cross-file duplicates are eliminated while legitimately-repeated
+  // transactions (same date/name/amount appearing multiple times within a
+  // single file) are preserved.
+  const mergedCounts = new Map<string, number>();
   const allRows: ParsedRow[] = [];
   for (const file of sortedFiles) {
+    const fileCounts = new Map<string, number>();
     for (const row of file.rows) {
-      allRows.push(row);
+      const key = `${row.isoDate}|${row.details}|${row.amount}|${row.type}`;
+      fileCounts.set(key, (fileCounts.get(key) ?? 0) + 1);
+    }
+    const fileConsumed = new Map<string, number>();
+    for (const row of file.rows) {
+      const key = `${row.isoDate}|${row.details}|${row.amount}|${row.type}`;
+      const alreadyMerged = mergedCounts.get(key) ?? 0;
+      const consumed = fileConsumed.get(key) ?? 0;
+      fileConsumed.set(key, consumed + 1);
+      if (consumed >= alreadyMerged) {
+        allRows.push(row);
+        mergedCounts.set(key, alreadyMerged + 1);
+      }
     }
   }
 

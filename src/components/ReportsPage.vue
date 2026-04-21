@@ -40,7 +40,7 @@ function goTx(opts: { month?: string; accountId?: string; name?: string; type?: 
 type Tab = 'overall' | 'breakdown' | 'items' | 'finance'
 const activeTab = ref<Tab>('overall')
 
-type BreakdownSubTab = 'year' | 'accounts' | 'month' | 'range'
+type BreakdownSubTab = 'year' | 'month' | 'range'
 const breakdownSubTab = ref<BreakdownSubTab>('year')
 const tabs: { id: Tab; label: string }[] = [
   { id: 'overall',   label: 'Overview'   },
@@ -54,6 +54,24 @@ const _now    = new Date()
 const _nowKey = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}`
 
 const selectedMonthKey = ref(_nowKey)
+
+// ── Account filter ───────────────────────────────────────────────
+const selectedAccountId = ref<string | null>(null)
+
+function withAccFilter(txs: typeof txStore.transactions): typeof txStore.transactions {
+  return selectedAccountId.value ? txs.filter(t => t.accountId === selectedAccountId.value) : txs
+}
+
+const selectedAccount = computed(() =>
+  selectedAccountId.value ? (accountStore.accounts.find(a => a.id === selectedAccountId.value) ?? null) : null
+)
+
+const allTimeAccountBalance = computed(() => {
+  if (!selectedAccountId.value) return 0
+  return txStore.transactions
+    .filter(t => t.accountId === selectedAccountId.value)
+    .reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0)
+})
 
 // ── Year selectors ─────────────────────────────────────────────
 const _currentYear = _now.getFullYear()
@@ -100,6 +118,38 @@ const totalIn  = computed(() => txStore.transactions.filter(t => t.type === 'in'
 const totalOut = computed(() => txStore.transactions.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0))
 const net      = computed(() => totalIn.value - totalOut.value)
 
+// ── Overview enhanced stats ──────────────────────────────────────
+const allMonthlyFlow = computed(() => {
+  const map = new Map<string, { in: number; out: number }>()
+  for (const t of txStore.transactions) {
+    const key = t.date.substring(0, 7)
+    const e = map.get(key) ?? { in: 0, out: 0 }
+    if (t.type === 'in') e.in += t.amount; else e.out += t.amount
+    map.set(key, e)
+  }
+  return [...map.entries()].map(([key, v]) => ({ key, ...v, net: Math.round((v.in - v.out) * 100) / 100 }))
+})
+
+const overviewBiggestSpend = computed(() => {
+  const active = allMonthlyFlow.value.filter(m => m.out > 0)
+  return active.length ? active.reduce((max, m) => m.out > max.out ? m : max) : null
+})
+
+const overviewLowestSpend = computed(() => {
+  const active = allMonthlyFlow.value.filter(m => m.out > 0)
+  return active.length ? active.reduce((min, m) => m.out < min.out ? m : min) : null
+})
+
+const overviewBestMonth = computed(() => {
+  const active = allMonthlyFlow.value.filter(m => m.in > 0 || m.out > 0)
+  return active.length ? active.reduce((max, m) => m.net > max.net ? m : max) : null
+})
+
+const overviewAvgMonthlySpend = computed(() => {
+  const active = allMonthlyFlow.value.filter(m => m.out > 0)
+  return active.length ? Math.round(active.reduce((s, m) => s + m.out, 0) / active.length * 100) / 100 : 0
+})
+
 const yearlyFlow = computed(() =>
   availableYears.value.slice().reverse().map(y => {
     const txs  = txStore.transactions.filter(t => t.date.startsWith(String(y)))
@@ -128,10 +178,11 @@ const yearSummary = computed(() =>
 // YEAR VIEW TAB DATA (month-by-month for a selected year)
 // ──────────────────────────────────────────────────────────────
 const yearViewMonthlyFlow = computed(() => {
-  const y = yearViewYear.value
+  const y    = yearViewYear.value
+  const base = withAccFilter(txStore.transactions)
   return Array.from({ length: 12 }, (_, i) => {
     const key  = `${y}-${String(i + 1).padStart(2, '0')}`
-    const txs  = txStore.transactions.filter(t => t.date.startsWith(key))
+    const txs  = base.filter(t => t.date.startsWith(key))
     const mIn  = txs.filter(t => t.type === 'in').reduce((s, t) => s + t.amount, 0)
     const mOut = txs.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0)
     const label = new Date(y, i, 1).toLocaleDateString(settings.locale, { month: 'short' })
@@ -142,7 +193,7 @@ const yearViewMonthlyFlow = computed(() => {
 const yearViewTotalIn  = computed(() => yearViewMonthlyFlow.value.reduce((s, m) => s + m.in,  0))
 const yearViewTotalOut = computed(() => yearViewMonthlyFlow.value.reduce((s, m) => s + m.out, 0))
 const yearViewNet      = computed(() => Math.round((yearViewTotalIn.value - yearViewTotalOut.value) * 100) / 100)
-const yearViewTxCount  = computed(() => txStore.transactions.filter(t => t.date.startsWith(String(yearViewYear.value))).length)
+const yearViewTxCount  = computed(() => withAccFilter(txStore.transactions).filter(t => t.date.startsWith(String(yearViewYear.value))).length)
 
 const yearViewMonthSummary = computed(() =>
   yearViewMonthlyFlow.value.map((m, i) => ({
@@ -151,7 +202,7 @@ const yearViewMonthSummary = computed(() =>
     in:          m.in,
     out:         m.out,
     net:         Math.round((m.in - m.out) * 100) / 100,
-    count:       txStore.transactions.filter(t => t.date.startsWith(m.key)).length,
+    count:       withAccFilter(txStore.transactions).filter(t => t.date.startsWith(m.key)).length,
     savingsRate: m.in > 0 ? Math.round(((m.in - m.out) / m.in) * 100) : 0,
   }))
 )
@@ -169,14 +220,15 @@ function topByName(txs: typeof txStore.transactions, type: 'in' | 'out', n = 10)
     .slice(0, n)
 }
 
-const yearTopIn  = computed(() => topByName(txStore.transactions.filter(t => t.date.startsWith(String(yearViewYear.value))), 'in'))
-const yearTopOut = computed(() => topByName(txStore.transactions.filter(t => t.date.startsWith(String(yearViewYear.value))), 'out'))
+const yearTopIn  = computed(() => topByName(withAccFilter(txStore.transactions).filter(t => t.date.startsWith(String(yearViewYear.value))), 'in'))
+const yearTopOut = computed(() => topByName(withAccFilter(txStore.transactions).filter(t => t.date.startsWith(String(yearViewYear.value))), 'out'))
 
 // ── Year transaction heatmap ───────────────────────────────────
 const yearHeatmapData = computed(() => {
   const year   = yearViewYear.value
+  const base   = withAccFilter(txStore.transactions)
   const txsByDay = new Map<string, number>()
-  for (const t of txStore.transactions) {
+  for (const t of base) {
     if (!t.date.startsWith(String(year))) continue
     if (t.name === 'Opening Balance') continue
     txsByDay.set(t.date, (txsByDay.get(t.date) ?? 0) + 1)
@@ -239,7 +291,7 @@ const selYear  = computed(() => parseInt(selectedMonthKey.value.split('-')[0], 1
 const selMonth = computed(() => parseInt(selectedMonthKey.value.split('-')[1], 10))
 
 const monthlyTxs = computed(() =>
-  txStore.transactions.filter(t => t.date.startsWith(selectedMonthKey.value))
+  withAccFilter(txStore.transactions).filter(t => t.date.startsWith(selectedMonthKey.value))
 )
 
 const monthIn  = computed(() => monthlyTxs.value.filter(t => t.type === 'in').reduce((s, t) => s + t.amount, 0))
@@ -340,6 +392,28 @@ const accountTrend = computed(() => {
   })
 })
 
+// yearAccountTrend: all accounts when no filter, single account when filtered
+const yearAccountTrend = computed(() => {
+  if (!selectedAccountId.value) return accountTrend.value
+  const acc = accountStore.accounts.find(a => a.id === selectedAccountId.value)
+  if (!acc) return []
+  const accTxs = txStore.transactions
+    .filter(t => t.accountId === acc.id)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt))
+  const months = trendMonths.value
+  const balances: number[] = []
+  let running = 0
+  let txIdx   = 0
+  for (const { key } of months) {
+    while (txIdx < accTxs.length && accTxs[txIdx].date.substring(0, 7) <= key) {
+      const t = accTxs[txIdx++]
+      running = Math.round((running + (t.type === 'in' ? t.amount : -t.amount)) * 100) / 100
+    }
+    balances.push(running)
+  }
+  return [{ name: acc.name, color: PALETTE[0], balances }]
+})
+
 // ──────────────────────────────────────────────────────────────
 // ITEMS TAB DATA  (all-time, all global items — no month filter)
 // ──────────────────────────────────────────────────────────────
@@ -364,7 +438,7 @@ const rangeFrom = ref(_thirtyAgoStr)
 const rangeTo   = ref(_todayStr)
 
 const rangeTxs = computed(() =>
-  txStore.transactions.filter(t => t.date >= rangeFrom.value && t.date <= rangeTo.value)
+  withAccFilter(txStore.transactions).filter(t => t.date >= rangeFrom.value && t.date <= rangeTo.value)
 )
 const rangeIn  = computed(() => rangeTxs.value.filter(t => t.type === 'in').reduce((s, t) => s + t.amount, 0))
 const rangeOut = computed(() => rangeTxs.value.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0))
@@ -593,75 +667,6 @@ function buildMonthly(): void {
   }
 }
 
-function buildAccounts(): void {
-  if (!acctTrendCanvas.value || !acctBarCanvas.value) return
-  const tc    = textClr.value
-  const gc    = gridClr.value
-  const money = (v: number | string) => formatMoney(Number(v))
-
-  const trend  = accountTrend.value
-  const labels = trendMonths.value.map(m => m.label)
-  charts.push(new Chart(acctTrendCanvas.value, {
-    type: 'line',
-    data: {
-      labels,
-      datasets: trend.map(acc => ({
-        label:           acc.name,
-        data:            acc.balances,
-        borderColor:     acc.color,
-        backgroundColor: acc.color.replace('rgb(', 'rgba(').replace(')', ', 0.08)'),
-        borderWidth:     2,
-        pointRadius:     3,
-        tension:         0.3,
-        fill:            false,
-      })),
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
-      plugins: {
-        legend: { position: 'bottom', labels: { color: tc, boxWidth: 12, padding: 12 } },
-        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${formatMoney(ctx.parsed.y ?? 0)}` } },
-      },
-      scales: {
-        x: { ticks: { color: tc }, grid: { color: gc } },
-        y: { ticks: { color: tc, callback: money }, grid: { color: gc } },
-      },
-    },
-  }))
-
-  const accts = accountStats.value
-  charts.push(new Chart(acctBarCanvas.value, {
-    type: 'bar',
-    data: {
-      labels:   accts.map(a => a.name),
-      datasets: [
-        { label: 'Total In',  data: accts.map(a => a.totalIn),  backgroundColor: 'rgba(34,197,94,0.7)',   borderColor: 'rgb(34,197,94)',   borderWidth: 1, borderRadius: 3 },
-        { label: 'Total Out', data: accts.map(a => a.totalOut), backgroundColor: 'rgba(239,68,68,0.65)', borderColor: 'rgb(239,68,68)', borderWidth: 1, borderRadius: 3 },
-      ],
-    },
-    options: {
-      indexAxis: 'y',
-      responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
-      onClick: (_e: unknown, elements: { index: number }[]) => {
-        if (!elements.length) return
-        const accountId = accountStats.value[elements[0].index]?.id
-        if (accountId) goTx({ accountId })
-      },
-      onHover: (_e: unknown, elements: { index: number }[]) => {
-        if (acctBarCanvas.value) acctBarCanvas.value.style.cursor = elements.length ? 'pointer' : 'default'
-      },
-      plugins: {
-        legend: { position: 'bottom', labels: { color: tc } },
-        tooltip: { callbacks: { label: ctx => ` ${formatMoney(ctx.parsed.x ?? 0)}` } },
-      },
-      scales: {
-        x: { beginAtZero: true, ticks: { color: tc, callback: money }, grid: { color: gc } },
-        y: { ticks: { color: tc }, grid: { color: gc } },
-      },
-    },
-  }))
-}
-
 function buildYear(): void {
   if (!yearFlowCanvas.value || !yearNetCanvas.value) return
   const tc    = textClr.value
@@ -726,6 +731,78 @@ function buildYear(): void {
       },
     },
   }))
+
+  // Account running balance trend (moved from Accounts sub-tab)
+  if (acctTrendCanvas.value) {
+    const trend  = yearAccountTrend.value
+    const labels = trendMonths.value.map(m => m.label)
+    if (trend.length > 0) {
+      charts.push(new Chart(acctTrendCanvas.value, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: trend.map(acc => ({
+            label:           acc.name,
+            data:            acc.balances,
+            borderColor:     acc.color,
+            backgroundColor: acc.color.replace('rgb(', 'rgba(').replace(')', ', 0.08)'),
+            borderWidth:     2,
+            pointRadius:     3,
+            tension:         0.3,
+            fill:            false,
+          })),
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
+          plugins: {
+            legend: { position: 'bottom', labels: { color: tc, boxWidth: 12, padding: 12 } },
+            tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${formatMoney(ctx.parsed.y ?? 0)}` } },
+          },
+          scales: {
+            x: { ticks: { color: tc }, grid: { color: gc } },
+            y: { ticks: { color: tc, callback: money }, grid: { color: gc } },
+          },
+        },
+      }))
+    }
+  }
+
+  // In vs Out by Account bar — only when "All" selected
+  if (!selectedAccountId.value && acctBarCanvas.value) {
+    const accts = accountStats.value
+    if (accts.length > 0) {
+      charts.push(new Chart(acctBarCanvas.value, {
+        type: 'bar',
+        data: {
+          labels:   accts.map(a => a.name),
+          datasets: [
+            { label: 'Total In',  data: accts.map(a => a.totalIn),  backgroundColor: 'rgba(34,197,94,0.7)',   borderColor: 'rgb(34,197,94)',   borderWidth: 1, borderRadius: 3 },
+            { label: 'Total Out', data: accts.map(a => a.totalOut), backgroundColor: 'rgba(239,68,68,0.65)', borderColor: 'rgb(239,68,68)', borderWidth: 1, borderRadius: 3 },
+          ],
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
+          onClick: (_e: unknown, elements: { index: number }[]) => {
+            if (!elements.length) return
+            const accountId = accountStats.value[elements[0].index]?.id
+            if (accountId) goTx({ accountId })
+          },
+          onHover: (_e: unknown, elements: { index: number }[]) => {
+            if (acctBarCanvas.value) acctBarCanvas.value.style.cursor = elements.length ? 'pointer' : 'default'
+          },
+          plugins: {
+            legend: { position: 'bottom', labels: { color: tc } },
+            tooltip: { callbacks: { label: ctx => ` ${formatMoney(ctx.parsed.x ?? 0)}` } },
+          },
+          scales: {
+            x: { beginAtZero: true, ticks: { color: tc, callback: money }, grid: { color: gc } },
+            y: { ticks: { color: tc }, grid: { color: gc } },
+          },
+        },
+      }))
+    }
+  }
 }
 
 function buildItems(): void {
@@ -781,10 +858,9 @@ function buildRange(): void {
 }
 
 function buildBreakdown(): void {
-  if (breakdownSubTab.value === 'year')          { buildYear() }
-  else if (breakdownSubTab.value === 'accounts') { buildAccounts() }
-  else if (breakdownSubTab.value === 'range')    { buildRange() }
-  else                                           { buildMonthly() }
+  if (breakdownSubTab.value === 'year')       { buildYear() }
+  else if (breakdownSubTab.value === 'range') { buildRange() }
+  else                                        { buildMonthly() }
 }
 
 // ── Finance charts ─────────────────────────────────────────────
@@ -941,7 +1017,11 @@ watch(activeTab, tab => nextTick(() => buildTab(tab)))
 watch([yearlyFlow, yearlyNet, totalIn, totalOut, isDark], () => {
   if (activeTab.value === 'overall') { destroyAll(); buildOverall() }
 })
-watch([yearViewMonthlyFlow, accountTrend, accountStats, dailySpending, monthTopSpending, isDark], () => {
+watch([yearViewMonthlyFlow, accountTrend, yearAccountTrend, accountStats, dailySpending, monthTopSpending, isDark], () => {
+  if (activeTab.value === 'breakdown') { destroyAll(); nextTick(() => buildBreakdown()) }
+})
+
+watch(selectedAccountId, () => {
   if (activeTab.value === 'breakdown') { destroyAll(); nextTick(() => buildBreakdown()) }
 })
 
@@ -1008,6 +1088,44 @@ watch(yearViewYear, y => {
           <span class="reports-stat-label">Years of Data</span>
           <span class="reports-stat-value">{{ availableYears.length }}</span>
         </div>
+        <div class="reports-stat-card">
+          <span class="reports-stat-label">Active Accounts</span>
+          <span class="reports-stat-value">{{ accountStore.accounts.length }}</span>
+        </div>
+        <button
+          v-if="overviewBiggestSpend"
+          class="reports-stat-card rpt-stat-link"
+          @click="selectedAccountId = null; yearViewYear = parseInt(overviewBiggestSpend.key); activeTab = 'breakdown'; breakdownSubTab = 'month'; selectedMonthKey = overviewBiggestSpend.key"
+          :title="'View ' + monthKeyToLabel(overviewBiggestSpend.key) + ' in Breakdown'"
+        >
+          <span class="reports-stat-label">Biggest Monthly Spend</span>
+          <span class="reports-stat-value money-negative">{{ formatMoney(overviewBiggestSpend.out) }}</span>
+          <span class="rpt-stat-sub">{{ monthKeyToLabel(overviewBiggestSpend.key) }}</span>
+        </button>
+        <button
+          v-if="overviewLowestSpend"
+          class="reports-stat-card rpt-stat-link"
+          @click="selectedAccountId = null; yearViewYear = parseInt(overviewLowestSpend.key); activeTab = 'breakdown'; breakdownSubTab = 'month'; selectedMonthKey = overviewLowestSpend.key"
+          :title="'View ' + monthKeyToLabel(overviewLowestSpend.key) + ' in Breakdown'"
+        >
+          <span class="reports-stat-label">Lowest Monthly Spend</span>
+          <span class="reports-stat-value money-positive">{{ formatMoney(overviewLowestSpend.out) }}</span>
+          <span class="rpt-stat-sub">{{ monthKeyToLabel(overviewLowestSpend.key) }}</span>
+        </button>
+        <button
+          v-if="overviewBestMonth"
+          class="reports-stat-card rpt-stat-link"
+          @click="selectedAccountId = null; yearViewYear = parseInt(overviewBestMonth.key); activeTab = 'breakdown'; breakdownSubTab = 'month'; selectedMonthKey = overviewBestMonth.key"
+          :title="'View ' + monthKeyToLabel(overviewBestMonth.key) + ' in Breakdown'"
+        >
+          <span class="reports-stat-label">Best Net Month</span>
+          <span class="reports-stat-value" :class="overviewBestMonth.net >= 0 ? 'money-positive' : 'money-negative'">{{ formatMoney(overviewBestMonth.net) }}</span>
+          <span class="rpt-stat-sub">{{ monthKeyToLabel(overviewBestMonth.key) }}</span>
+        </button>
+        <div class="reports-stat-card">
+          <span class="reports-stat-label">Avg Monthly Spend</span>
+          <span class="reports-stat-value money-negative">{{ formatMoney(overviewAvgMonthlySpend) }}</span>
+        </div>
       </div>
       <div class="reports-grid">
         <div class="reports-card reports-card-span2">
@@ -1064,22 +1182,40 @@ watch(yearViewYear, y => {
     <!-- BREAKDOWN -->
     <template v-if="activeTab === 'breakdown'">
 
-      <!-- Shared header: year picker + sub-tab strip -->
+      <!-- Shared header: year picker + sub-tab strip + account filter -->
       <div class="bdown-header">
-        <nav class="bdown-tabs" aria-label="Year" role="group">
-          <button
-            v-for="y in [...availableYears].reverse()" :key="y"
-            class="bdown-tab"
-            :class="{ 'bdown-tab--active': yearViewYear === y }"
-            @click="yearViewYear = y"
-          >{{ y }}</button>
-        </nav>
-        <nav class="bdown-tabs" role="tablist">
-          <button role="tab" class="bdown-tab" :class="{ 'bdown-tab--active': breakdownSubTab === 'year' }"     @click="breakdownSubTab = 'year'">Year</button>
-          <button role="tab" class="bdown-tab" :class="{ 'bdown-tab--active': breakdownSubTab === 'accounts' }" @click="breakdownSubTab = 'accounts'">Accounts</button>
-          <button role="tab" class="bdown-tab" :class="{ 'bdown-tab--active': breakdownSubTab === 'month' }"    @click="breakdownSubTab = 'month'">Monthly</button>
-          <button role="tab" class="bdown-tab" :class="{ 'bdown-tab--active': breakdownSubTab === 'range' }"    @click="breakdownSubTab = 'range'">Range</button>
-        </nav>
+        <div class="bdown-header-row">
+          <nav class="bdown-tabs" aria-label="Year" role="group">
+            <button
+              v-for="y in [...availableYears].reverse()" :key="y"
+              class="bdown-tab"
+              :class="{ 'bdown-tab--active': yearViewYear === y }"
+              @click="yearViewYear = y"
+            >{{ y }}</button>
+          </nav>
+          <nav class="bdown-tabs" role="tablist">
+            <button role="tab" class="bdown-tab" :class="{ 'bdown-tab--active': breakdownSubTab === 'year' }"  @click="breakdownSubTab = 'year'">Year</button>
+            <button role="tab" class="bdown-tab" :class="{ 'bdown-tab--active': breakdownSubTab === 'month' }" @click="breakdownSubTab = 'month'">Monthly</button>
+            <button role="tab" class="bdown-tab" :class="{ 'bdown-tab--active': breakdownSubTab === 'range' }" @click="breakdownSubTab = 'range'">Range</button>
+          </nav>
+        </div>
+        <div v-if="accountStore.accounts.length > 1" class="bdown-account-selector">
+          <span class="rpt-filter-label">Account</span>
+          <nav class="bdown-tabs" role="group">
+            <button
+              class="bdown-tab"
+              :class="{ 'bdown-tab--active': selectedAccountId === null }"
+              @click="selectedAccountId = null"
+            >All</button>
+            <button
+              v-for="acc in accountStore.accounts"
+              :key="acc.id"
+              class="bdown-tab"
+              :class="{ 'bdown-tab--active': selectedAccountId === acc.id }"
+              @click="selectedAccountId = acc.id"
+            >{{ acc.name }}</button>
+          </nav>
+        </div>
       </div>
 
       <!-- ── Year sub-tab ──────────────────────────────────────── -->
@@ -1101,6 +1237,11 @@ watch(yearViewYear, y => {
             <span class="reports-stat-label">Transactions</span>
             <span class="reports-stat-value">{{ yearViewTxCount }}</span>
           </button>
+          <div v-if="selectedAccount" class="reports-stat-card">
+            <span class="reports-stat-label">{{ selectedAccount.name }} Balance</span>
+            <span class="reports-stat-value" :class="allTimeAccountBalance >= 0 ? 'money-positive' : 'money-negative'">{{ formatMoney(allTimeAccountBalance) }}</span>
+            <span class="rpt-stat-sub">All-time</span>
+          </div>
         </div>
         <div class="reports-grid">
           <div class="reports-card reports-card-span2">
@@ -1218,54 +1359,48 @@ watch(yearViewYear, y => {
               </div>
             </div>
           </div>
-        </div>
-      </template>
 
-      <!-- ── Accounts sub-tab ──────────────────────────────────── -->
-      <template v-if="breakdownSubTab === 'accounts'">
-        <div v-if="accountStats.length === 0" class="rpt-empty rpt-empty-lg">No accounts set up yet.</div>
-        <template v-else>
-          <p class="rpt-section-note" style="margin-top:0.5rem">Balances are all-time. In / Out reflects the selected year.</p>
-          <div class="reports-stats">
-            <div v-for="acc in accountStats" :key="acc.id" class="reports-stat-card">
-              <span class="reports-stat-label">{{ acc.name }}</span>
-              <span class="reports-stat-value" :class="acc.balance >= 0 ? 'money-positive' : 'money-negative'">{{ formatMoney(acc.balance) }}</span>
-            </div>
+          <!-- Account running balance — year view -->
+          <div v-if="accountStore.accounts.length > 0" class="reports-card reports-card-span3">
+            <h3 class="reports-card-title">
+              {{ selectedAccount ? selectedAccount.name + ' Running Balance' : 'Account Running Balances' }} — {{ yearViewYear }}
+            </h3>
+            <div v-if="yearAccountTrend.length === 0" class="rpt-empty rpt-empty-chart">No account activity in {{ yearViewYear }}.</div>
+            <div v-else class="reports-chart-wrap" style="height:240px"><canvas ref="acctTrendCanvas" /></div>
           </div>
-          <div class="reports-grid">
-            <div class="reports-card reports-card-span3">
-              <h3 class="reports-card-title">Running Balance — {{ yearViewYear }}</h3>
-              <div class="reports-chart-wrap" style="height:280px"><canvas ref="acctTrendCanvas" /></div>
-            </div>
-            <div class="reports-card reports-card-span3">
-              <h3 class="reports-card-title">In vs Out by Account — {{ yearViewYear }}</h3>
-              <div class="reports-chart-wrap" style="height:180px"><canvas ref="acctBarCanvas" /></div>
-            </div>
-            <div class="reports-card reports-card-span3">
-              <h3 class="reports-card-title">Account Summary</h3>
-              <table class="rpt-table">
-                <thead>
-                  <tr>
-                    <th>Account</th>
-                    <th class="rpt-num">Transactions</th>
-                    <th class="rpt-num">Total In</th>
-                    <th class="rpt-num">Total Out</th>
-                    <th class="rpt-num">Balance (All-Time)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="acc in accountStats" :key="acc.id">
-                    <td>{{ acc.name }}</td>
-                    <td class="rpt-num rpt-muted">{{ acc.count }}</td>
-                    <td class="rpt-num money-positive">{{ formatMoney(acc.totalIn) }}</td>
-                    <td class="rpt-num money-negative">{{ formatMoney(acc.totalOut) }}</td>
-                    <td class="rpt-num" :class="acc.balance >= 0 ? 'money-positive' : 'money-negative'">{{ formatMoney(acc.balance) }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+
+          <!-- In vs Out by account bar — only when All is selected -->
+          <div v-if="!selectedAccountId && accountStore.accounts.length > 1" class="reports-card reports-card-span3">
+            <h3 class="reports-card-title">In vs Out by Account — {{ yearViewYear }}</h3>
+            <div class="reports-chart-wrap" :style="{ height: Math.max(100, accountStats.length * 52) + 'px' }"><canvas ref="acctBarCanvas" /></div>
           </div>
-        </template>
+
+          <!-- Account summary table — only when All is selected -->
+          <div v-if="!selectedAccountId && accountStore.accounts.length > 0" class="reports-card reports-card-span3">
+            <h3 class="reports-card-title">Account Summary — {{ yearViewYear }}</h3>
+            <p class="rpt-section-note" style="margin-top:0">Balances are all-time cumulative. In / Out reflects the selected year.</p>
+            <table class="rpt-table">
+              <thead>
+                <tr>
+                  <th>Account</th>
+                  <th class="rpt-num">Transactions</th>
+                  <th class="rpt-num">Total In</th>
+                  <th class="rpt-num">Total Out</th>
+                  <th class="rpt-num">Balance (All-Time)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="acc in accountStats" :key="acc.id" class="rpt-row-clickable" @click="selectedAccountId = acc.id" :title="'Filter to ' + acc.name">
+                  <td>{{ acc.name }}</td>
+                  <td class="rpt-num rpt-muted">{{ acc.count }}</td>
+                  <td class="rpt-num money-positive">{{ formatMoney(acc.totalIn) }}</td>
+                  <td class="rpt-num money-negative">{{ formatMoney(acc.totalOut) }}</td>
+                  <td class="rpt-num" :class="acc.balance >= 0 ? 'money-positive' : 'money-negative'">{{ formatMoney(acc.balance) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </template>
 
       <!-- ── Monthly sub-tab ───────────────────────────────────── -->
