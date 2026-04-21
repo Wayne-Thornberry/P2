@@ -10,6 +10,7 @@ import { useConfirm } from '../composables/useConfirm'
 import { getTodayStr } from '../utils/date'
 import { SUPPORTED_COUNTRIES, getCountryById } from '../data/countries'
 import { UNASSIGNED_ACCOUNT_ID } from '../types/transaction'
+import { CSV_ADAPTERS } from '../utils/csvAdapters'
 
 const accountStore  = useAccountStore()
 const settings      = useSettingsStore()
@@ -255,6 +256,7 @@ const _allAccountDetails = computed(() =>
       type:             (acc.type ?? 'asset') as 'asset' | 'liability',
       includedInBudget: acc.excludeFromBudget !== undefined ? !acc.excludeFromBudget : acc.type !== 'liability',
       archived:         acc.archived ?? false,
+      bankId:           acc.bankId ?? '',
     }
   })
 )
@@ -289,6 +291,13 @@ const LIABILITY_QUICK_TYPES = new Set(['Credit Card', 'Mortgage', 'Loan Account'
 function setAccountType(id: string, type: 'asset' | 'liability'): void {
   accountStore.updateAccount(id, { type, excludeFromBudget: undefined })
 }
+
+function setBankId(id: string, bankId: string): void {
+  accountStore.updateAccount(id, { bankId: bankId || undefined })
+}
+
+// Adapters available as bank options (exclude generic — it's a fallback, not a real bank)
+const BANK_OPTIONS = CSV_ADAPTERS.filter(a => a.id !== 'generic')
 
 function toggleBudgetInclude(id: string, acc: { type: 'asset' | 'liability'; includedInBudget: boolean }): void {
   const newIncluded = !acc.includedInBudget
@@ -414,6 +423,22 @@ function quickAddAccount(bank: typeof SUPPORTED_COUNTRIES[0]['banks'][0], type: 
               <input type="checkbox" class="acct-budget-checkbox" :checked="acc.includedInBudget" @change="toggleBudgetInclude(acc.id, acc)" />
               <span>Budget</span>
             </label>
+          </div>
+
+          <!-- Bank picker (drives friendly-name cleaning in Transaction Log) -->
+          <div class="acct-bank-row">
+            <i class="pi pi-building-columns acct-bank-icon" />
+            <select
+              class="acct-bank-select"
+              :value="acc.bankId"
+              @change="setBankId(acc.id, ($event.target as HTMLSelectElement).value)"
+              title="Set bank for transaction name cleaning"
+            >
+              <option value="">— No bank selected —</option>
+              <option v-for="adapter in BANK_OPTIONS" :key="adapter.id" :value="adapter.id">
+                {{ adapter.name }}
+              </option>
+            </select>
           </div>
 
           <div class="acct-month-stats">

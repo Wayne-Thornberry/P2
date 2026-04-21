@@ -76,6 +76,7 @@ const emit = defineEmits<{
   navigate: [page: string]
   viewTransactions: [yearMonth: string]
   viewItemTransactions: [itemId: number, yearMonth: string]
+  viewTransaction: [txName: string, yearMonth: string]
 }>()
 
 const totalFundsAvailable = computed(() => budgetFunds.value)
@@ -487,6 +488,7 @@ function fundPartially(): void {
         v-if="unassignedCount > 0"
         :year="monthStore.activeYear"
         :month="monthStore.activeMonth"
+        @viewTransaction="(name, ym) => emit('viewTransaction', name, ym)"
       />
 
       <!-- YNAB-style quick funding -->

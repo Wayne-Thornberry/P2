@@ -1010,6 +1010,14 @@
   position: relative;
 }
 
+/* Bulk-assign banner positioned above the table */
+.tx-bulk-banner {
+  margin: 0;
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+}
+
 .tx-table-scroll.tx-drag-over {
   outline: 3px dashed #3b82f6;
   outline-offset: -3px;
@@ -1329,6 +1337,12 @@
                   position: sticky; left: 0; z-index: 2; }
 .tx-col-date    { width: 9rem; white-space: nowrap; }
 .tx-col-name    { width: 20rem; }
+.tx-col-friendly { width: 16rem; font-size: 0.82rem; color: var(--color-zinc-600); }
+.dark .tx-col-friendly { color: var(--color-zinc-300); }
+/* Dim the friendly name when it's identical to the raw name (no cleaning applied) */
+.tx-col-friendly:not(.tx-friendly-changed) { opacity: 0.45; }
+/* Highlight when cleaning did something useful */
+.tx-friendly-changed { font-style: italic; }
 .tx-col-money   { width: 8.5rem; text-align: right; font-family: monospace; font-variant-numeric: tabular-nums; }
 .tx-col-balance { width: 8.5rem; text-align: right; font-family: monospace; font-variant-numeric: tabular-nums; font-weight: 600; font-size: 0.8rem; border-left: 1px solid var(--color-zinc-200); padding-left: 0.65rem !important; }
 .dark .tx-col-balance { border-left-color: var(--color-zinc-700); }

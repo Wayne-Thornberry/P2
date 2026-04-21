@@ -10,6 +10,7 @@ import { useMoneyInput } from '../composables/useMoneyInput'
 import { getTodayStr } from '../utils/date'
 import { useImportHistoryStore } from '../stores/importHistoryStore'
 import { useConfirm } from '../composables/useConfirm'
+import { cleanTxName, hasFriendlyName, txNamesMatch } from '../utils/txNameCleaner'
 
 const props = defineProps<{ monthFilter?: string; accountFilter?: string; itemFilter?: number; nameFilter?: string; typeFilter?: 'all' | 'in' | 'out'; focusSearch?: boolean }>()
 
@@ -51,6 +52,7 @@ function formatCreatedAt(iso: string): string { return settings.formatCreatedAt(
 // Use globalItems so transactions assigned to items from any month show the correct name
 const itemNameMap    = computed(() => new Map(budgetStore.globalItems.map(i => [i.id, i.name])))
 const accountNameMap = computed(() => new Map(accountStore.accounts.map(a => [a.id, a.name])))
+const accountBankIdMap = computed(() => new Map(accountStore.accounts.map(a => [a.id, a.bankId ?? null])))
 
 // Flat sorted list of all global items for dropdowns
 const budgetItemsSorted = computed(() =>
@@ -63,6 +65,11 @@ function getItemName(itemId: number | null): string {
 
 function getAccountName(accountId: string | null): string {
   return !accountId ? '—' : (accountNameMap.value.get(accountId) ?? '—')
+}
+
+function getFriendlyName(tx: Transaction): string {
+  const bankId = tx.accountId ? (accountBankIdMap.value.get(tx.accountId) ?? null) : null
+  return cleanTxName(tx.name, bankId)
 }
 
 // ── Filters ────────────────────────────────────────────────────
@@ -115,13 +122,13 @@ onMounted(() => { if (props.focusSearch) nextTick(() => searchInputRef.value?.fo
 // ── Column resize ───────────────────────────────────────────
 // px widths; null = use CSS default (column not yet resized)
 const colWidths = ref<Record<string, number | null>>({
-  check: null, date: null, name: null, in: null, out: null,
+  check: null, date: null, name: null, friendly: null, in: null, out: null,
   balance: null, item: null, account: null, notes: null, added: null, action: null,
 })
 
 // Maps thead <th> index → colWidths key (null = markers col, not in colWidths)
 const TH_COL_KEY_MAP: (string | null)[] = [
-  null, 'check', 'date', 'name', 'in', 'out', 'balance', 'item', 'account', 'notes', 'added', 'action',
+  null, 'check', 'date', 'name', 'friendly', 'in', 'out', 'balance', 'item', 'account', 'notes', 'added', 'action',
 ]
 
 function startColResize(colKey: string, e: MouseEvent): void {
@@ -458,6 +465,36 @@ function switchType(type: 'in' | 'out'): void {
   pending.value.type = type
 }
 
+// ── Bulk-suggest after assignment ─────────────────────────────
+type BulkSuggest = {
+  txName:   string
+  itemId:   number
+  itemName: string
+  matches:  Transaction[]
+}
+const bulkSuggest = ref<BulkSuggest | null>(null)
+
+function confirmBulkAssign(): void {
+  if (!bulkSuggest.value) return
+  const { matches, itemId } = bulkSuggest.value
+  for (const tx of matches) {
+    store.updateTransaction(tx.id, {
+      name:      tx.name,
+      date:      tx.date,
+      type:      tx.type,
+      amount:    tx.amount,
+      itemId,
+      accountId: tx.accountId,
+      notes:     tx.notes,
+    })
+  }
+  bulkSuggest.value = null
+}
+
+function dismissBulkSuggest(): void {
+  bulkSuggest.value = null
+}
+
 // ── Edit existing transaction ──────────────────────────────────
 const editingId  = ref<number | null>(null)
 const editDraft  = ref<RowDraft | null>(null)
@@ -484,9 +521,35 @@ function commitEdit(): void {
   if (!editDraft.value || editingId.value === null) return
   const parsed = parseDraft(editDraft.value)
   if (!parsed) { cancelEdit(); return }
+
+  // Capture original itemId before saving to detect a new assignment
+  const originalTx    = store.transactions.find(t => t.id === editingId.value)
+  const wasUnassigned = originalTx?.itemId === null
+  const nowAssigned   = parsed.itemId !== null
+
   store.updateTransaction(editingId.value, parsed)
   editingId.value = null
   editDraft.value = null
+
+  // After a new item assignment, look for other unassigned transactions with the same friendly name
+  if (wasUnassigned && nowAssigned && parsed.itemId !== null) {
+    const bankId    = parsed.accountId ? (accountBankIdMap.value.get(parsed.accountId) ?? null) : null
+    const txClean   = cleanTxName(parsed.name, bankId)
+    const similar   = store.transactions.filter(t =>
+      t.itemId === null &&
+      t.id !== (originalTx?.id ?? -1) &&
+      txNamesMatch(cleanTxName(t.name, t.accountId ? (accountBankIdMap.value.get(t.accountId) ?? null) : null), txClean)
+    )
+    if (similar.length > 0) {
+      const item = budgetStore.globalItems.find(i => i.id === parsed.itemId)
+      bulkSuggest.value = {
+        txName:   parsed.name,
+        itemId:   parsed.itemId,
+        itemName: item?.name ?? 'this item',
+        matches:  similar,
+      }
+    }
+  }
 }
 
 function cancelEdit(): void {
@@ -1164,6 +1227,29 @@ const historyExpanded = ref(false)
         </div>
       </Teleport>
 
+      <!-- Bulk-assign banner — shown after a new item assignment when similar unassigned transactions exist -->
+      <div v-if="bulkSuggest" class="assign-bulk-banner tx-bulk-banner">
+        <div class="assign-bulk-banner-msg">
+          <i class="pi pi-bolt" />
+          <span>
+            <strong>{{ bulkSuggest.matches.length }}</strong>
+            other unassigned
+            <strong>"{{ bulkSuggest.txName }}"</strong>
+            {{ bulkSuggest.matches.length === 1 ? 'transaction' : 'transactions' }} found.
+            Assign {{ bulkSuggest.matches.length === 1 ? 'it' : 'all' }} to
+            <strong>{{ bulkSuggest.itemName }}</strong>?
+          </span>
+        </div>
+        <div class="assign-bulk-banner-actions">
+          <button class="assign-bulk-confirm-btn" @click="confirmBulkAssign">
+            <i class="pi pi-check" /> Assign all {{ bulkSuggest.matches.length }}
+          </button>
+          <button class="assign-bulk-dismiss-btn" @click="dismissBulkSuggest">
+            Just this one
+          </button>
+        </div>
+      </div>
+
       <!-- Table -->
       <div
         class="tx-table-scroll"
@@ -1174,6 +1260,7 @@ const historyExpanded = ref(false)
             <col :style="colStyle('check')" />
             <col :style="colStyle('date')" />
             <col :style="colStyle('name')" />
+            <col :style="colStyle('friendly')" />
             <col :style="colStyle('in')" />
             <col :style="colStyle('out')" />
             <col :style="colStyle('balance')" />
@@ -1207,6 +1294,11 @@ const historyExpanded = ref(false)
               <th class="tx-col-name th-sortable" @click="toggleSort('name')">
                 <div class="th-label">Name / Description <i :class="sortIcon('name')" class="tx-sort-icon" /></div>
                 <div class="th-resize-handle" @mousedown.stop="startColResize('name', $event)" /></th>
+
+              <!-- Friendly Name (bank-cleaned) -->
+              <th class="tx-col-friendly">
+                <div class="th-label">Merchant</div>
+                <div class="th-resize-handle" @mousedown.stop="startColResize('friendly', $event)" /></th>
 
               <!-- In -->
               <th class="tx-col-money th-sortable" @click="toggleSort('amountIn')">
@@ -1275,6 +1367,7 @@ const historyExpanded = ref(false)
                   <input type="text" v-model="editDraft.name" class="tx-input"
                     @keydown.enter.prevent="commitEdit" />
                 </td>
+                <td class="tx-col-friendly"></td>
                 <td class="tx-col-money">
                   <input
                     v-if="editDraft.type === 'in'"
@@ -1358,6 +1451,7 @@ const historyExpanded = ref(false)
                 </td>
                 <td>{{ formatDate(tx.date) }}</td>
                 <td>{{ tx.name }}</td>
+                <td class="tx-col-friendly" :class="{ 'tx-friendly-changed': hasFriendlyName(tx.name, tx.accountId ? accountBankIdMap.get(tx.accountId) : null) }" :title="hasFriendlyName(tx.name, tx.accountId ? accountBankIdMap.get(tx.accountId) : null) ? tx.name : ''">{{ getFriendlyName(tx) }}</td>
                 <td class="tx-col-money money-positive">{{ tx.type === 'in'  ? formatMoney(tx.amount) : '' }}</td>
                 <td class="tx-col-money money-negative">{{ tx.type === 'out' ? formatMoney(tx.amount) : '' }}</td>
                 <td class="tx-col-balance" :class="runningBalanceMap.has(tx.id) ? ((runningBalanceMap.get(tx.id) ?? 0) >= 0 ? 'money-positive' : 'money-negative') : 'tx-balance-hidden'">{{ runningBalanceMap.has(tx.id) ? formatMoney(runningBalanceMap.get(tx.id)!) : '—' }}</td>
@@ -1371,7 +1465,7 @@ const historyExpanded = ref(false)
 
             <!-- Empty state -->
             <tr v-if="!pagedTransactions.length && !pending">
-              <td colspan="11" class="tx-empty">
+              <td colspan="12" class="tx-empty">
                 <span v-if="hasActiveFilters">No transactions match the current filters.</span>
                 <span v-else>No transactions yet. Click + Add Transaction below to get started.</span>
               </td>
@@ -1401,6 +1495,7 @@ const historyExpanded = ref(false)
                   @keydown.enter.prevent="commitTransaction"
                 />
               </td>
+              <td class="tx-col-friendly"></td>
               <!-- In column: amount input when type=in, switch button otherwise -->
               <td class="tx-col-money">
                 <input

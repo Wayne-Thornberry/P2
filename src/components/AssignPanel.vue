@@ -3,18 +3,53 @@ import { ref, computed, watch } from 'vue'
 import type { Transaction } from '../types/transaction'
 import type { BudgetItem } from '../types/budget'
 import { useTransactionStore } from '../stores/transactionStore'
+import { useAccountStore } from '../stores/accountStore'
 import { useBudgetStore } from '../stores/budgetStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { suggestTopItems } from '../utils/autoCategory'
+import { cleanTxName, hasFriendlyName, txNamesMatch } from '../utils/txNameCleaner'
 
 const props = defineProps<{
   year: number
   month: number
 }>()
 
-const txStore     = useTransactionStore()
-const budgetStore = useBudgetStore()
-const settings    = useSettingsStore()
+const emit = defineEmits<{
+  viewTransaction: [txName: string, yearMonth: string]
+}>()
+
+const txStore      = useTransactionStore()
+const accountStore = useAccountStore()
+const budgetStore  = useBudgetStore()
+const settings     = useSettingsStore()
+
+// ── Account → bankId lookup ────────────────────────────────────
+const accountBankIdMap = computed(() =>
+  new Map(accountStore.accounts.map(a => [a.id, a.bankId ?? null]))
+)
+
+// ── Friendly name helpers ──────────────────────────────────────
+function txFriendlyName(tx: Transaction): string {
+  const bankId = tx.accountId ? (accountBankIdMap.value.get(tx.accountId) ?? null) : null
+  return cleanTxName(tx.name, bankId)
+}
+
+const currentFriendlyName = computed<string>(() =>
+  current.value ? txFriendlyName(current.value) : ''
+)
+
+const currentHasFriendly = computed<boolean>(() =>
+  current.value
+    ? hasFriendlyName(current.value.name, current.value.accountId ? accountBankIdMap.value.get(current.value.accountId) : null)
+    : false
+)
+
+function navigateToTransaction(): void {
+  const tx = current.value
+  if (!tx) return
+  const ym = `${props.year}-${String(props.month).padStart(2, '0')}`
+  emit('viewTransaction', tx.name, ym)
+}
 
 // ── Unassigned list for this month ─────────────────────────────
 const unassigned = computed<Transaction[]>(() =>
@@ -40,7 +75,8 @@ const TOP_N_SUGGESTIONS = 6
 
 const suggestions = computed<BudgetItem[]>(() => {
   if (!current.value) return []
-  return suggestTopItems(current.value.name, budgetStore.items, TOP_N_SUGGESTIONS)
+  const nameForMatching = currentFriendlyName.value || current.value.name
+  return suggestTopItems(nameForMatching, budgetStore.items, TOP_N_SUGGESTIONS)
 })
 
 // ── All items grouped for the "browse all" dropdown ────────────
@@ -60,10 +96,6 @@ function itemsInCategory(cat: string): BudgetItem[] {
 const browseItemId = ref<string>('')
 
 // ── Bulk suggest ───────────────────────────────────────────────
-function normalizeName(s: string): string {
-  return s.toLowerCase().trim().replace(/\s+/g, ' ')
-}
-
 type BulkSuggest = {
   txName:   string
   itemId:   number
@@ -86,10 +118,10 @@ function assign(itemId: number): void {
   })
   browseItemId.value = ''
 
-  // Look for other unassigned transactions with the same normalised name (all months)
-  const norm = normalizeName(tx.name)
+  // Look for other unassigned transactions with the same merchant name (fuzzy match across all months)
+  const txClean = txFriendlyName(tx)
   const similar = txStore.transactions.filter(
-    t => t.itemId === null && t.id !== tx.id && normalizeName(t.name) === norm
+    t => t.itemId === null && t.id !== tx.id && txNamesMatch(txFriendlyName(t), txClean)
   )
   if (similar.length > 0) {
     const item = budgetStore.items.find(i => i.id === itemId)
@@ -213,9 +245,16 @@ const progress = computed(() => {
         </div>
       </div>
 
-      <!-- Transaction card -->
-      <div v-if="current" class="assign-tx-card">
-        <div class="assign-tx-name">{{ current.name }}</div>
+      <!-- Transaction card — whole card is clickable to navigate to the transaction log -->
+      <button v-if="current" class="assign-tx-card assign-tx-card--link" @click="navigateToTransaction" title="View in Transaction Log">
+        <div class="assign-tx-name">
+          {{ current.name }}
+          <i class="pi pi-arrow-right assign-tx-name-icon" />
+        </div>
+        <!-- Always rendered to hold height; invisible when no merchant cleaning -->
+        <div class="assign-tx-friendly" :class="{ 'assign-tx-friendly--hidden': !currentHasFriendly }">
+          <i class="pi pi-sparkles" /> {{ currentHasFriendly ? currentFriendlyName : '&nbsp;' }}
+        </div>
         <div class="assign-tx-meta">
           <span class="assign-tx-date">{{ formatDate(current.date) }}</span>
           <span
@@ -228,7 +267,7 @@ const progress = computed(() => {
             {{ current.type === 'in' ? '↑ In' : '↓ Out' }}
           </span>
         </div>
-      </div>
+      </button>
 
       <!-- Suggestions -->
       <div class="assign-suggestions-label">

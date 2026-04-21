@@ -188,6 +188,30 @@
   padding: 0 0.9rem 0.75rem;
 }
 
+/* Bank picker row */
+.acct-bank-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.9rem 0.75rem;
+}
+.acct-bank-icon {
+  font-size: 0.75rem;
+  opacity: 0.45;
+  flex-shrink: 0;
+}
+.acct-bank-select {
+  flex: 1;
+  font-size: 0.72rem;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  border: 1px solid var(--cb-border, #d1d5db);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.acct-bank-select:focus { outline: 2px solid var(--cb-accent, #6366f1); outline-offset: 1px; }
+
 .acct-type-badge {
   display: inline-flex;
   align-items: center;

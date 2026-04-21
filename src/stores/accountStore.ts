@@ -53,21 +53,22 @@ export const useAccountStore = defineStore('accounts', () => {
     accounts.value = saved?.accounts ?? []
   })
 
-  function addAccount(name: string, type: Account['type'] = 'asset'): string {
+  function addAccount(name: string, type: Account['type'] = 'asset', bankId?: string): string {
     const trimmed = name.trim()
     if (!trimmed) return ''
     const id = `acc-${_nextAccId++}`
-    accounts.value.push({ id, name: trimmed, type })
+    accounts.value.push({ id, name: trimmed, type, bankId: bankId || undefined })
     return id
   }
 
-  function updateAccount(id: string, patch: Partial<Pick<Account, 'name' | 'type' | 'excludeFromBudget' | 'archived'>>): void {
+  function updateAccount(id: string, patch: Partial<Pick<Account, 'name' | 'type' | 'excludeFromBudget' | 'archived' | 'bankId'>>): void {
     const acc = accounts.value.find(a => a.id === id)
     if (!acc) return
     if (patch.name              !== undefined) acc.name              = patch.name.trim() || acc.name
     if (patch.type              !== undefined) acc.type              = patch.type
     if ('excludeFromBudget' in patch)          acc.excludeFromBudget = patch.excludeFromBudget
     if ('archived'          in patch)          acc.archived          = patch.archived
+    if ('bankId'            in patch)          acc.bankId            = patch.bankId || undefined
   }
 
   function removeAccount(id: string): void {

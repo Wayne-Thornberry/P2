@@ -136,6 +136,18 @@ function onViewTransactions(yearMonth: string): void {
   txMonthFilter.value   = yearMonth
   txAccountFilter.value = undefined
   txItemFilter.value    = undefined
+  txNameFilter.value    = ''
+  txFocusSearch.value   = false
+  activeNavItem.value   = 'transactions'
+  currentPage.value     = 'transactions'
+}
+
+function onViewTransactionByName(txName: string, yearMonth: string): void {
+  settings.deactivateConversion()
+  txMonthFilter.value   = yearMonth
+  txAccountFilter.value = undefined
+  txItemFilter.value    = undefined
+  txNameFilter.value    = txName
   txFocusSearch.value   = false
   activeNavItem.value   = 'transactions'
   currentPage.value     = 'transactions'
@@ -387,7 +399,7 @@ const breadcrumbSegments = computed(() =>
           @viewTransactions="onViewTransactions"
           @viewSearchFor="(name) => { txMonthFilter = ''; txAccountFilter = undefined; txItemFilter = undefined; txNameFilter = name; txTypeFilter = 'all'; txFocusSearch = false; activeNavItem = 'transactions'; currentPage = 'transactions' }"
         />
-        <BudgetTabs v-else-if="currentPage === 'budget'" @navigate="currentPage = $event" @viewTransactions="onViewTransactions" @viewItemTransactions="onViewItemTransactions" />
+        <BudgetTabs v-else-if="currentPage === 'budget'" @navigate="currentPage = $event" @viewTransactions="onViewTransactions" @viewItemTransactions="onViewItemTransactions" @viewTransaction="onViewTransactionByName" />
         <TemplatePage v-else-if="currentPage === 'template'" />
         <TransactionLog v-else-if="currentPage === 'transactions'" :monthFilter="txMonthFilter" :accountFilter="txAccountFilter" :itemFilter="txItemFilter" :nameFilter="txNameFilter" :typeFilter="txTypeFilter" :focusSearch="txFocusSearch" />
         <AccountsPage v-else-if="currentPage === 'accounts'" @viewTransactions="onViewAccountTransactions" @viewInReports="onViewAccountInReports" @viewBreakdown="onViewBreakdown" @viewSavingsGoal="onViewSavingsGoal" @viewFinance="onViewFinance" />

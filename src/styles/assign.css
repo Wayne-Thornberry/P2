@@ -233,11 +233,106 @@
   border-bottom-color: var(--color-zinc-700);
 }
 
+/* Clickable card variant */
+.assign-tx-card--link {
+  display: block;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  border: none;
+  font: inherit;
+  color: inherit;
+  transition: background 0.15s;
+}
+.assign-tx-card--link:hover { background: var(--color-zinc-200); }
+.dark .assign-tx-card--link:hover { background: var(--color-zinc-700); }
+.assign-tx-card--link:hover .assign-tx-name-icon { opacity: 1; }
+
+/* Friendly (cleaned) merchant name — always rendered to prevent layout shift */
+.assign-tx-friendly {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--color-zinc-400);
+  margin-bottom: 0.4rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+/* Invisible but still occupies height when there is no merchant name */
+.assign-tx-friendly--hidden {
+  visibility: hidden;
+}
+.dark .assign-tx-friendly {
+  color: var(--color-zinc-500);
+}
+
+/* Raw bank name shown small beneath when it differs */
+.assign-tx-raw-name {
+  font-size: 0.68rem;
+  color: var(--color-zinc-400);
+  margin-bottom: 0.4rem;
+  font-style: italic;
+  word-break: break-all;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.dark .assign-tx-raw-name {
+  color: var(--color-zinc-500);
+}
+
+/* Similar transactions notice */
+.assign-similar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.8rem;
+  background: color-mix(in srgb, #6366f1 8%, transparent);
+  border-radius: 6px;
+  margin: 0 1rem 0.75rem;
+}
+.dark .assign-similar-row {
+  background: color-mix(in srgb, #6366f1 12%, transparent);
+}
+.assign-similar-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #6366f1;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.dark .assign-similar-badge {
+  color: #a5b4fc;
+}
+.assign-similar-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.7rem;
+  color: var(--color-zinc-500);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.assign-similar-toggle input { cursor: pointer; }
+
 .assign-tx-name {
   font-size: 0.95rem;
   font-weight: 700;
   margin-bottom: 0.45rem;
   word-break: break-word;
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+.assign-tx-name-icon {
+  font-size: 0.6rem;
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
 }
 
 .assign-tx-meta {

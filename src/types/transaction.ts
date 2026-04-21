@@ -14,6 +14,7 @@ export interface Account {
   type?:             'asset' | 'liability'  // default = 'asset'; liabilities excluded from budget by default
   excludeFromBudget?: boolean               // explicit override: true = exclude, false = force include
   archived?:         boolean                // historical/closed — transactions locked, excluded from budget
+  bankId?:           string                 // CSV adapter id for bank-specific name cleaning (e.g. 'boi', 'revolut')
 }
 
 export interface Transaction {
