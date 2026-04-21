@@ -13,6 +13,25 @@
   grid-column: 1 / -1;
 }
 
+/* Danger zone section */
+.settings-section--danger {
+  grid-column: 1 / -1;
+  border-color: #fca5a5;
+}
+.dark .settings-section--danger {
+  border-color: #7f1d1d;
+}
+.settings-section-title--danger {
+  color: #dc2626;
+  background-color: #fff1f2;
+  border-bottom-color: #fca5a5;
+}
+.dark .settings-section-title--danger {
+  color: #f87171;
+  background-color: #3b0a0a;
+  border-bottom-color: #7f1d1d;
+}
+
 @media (max-width: 640px) {
   .settings-page {
     grid-template-columns: 1fr;

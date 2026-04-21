@@ -118,6 +118,44 @@ export const useTransactionStore = defineStore('transactions', () => {
     if (tx) Object.assign(tx, patch)
   }
 
+  // ── Lock / unlock ─────────────────────────────────────────────
+
+  function lockTransactions(ids: Set<number> | number[]): void {
+    const set = ids instanceof Set ? ids : new Set(ids)
+    for (const t of transactions.value) {
+      if (set.has(t.id)) t.locked = true
+    }
+  }
+
+  function unlockTransactions(ids: Set<number> | number[]): void {
+    const set = ids instanceof Set ? ids : new Set(ids)
+    for (const t of transactions.value) {
+      if (set.has(t.id)) t.locked = false
+    }
+  }
+
+  /** Lock all transactions with date <= cutoffDate (YYYY-MM-DD) */
+  function lockOnOrBefore(cutoffDate: string): void {
+    for (const t of transactions.value) {
+      if (t.date <= cutoffDate) t.locked = true
+    }
+  }
+
+  /** Unlock all transactions with date <= cutoffDate (YYYY-MM-DD) */
+  function unlockOnOrBefore(cutoffDate: string): void {
+    for (const t of transactions.value) {
+      if (t.date <= cutoffDate) t.locked = false
+    }
+  }
+
+  function lockAll(): void {
+    for (const t of transactions.value) t.locked = true
+  }
+
+  function unlockAll(): void {
+    for (const t of transactions.value) t.locked = false
+  }
+
   function addOpeningBalance(accountId: string, amount: number, date: string): void {
     if (amount === 0) return
     addTransaction({
@@ -147,5 +185,5 @@ export const useTransactionStore = defineStore('transactions', () => {
     }
   }
 
-  return { transactions, totalFunds, addTransaction, deleteTransaction, updateTransaction, patchTransaction, addOpeningBalance, getItemActivity, getUnassignedActivity, unassignItem, loadSeedData, $import }
+  return { transactions, totalFunds, addTransaction, deleteTransaction, updateTransaction, patchTransaction, lockTransactions, unlockTransactions, lockOnOrBefore, unlockOnOrBefore, lockAll, unlockAll, addOpeningBalance, getItemActivity, getUnassignedActivity, unassignItem, loadSeedData, $import }
 })

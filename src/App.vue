@@ -234,7 +234,7 @@ const breadcrumbSegments = computed(() =>
         </button>
 
         <!-- Breadcrumb -->
-        <nav class="flex items-center gap-1.5 shrink-0" aria-label="Breadcrumb">
+        <nav class="flex items-center gap-1.5 min-w-0 overflow-hidden shrink" aria-label="Breadcrumb">
           <template v-for="(seg, i) in breadcrumbSegments" :key="i">
             <i v-if="i > 0" class="pi pi-angle-right text-zinc-400 dark:text-zinc-600 text-xs" />
             <i v-if="seg.icon" :class="`pi ${seg.icon} text-zinc-400 dark:text-zinc-500 text-[0.65rem]`" />
@@ -253,7 +253,7 @@ const breadcrumbSegments = computed(() =>
         </nav>
 
         <!-- Global search -->
-        <GlobalSearch class="ml-auto" @viewTransaction="onGlobalSearchSelect" />
+        <GlobalSearch class="ml-auto min-w-0" @viewTransaction="onGlobalSearchSelect" />
 
         <!-- FX conversion widget -->
         <div class="fx-widget shrink-0">
@@ -428,6 +428,13 @@ const breadcrumbSegments = computed(() =>
   display: flex;
   align-items: center;
   gap: 0.25rem;
+}
+
+/* Hide FX conversion widget on small screens — too many controls to fit */
+@media (max-width: 639px) {
+  .fx-widget {
+    display: none;
+  }
 }
 
 .fx-input {

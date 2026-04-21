@@ -129,17 +129,32 @@
 
 .tx-bulk-bar {
   display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.4rem 1rem;
+  flex-direction: column;
   background-color: #eff6ff;
   border-bottom: 1px solid #bfdbfe;
-  flex-wrap: wrap;
 }
 
 .dark .tx-bulk-bar {
   background-color: #1e3a5f;
   border-bottom-color: #1d4ed8;
+}
+
+/* ── Bulk bar rows ────────────────────────────────────────────── */
+.tx-bulk-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0.85rem;
+}
+
+.tx-bulk-row--secondary {
+  padding: 0.3rem 0.85rem 0.4rem;
+  border-top: 1px solid #bfdbfe;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.dark .tx-bulk-row--secondary {
+  border-top-color: #1d4ed8;
 }
 
 .tx-bulk-count {
@@ -148,7 +163,7 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: #1d4ed8;
-  min-width: 5rem;
+  white-space: nowrap;
 }
 
 .dark .tx-bulk-count {
@@ -159,8 +174,8 @@
 .tx-bulk-info {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-  min-width: 6rem;
+  gap: 0.1rem;
+  min-width: 5rem;
 }
 
 .tx-bulk-select-all-link {
@@ -199,13 +214,13 @@
 }
 .dark .tx-bulk-sep { background-color: #1d4ed8; }
 
-/* ── Bulk bar: selection stats ───────────────────────────────── */
-.tx-bulk-stats {
+/* ── Bulk bar: core stats (always visible) ───────────────────── */
+.tx-bulk-stats-core {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  flex-shrink: 0;
 }
+
 .tx-bulk-stat {
   display: flex;
   flex-direction: column;
@@ -214,13 +229,100 @@
   font-size: 0.78rem;
 }
 .tx-bulk-stat-label {
-  font-size: 0.65rem;
+  font-size: 0.58rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  opacity: 0.7;
+  opacity: 0.65;
 }
 
-/* ── Bulk bar: assign group ──────────────────────────────────── */
+/* Expand button (chart icon next to stats) */
+.tx-bulk-expand-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #93c5fd;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.25rem;
+  opacity: 0.7;
+  transition: opacity 0.1s, color 0.1s;
+}
+.tx-bulk-expand-btn:hover,
+.tx-bulk-expand-btn--active {
+  opacity: 1;
+  color: #3b82f6;
+}
+.dark .tx-bulk-expand-btn { color: #60a5fa; }
+
+/* ── Bulk bar: action icon buttons ───────────────────────────── */
+.tx-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.tx-bulk-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: none;
+  border: 1px solid #bfdbfe;
+  padding: 0.22rem 0.5rem;
+  font-size: 0.7rem;
+  color: #2563eb;
+  cursor: pointer;
+  transition: background-color 0.1s, color 0.1s;
+  white-space: nowrap;
+}
+.tx-bulk-icon-btn:hover {
+  background-color: #dbeafe;
+}
+.dark .tx-bulk-icon-btn {
+  border-color: #1d4ed8;
+  color: #93c5fd;
+}
+.dark .tx-bulk-icon-btn:hover {
+  background-color: #1e3a5f;
+  color: #bfdbfe;
+}
+.tx-bulk-icon-btn--active {
+  background-color: #dbeafe;
+  color: #1d4ed8;
+}
+.dark .tx-bulk-icon-btn--active {
+  background-color: #1e3a5f;
+}
+
+.tx-bulk-icon-btn--lock {
+  border-color: #a5b4fc;
+  color: #4f46e5;
+}
+.tx-bulk-icon-btn--lock:hover {
+  background-color: #eef2ff;
+}
+.dark .tx-bulk-icon-btn--lock {
+  border-color: #3730a3;
+  color: #a5b4fc;
+}
+.dark .tx-bulk-icon-btn--lock:hover {
+  background-color: #1e1b4b;
+}
+
+.tx-bulk-icon-btn--danger {
+  border-color: #fca5a5;
+  color: #dc2626;
+}
+.tx-bulk-icon-btn--danger:hover {
+  background-color: #fee2e2;
+}
+.dark .tx-bulk-icon-btn--danger {
+  border-color: #7f1d1d;
+  color: #f87171;
+}
+.dark .tx-bulk-icon-btn--danger:hover {
+  background-color: #450a0a;
+}
+
+/* ── Bulk bar: assign group (secondary row) ──────────────────── */
 .tx-bulk-assign-group {
   display: flex;
   align-items: center;
@@ -286,69 +388,29 @@
   background: #2563eb;
 }
 
-.tx-bulk-copy-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.6rem;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  padding: 0.25rem 0.55rem;
-  border: 2px solid var(--color-zinc-300);
-  color: var(--color-zinc-600);
-  background: none;
-  cursor: pointer;
-  transition: background-color 0.12s, color 0.12s, border-color 0.12s;
-}
-.dark .tx-bulk-copy-btn { border-color: var(--color-zinc-600); color: var(--color-zinc-400); }
-.tx-bulk-copy-btn:hover { background-color: var(--color-zinc-100); color: var(--color-zinc-900); }
-.dark .tx-bulk-copy-btn:hover { background-color: var(--color-zinc-800); color: var(--color-zinc-100); }
-
-.tx-bulk-delete-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.6rem;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  padding: 0.25rem 0.55rem;
-  border: 2px solid #fca5a5;
-  color: #dc2626;
-  background: none;
-  cursor: pointer;
-  transition: background-color 0.12s;
-}
-
-.dark .tx-bulk-delete-btn {
-  border-color: #7f1d1d;
-  color: #f87171;
-}
-
-.tx-bulk-delete-btn:hover {
-  background-color: #fee2e2;
-}
-
-.dark .tx-bulk-delete-btn:hover {
-  background-color: #450a0a;
+/* Legacy named buttons (no longer in markup but keep for safety) */
+.tx-bulk-copy-btn,
+.tx-bulk-duplicate-btn,
+.tx-bulk-delete-btn,
+.tx-bulk-lock-btn,
+.tx-bulk-unlock-btn {
+  display: none;
 }
 
 .tx-bulk-clear-btn {
   margin-left: auto;
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  font-size: 0.6rem;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  padding: 0.25rem 0.55rem;
-  border: 2px solid #93c5fd;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  font-size: 0.65rem;
+  border: 1px solid #bfdbfe;
   color: #1d4ed8;
   background: none;
   cursor: pointer;
   transition: background-color 0.12s;
+  flex-shrink: 0;
 }
 
 .dark .tx-bulk-clear-btn {
@@ -1165,7 +1227,7 @@
 .tx-table thead th {
   background-color: var(--color-zinc-200);
   color: var(--color-zinc-800);
-  padding: 0.65rem 1rem;
+  padding: 0.65rem 1.4rem 0.65rem 1rem;
   font-size: 0.7rem;
   font-weight: 900;
   text-transform: uppercase;
@@ -1263,8 +1325,10 @@
 }
 
 /* Column sizes */
-.tx-col-markers { width: 2rem; text-align: center; resize: none; padding: 0 !important; }
+.tx-col-markers { width: 5rem; text-align: center; resize: none; padding: 0 0.25rem !important;
+                  position: sticky; left: 0; z-index: 2; }
 .tx-col-date    { width: 9rem; white-space: nowrap; }
+.tx-col-name    { width: 20rem; }
 .tx-col-money   { width: 8.5rem; text-align: right; font-family: monospace; font-variant-numeric: tabular-nums; }
 .tx-col-balance { width: 8.5rem; text-align: right; font-family: monospace; font-variant-numeric: tabular-nums; font-weight: 600; font-size: 0.8rem; border-left: 1px solid var(--color-zinc-200); padding-left: 0.65rem !important; }
 .dark .tx-col-balance { border-left-color: var(--color-zinc-700); }
@@ -1273,8 +1337,33 @@
 .tx-col-notes   { width: 14rem; font-size: 0.78rem; color: var(--color-zinc-500); }
 .dark .tx-col-notes { color: var(--color-zinc-400); }
 .tx-col-added   { width: 10rem; }
-.tx-col-action  { width: 2.5rem; text-align: center; resize: none; }
 .tx-col-check   { width: 2.5rem; text-align: center; resize: none; }
+
+/* Sticky column background — matches row background so content doesn't bleed through */
+.tx-row .tx-col-markers          { background: #ffffff; }
+.tx-row:nth-child(even) .tx-col-markers { background: var(--color-zinc-100); }
+.tx-row:hover .tx-col-markers    { background: var(--color-zinc-200); }
+.tx-row-selected .tx-col-markers { background: #eff6ff !important; }
+.tx-row-flagged .tx-col-markers  { background: rgba(245, 158, 11, 0.06) !important; }
+.dark .tx-row .tx-col-markers          { background: var(--color-zinc-800); }
+.dark .tx-row:nth-child(even) .tx-col-markers { background: var(--color-zinc-700); }
+.dark .tx-row:hover .tx-col-markers    { background: var(--color-zinc-600); }
+.dark .tx-row-selected .tx-col-markers { background: #1e3a5f !important; }
+.dark .tx-row-flagged .tx-col-markers  { background: rgba(245, 158, 11, 0.10) !important; }
+/* Sticky header cell */
+.tx-table thead th.tx-col-markers {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+}
+
+/* Buttons inside the sticky markers cell — flex row */
+td.tx-col-markers, th.tx-col-markers {
+  display: table-cell; /* keep table layout intact */
+}
+td.tx-col-markers {
+  white-space: nowrap;
+}
 
 /* Balance column — dimmed when outside cutoff window */
 .tx-balance-hidden {
@@ -1296,6 +1385,38 @@
   background-color: rgba(245, 158, 11, 0.10) !important;
 }
 
+/* Locked row — muted, striped look */
+.tx-row-locked {
+  background-color: var(--color-zinc-100) !important;
+  opacity: 0.82;
+}
+.dark .tx-row-locked {
+  background-color: var(--color-zinc-800) !important;
+  opacity: 0.75;
+}
+.tx-row-locked td {
+  cursor: default !important;
+  color: var(--color-zinc-500) !important;
+}
+.dark .tx-row-locked td {
+  color: var(--color-zinc-400) !important;
+}
+.tx-row-locked .tx-col-markers   { background: var(--color-zinc-200) !important; }
+.dark .tx-row-locked .tx-col-markers { background: var(--color-zinc-700) !important; }
+
+/* Lock icon in the markers cell of locked rows */
+.tx-lock-indicator {
+  display: inline-block;
+  color: #6366f1;
+  font-size: 0.65rem;
+  padding: 0.15rem 0.3rem;
+  opacity: 0.8;
+  vertical-align: middle;
+}
+.dark .tx-lock-indicator {
+  color: #818cf8;
+}
+
 /* Pin button */
 .tx-pin-btn {
   background: none;
@@ -1309,6 +1430,7 @@
   line-height: 1;
 }
 .tx-row:hover .tx-pin-btn,
+.tx-col-markers:hover .tx-pin-btn,
 .tx-pending-row .tx-pin-btn {
   opacity: 1;
 }
@@ -1331,8 +1453,35 @@
   opacity: 0;
   transition: opacity 0.1s, color 0.1s;
   line-height: 1;
+  vertical-align: middle;
 }
-.tx-row:hover .tx-flag-btn {
+
+/* Edit button */
+.tx-edit-btn {
+  background: none;
+  border: none;
+  padding: 0.15rem 0.2rem;
+  cursor: pointer;
+  color: var(--color-zinc-400);
+  font-size: 0.6rem;
+  opacity: 0;
+  transition: opacity 0.1s, color 0.1s;
+  line-height: 1;
+  vertical-align: middle;
+}
+.tx-row:hover .tx-edit-btn,
+.tx-col-markers:hover .tx-edit-btn {
+  opacity: 1;
+}
+.tx-edit-btn:hover {
+  color: var(--color-zinc-900);
+}
+.dark .tx-edit-btn:hover {
+  color: var(--color-zinc-100);
+}
+.tx-row:hover .tx-flag-btn,
+.tx-col-markers:hover .tx-flag-btn,
+.tx-pending-row .tx-flag-btn {
   opacity: 1;
 }
 .tx-flag-btn--active {
@@ -1392,15 +1541,24 @@
   padding: 2.5rem 1rem !important;
 }
 
-/* ── Pending row ─────────────────────────────────────────────── */
+/* ── Pending / editing row ───────────────────────────────────── */
 
 .tx-pending-row {
-  background-color: var(--color-zinc-100) !important;
+  background-color: #eef2ff !important; /* indigo-50 */
+  outline: 2px solid #6366f1;           /* indigo-500 */
+  outline-offset: -2px;
+  position: relative;
+  z-index: 1;
 }
 
 .dark .tx-pending-row {
-  background-color: var(--color-zinc-700) !important;
+  background-color: #1e1b4b !important; /* indigo-950 */
+  outline-color: #818cf8;               /* indigo-400 */
 }
+
+/* Sticky markers cell must match the editing row background */
+.tx-pending-row .tx-col-markers  { background: #eef2ff !important; }
+.dark .tx-pending-row .tx-col-markers  { background: #1e1b4b !important; }
 
 /* Inputs inside pending row */
 .tx-input {
@@ -1511,29 +1669,11 @@
 
 /* ── Footer ──────────────────────────────────────────────────── */
 
-/* Edit button (shown in action cell on hover) */
-.tx-edit-btn {
-  background: none;
-  border: none;
-  padding: 0.15rem 0.2rem;
-  cursor: pointer;
-  color: var(--color-zinc-400);
-  font-size: 0.6rem;
-  opacity: 0;
-  transition: opacity 0.1s, color 0.1s;
-  line-height: 1;
-}
-.tx-row:hover .tx-edit-btn {
-  opacity: 1;
-}
-.tx-edit-btn:hover {
-  color: #6366f1;
-}
-
-/* Top toolbar (Add Transaction) */
+/* Top toolbar (Add Transaction + Lock menu) */
 .tx-top-toolbar {
   display: flex;
   align-items: center;
+  gap: 0.5rem;
   padding: 0.35rem 0.75rem;
   background-color: var(--color-zinc-100);
   border-bottom: 1px solid var(--color-zinc-300);
@@ -1586,4 +1726,233 @@
   .tx-filter-group-grow {
     min-width: 7rem;
   }
+}
+
+/* ── Lock filter toggle group ─────────────────────────────────── */
+.tx-toggle-group {
+  display: flex;
+  gap: 0.25rem;
+}
+
+/* "More filters" toggle button */
+.tx-filter-more-wrap {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.tx-filter-more-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.6rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 0.25rem 0.5rem;
+  border: 2px solid var(--color-zinc-300);
+  color: var(--color-zinc-500);
+  background: none;
+  cursor: pointer;
+  height: 1.875rem;
+  box-sizing: border-box;
+  white-space: nowrap;
+  transition: border-color 0.1s, color 0.1s;
+}
+.tx-filter-more-btn:hover {
+  border-color: var(--color-zinc-500);
+  color: var(--color-zinc-700);
+}
+.dark .tx-filter-more-btn {
+  border-color: var(--color-zinc-600);
+  color: var(--color-zinc-400);
+}
+.dark .tx-filter-more-btn:hover {
+  border-color: var(--color-zinc-400);
+  color: var(--color-zinc-200);
+}
+
+/* Full-width row break inside the flex filter bar */
+.tx-filter-bar-row-break {
+  flex-basis: 100%;
+  height: 0;
+}
+
+/* ── Lock menu (toolbar dropdown) ─────────────────────────────── */
+.tx-lock-menu-wrap {
+  position: relative;
+}
+
+.tx-lock-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid var(--color-zinc-300);
+  background: #fff;
+  color: var(--color-zinc-700);
+  cursor: pointer;
+  transition: background-color 0.1s, color 0.1s;
+}
+.dark .tx-lock-menu-btn {
+  border-color: var(--color-zinc-600);
+  background: var(--color-zinc-700);
+  color: var(--color-zinc-200);
+}
+.tx-lock-menu-btn:hover {
+  background-color: var(--color-zinc-100);
+}
+.dark .tx-lock-menu-btn:hover {
+  background-color: var(--color-zinc-600);
+}
+.tx-lock-menu-chevron {
+  font-size: 0.55rem;
+  opacity: 0.6;
+}
+
+.tx-lock-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 100;
+  min-width: 15rem;
+  background: #fff;
+  border: 1px solid var(--color-zinc-200);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  padding: 0.25rem 0;
+}
+.dark .tx-lock-dropdown {
+  background: var(--color-zinc-800);
+  border-color: var(--color-zinc-600);
+}
+
+.tx-lock-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.8rem;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: var(--color-zinc-700);
+  transition: background-color 0.1s;
+}
+.dark .tx-lock-dropdown-item {
+  color: var(--color-zinc-200);
+}
+.tx-lock-dropdown-item:hover {
+  background-color: var(--color-zinc-100);
+}
+.dark .tx-lock-dropdown-item:hover {
+  background-color: var(--color-zinc-700);
+}
+
+.tx-lock-dropdown-hr {
+  border: none;
+  border-top: 1px solid var(--color-zinc-200);
+  margin: 0.25rem 0;
+}
+.dark .tx-lock-dropdown-hr {
+  border-top-color: var(--color-zinc-600);
+}
+
+/* ── Lock-before-date modal ────────────────────────────────────── */
+.tx-lock-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tx-lock-modal {
+  background: #fff;
+  padding: 1.5rem 2rem;
+  min-width: 22rem;
+  max-width: 90vw;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+}
+.dark .tx-lock-modal {
+  background: var(--color-zinc-800);
+  color: var(--color-zinc-100);
+}
+
+.tx-lock-modal-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tx-lock-modal-desc {
+  font-size: 0.82rem;
+  color: var(--color-zinc-500);
+  margin: 0 0 1rem;
+  line-height: 1.5;
+}
+.dark .tx-lock-modal-desc {
+  color: var(--color-zinc-400);
+}
+
+.tx-lock-modal-input {
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.9rem;
+  border: 1px solid var(--color-zinc-300);
+  background: #fff;
+  color: var(--color-zinc-900);
+  margin-bottom: 1.25rem;
+  box-sizing: border-box;
+}
+.dark .tx-lock-modal-input {
+  background: var(--color-zinc-700);
+  border-color: var(--color-zinc-500);
+  color: var(--color-zinc-100);
+}
+
+.tx-lock-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+.tx-lock-modal-cancel {
+  padding: 0.4rem 1rem;
+  font-size: 0.82rem;
+  border: 1px solid var(--color-zinc-300);
+  background: none;
+  cursor: pointer;
+  color: var(--color-zinc-600);
+}
+.dark .tx-lock-modal-cancel {
+  border-color: var(--color-zinc-600);
+  color: var(--color-zinc-300);
+}
+.tx-lock-modal-cancel:hover {
+  background-color: var(--color-zinc-100);
+}
+.dark .tx-lock-modal-cancel:hover {
+  background-color: var(--color-zinc-700);
+}
+
+.tx-lock-modal-confirm {
+  padding: 0.4rem 1rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  border: none;
+  background: #4f46e5;
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.1s;
+}
+.tx-lock-modal-confirm:hover {
+  background-color: #4338ca;
 }

@@ -265,10 +265,9 @@ function confirmFunding(): void {
 
   // 'fund', 'fund-partial', or 'fund-negative'
   if (!selectedAccountId || amount <= 0) return
-  const ym = `${activeYear}-${String(activeMonth).padStart(2, '0')}`
   transactionStore.addTransaction({
     name:      `Budget: ${item.name}`,
-    date:      `${ym}-01`,
+    date:      getTodayStr(),
     type:      'out',
     amount,
     itemId:    item.id,

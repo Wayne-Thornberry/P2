@@ -58,7 +58,7 @@ async function clearAllData(): Promise<void> {
   })
   if (!ok) return
   const country = settings.country
-  const dataSuffixes = ['accounts', 'transactions', 'budget', 'template', 'savings_goals', 'import_history']
+  const dataSuffixes = ['accounts', 'transactions', 'budget', 'template', 'savings_goals', 'import_history', 'finance']
   for (const suffix of dataSuffixes) {
     if (country) localStorage.removeItem(`clearbook_${suffix}_${country}`)
     localStorage.removeItem(`clearbook_${suffix}`)
@@ -599,6 +599,24 @@ const previewCreated  = computed(() => settings.formatCreatedAt(PREVIEW_ISO))
           </button>
           <p v-if="importSuccess" class="debug-confirm">Backup imported successfully.</p>
           <p v-if="importError"   class="debug-confirm" style="color: var(--color-danger, #ef4444)">{{ importError }}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Danger Zone ─────────────────────────────────────────────── -->
+    <div class="settings-section settings-section--danger">
+      <h2 class="settings-section-title settings-section-title--danger">Danger Zone</h2>
+
+      <div class="settings-row">
+        <div class="settings-label">
+          <span class="settings-label-text">Delete all data</span>
+          <span class="settings-label-hint">Permanently delete all accounts, transactions, budgets, templates, savings goals, loans and import history for the current country. Settings will be kept. This cannot be undone.</span>
+        </div>
+        <div class="settings-control">
+          <button class="debug-btn debug-btn-danger" @click="clearAllData">
+            <i class="pi pi-trash text-xs mr-1.5" />
+            Delete All Data
+          </button>
         </div>
       </div>
     </div>

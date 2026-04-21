@@ -91,6 +91,13 @@ const filterAmountMaxStr = ref('')
 const filterDateFrom     = ref('')
 const filterDateTo       = ref('')
 const filterFlagged      = ref(false)
+const filterLocked       = ref<'locked' | 'unlocked' | null>(null)
+const showMoreFilters    = ref(false)
+
+// Auto-expand "More" section if a hidden filter is set programmatically (e.g. filterByAmount)
+watch([filterAmountMinStr, filterAmountMaxStr, filterDateFrom, filterDateTo], ([min, max, from, to]) => {
+  if (min || max || from || to) showMoreFilters.value = true
+})
 
 watch(() => props.accountFilter, v => { filterAccountId.value = v ?? null })
 watch(() => props.itemFilter,    v => { filterItemId.value    = v ?? null })
@@ -111,12 +118,35 @@ const colWidths = ref<Record<string, number | null>>({
   balance: null, item: null, account: null, notes: null, added: null, action: null,
 })
 
+// Maps thead <th> index → colWidths key (null = markers col, not in colWidths)
+const TH_COL_KEY_MAP: (string | null)[] = [
+  null, 'check', 'date', 'name', 'in', 'out', 'balance', 'item', 'account', 'notes', 'added', 'action',
+]
+
 function startColResize(colKey: string, e: MouseEvent): void {
   e.preventDefault()
   e.stopPropagation()
-  const startX   = e.clientX
-  const thEl     = (e.target as HTMLElement).closest('th')!
-  const startW   = thEl.getBoundingClientRect().width
+
+  // Before resizing, lock ALL current column widths from the DOM.
+  // With table-layout:fixed + width:100%, only un-set columns absorb redistributed space.
+  // Snapshotting everything first means no other column shifts when one is dragged,
+  // and the widths survive sort re-renders (which would otherwise re-run the layout algorithm).
+  const tableEl = (e.target as HTMLElement).closest('table')
+  if (tableEl) {
+    const ths     = tableEl.querySelectorAll<HTMLElement>('thead th')
+    const updates = { ...colWidths.value }
+    ths.forEach((th, i) => {
+      const k = TH_COL_KEY_MAP[i]
+      if (k !== null && updates[k] === null) {
+        updates[k] = th.getBoundingClientRect().width
+      }
+    })
+    colWidths.value = updates
+  }
+
+  const startX = e.clientX
+  const thEl   = (e.target as HTMLElement).closest('th')!
+  const startW = thEl.getBoundingClientRect().width
 
   function onMove(ev: MouseEvent): void {
     const newW = Math.max(40, startW + ev.clientX - startX)
@@ -139,7 +169,7 @@ const hasActiveFilters = computed(() =>
   filterSearch.value !== '' || filterYear.value !== '' || filterMonthNum.value !== '' ||
   filterType.value !== 'all' || filterAccountId.value !== null || filterItemId.value !== null ||
   filterAmountMinStr.value !== '' || filterAmountMaxStr.value !== '' ||
-  filterDateFrom.value !== '' || filterDateTo.value !== '' || filterFlagged.value
+  filterDateFrom.value !== '' || filterDateTo.value !== '' || filterFlagged.value || filterLocked.value !== null
 )
 
 function clearFilters(): void {
@@ -154,6 +184,7 @@ function clearFilters(): void {
   filterDateFrom.value     = ''
   filterDateTo.value       = ''
   filterFlagged.value      = false
+  filterLocked.value       = null
 }
 
 // ── Sort ───────────────────────────────────────────────────────
@@ -235,6 +266,8 @@ const filteredTransactions = computed(() => {
   if (filterDateFrom.value) list = list.filter(t => t.date >= filterDateFrom.value)
   if (filterDateTo.value)   list = list.filter(t => t.date <= filterDateTo.value)
   if (filterFlagged.value)  list = list.filter(t => !!t.flagged)
+  if (filterLocked.value === 'locked')   list = list.filter(t => !!t.locked)
+  if (filterLocked.value === 'unlocked') list = list.filter(t => !t.locked)
   list.sort((a, b) => {
     const col = sortCol.value
     // Default: newest date first when no sort column active
@@ -271,7 +304,7 @@ const pagedTransactions = computed(() => {
   return filteredTransactions.value.slice(start, start + pageSize.value)
 })
 
-watch([filterSearch, filterYear, filterMonthNum, filterType, filterAccountId, filterItemId, filterAmountMinStr, filterAmountMaxStr, filterDateFrom, filterDateTo, filterFlagged, pageSize, sortCol, sortDir], () => { page.value = 1 })
+watch([filterSearch, filterYear, filterMonthNum, filterType, filterAccountId, filterItemId, filterAmountMinStr, filterAmountMaxStr, filterDateFrom, filterDateTo, filterFlagged, filterLocked, pageSize, sortCol, sortDir], () => { page.value = 1 })
 
 // ── Running balance per transaction ─────────────────────────
 // Computed from the filtered set, chronological oldest→newest.
@@ -387,7 +420,10 @@ const nameInputRef  = ref<HTMLInputElement | null>(null)
 
 async function startTransaction(): Promise<void> {
   cancelEdit()
-  pending.value = { name: '', date: getTodayStr(), type: 'out', amount: '', itemIdStr: '', accountIdStr: '', notes: '' }
+  // Prefill item and account from active filter so the new row lands in context
+  const prefillItem    = filterItemId.value !== null && filterItemId.value > 0 ? String(filterItemId.value) : ''
+  const prefillAccount = filterAccountId.value ?? ''
+  pending.value = { name: '', date: getTodayStr(), type: 'out', amount: '', itemIdStr: prefillItem, accountIdStr: prefillAccount, notes: '' }
   await nextTick()
   nameInputRef.value?.focus()
 }
@@ -426,6 +462,7 @@ const editDraft  = ref<RowDraft | null>(null)
 const editRowRef = ref<HTMLElement | null>(null)
 
 async function startEdit(tx: Transaction): Promise<void> {
+  if (tx.locked) return
   cancelTransaction()
   editingId.value = tx.id
   editDraft.value = {
@@ -589,25 +626,31 @@ function selectAllFiltered(): void {
 
 function clearSelection(): void {
   selectedIds.value = new Set()
+  showBulkAssign.value = false
+  showBulkStats.value = false
 }
 
 async function deleteSelected(): Promise<void> {
-  const n = selectedCount.value
+  const targets = filteredTransactions.value.filter(t => selectedIds.value.has(t.id) && !t.locked)
+  const n = targets.length
+  if (n === 0) return
+  const skipped = selectedCount.value - n
+  const skipNote = skipped > 0 ? ` ${skipped} locked transaction${skipped !== 1 ? 's' : ''} will be skipped.` : ''
   const ok = await confirm({
     title: 'Delete transactions?',
-    message: `Permanently delete ${n} transaction${n !== 1 ? 's' : ''}? This cannot be undone.`,
+    message: `Permanently delete ${n} transaction${n !== 1 ? 's' : ''}?${skipNote} This cannot be undone.`,
     confirmLabel: 'Delete',
     danger: true,
   })
   if (!ok) return
-  const ids = new Set(filteredTransactions.value.filter(t => selectedIds.value.has(t.id)).map(t => t.id))
-  for (const id of ids) store.deleteTransaction(id)
+  for (const t of targets) store.deleteTransaction(t.id)
   clearSelection()
 }
 
 // ── Duplicate selected ────────────────────────────────────────
 function duplicateSelected(): void {
-  const rows = selectedTransactions.value
+  const rows = selectedTransactions.value.filter(t => !t.locked)
+  if (!rows.length) return
   for (const t of rows) {
     store.addTransaction({
       name: t.name, date: getTodayStr(), type: t.type,
@@ -616,6 +659,68 @@ function duplicateSelected(): void {
   }
   clearSelection()
 }
+
+// ── Bulk lock / unlock ────────────────────────────────────────
+function lockSelected(): void {
+  store.lockTransactions(new Set(selectedTransactions.value.map(t => t.id)))
+}
+
+function unlockSelected(): void {
+  store.unlockTransactions(new Set(selectedTransactions.value.map(t => t.id)))
+}
+
+// Lock / unlock all + lock-before-date modal
+const showLockModal   = ref(false)
+const lockModalMode   = ref<'lock' | 'unlock'>('lock')
+const lockModalDate   = ref('')
+
+function openLockBeforeDate(mode: 'lock' | 'unlock'): void {
+  lockModalMode.value = mode
+  lockModalDate.value = getTodayStr()
+  showLockModal.value = true
+}
+
+function applyLockBeforeDate(): void {
+  if (!lockModalDate.value) return
+  if (lockModalMode.value === 'lock') {
+    store.lockOnOrBefore(lockModalDate.value)
+  } else {
+    store.unlockOnOrBefore(lockModalDate.value)
+  }
+  showLockModal.value = false
+}
+
+async function confirmLockAll(): Promise<void> {
+  const ok = await confirm({
+    title: 'Lock all transactions?',
+    message: 'All transactions will be locked and cannot be edited until unlocked.',
+    confirmLabel: 'Lock All',
+    danger: false,
+  })
+  if (ok) store.lockAll()
+}
+
+async function confirmUnlockAll(): Promise<void> {
+  const ok = await confirm({
+    title: 'Unlock all transactions?',
+    message: 'All transactions will be unlocked and become editable.',
+    confirmLabel: 'Unlock All',
+    danger: false,
+  })
+  if (ok) store.unlockAll()
+}
+
+const showLockMenu    = ref(false)
+const lockMenuRef     = ref<HTMLElement | null>(null)
+function toggleLockMenu(): void { showLockMenu.value = !showLockMenu.value }
+
+function _onDocClickForLockMenu(e: MouseEvent): void {
+  if (lockMenuRef.value && !lockMenuRef.value.contains(e.target as Node)) {
+    showLockMenu.value = false
+  }
+}
+onMounted(() => document.addEventListener('mousedown', _onDocClickForLockMenu))
+onUnmounted(() => document.removeEventListener('mousedown', _onDocClickForLockMenu))
 
 const copyFeedback = ref(false)
 async function copySelected(): Promise<void> {
@@ -660,10 +765,12 @@ onUnmounted(() => window.removeEventListener('keydown', handleGlobalKey))
 // ── Bulk actions ───────────────────────────────────────────────
 const bulkItemIdStr    = ref('')
 const bulkAccountIdStr = ref('')
+const showBulkAssign   = ref(false)
+const showBulkStats    = ref(false)
 
 function applyBulkItem(): void {
   const itemId = bulkItemIdStr.value !== '' ? parseInt(bulkItemIdStr.value, 10) : null
-  const targets = filteredTransactions.value.filter(t => selectedIds.value.has(t.id))
+  const targets = filteredTransactions.value.filter(t => selectedIds.value.has(t.id) && !t.locked)
   for (const tx of targets) {
     store.updateTransaction(tx.id, { name: tx.name, date: tx.date, type: tx.type, amount: tx.amount, itemId, accountId: tx.accountId, notes: tx.notes })
   }
@@ -673,7 +780,7 @@ function applyBulkItem(): void {
 
 function applyBulkAccount(): void {
   const accountId = bulkAccountIdStr.value !== '' ? bulkAccountIdStr.value : null
-  const targets = filteredTransactions.value.filter(t => selectedIds.value.has(t.id))
+  const targets = filteredTransactions.value.filter(t => selectedIds.value.has(t.id) && !t.locked)
   for (const tx of targets) {
     store.updateTransaction(tx.id, { name: tx.name, date: tx.date, type: tx.type, amount: tx.amount, itemId: tx.itemId, accountId, notes: tx.notes })
   }
@@ -785,11 +892,22 @@ const historyExpanded = ref(false)
           </div>
         </div>
 
+        <!-- Status: Flagged + Locked merged -->
         <div class="tx-filter-group">
-          <label class="tx-filter-label">Flagged</label>
-          <button :class="['toggle-btn', filterFlagged && 'toggle-btn-active']" @click="filterFlagged = !filterFlagged" title="Show only flagged transactions">
-            <i class="pi" :class="filterFlagged ? 'pi-flag-fill' : 'pi-flag'" /> Flagged
-          </button>
+          <label class="tx-filter-label">Status</label>
+          <div class="toggle-group">
+            <button :class="['toggle-btn', filterFlagged && 'toggle-btn-active']" @click="filterFlagged = !filterFlagged" title="Show only flagged">
+              <i class="pi" :class="filterFlagged ? 'pi-flag-fill' : 'pi-flag'" />
+            </button>
+            <button :class="['toggle-btn', filterLocked === 'locked' && 'toggle-btn-active']"
+              @click="filterLocked = filterLocked === 'locked' ? null : 'locked'" title="Show only locked">
+              <i class="pi pi-lock" />
+            </button>
+            <button :class="['toggle-btn', filterLocked === 'unlocked' && 'toggle-btn-active']"
+              @click="filterLocked = filterLocked === 'unlocked' ? null : 'unlocked'" title="Show only unlocked">
+              <i class="pi pi-lock-open" />
+            </button>
+          </div>
         </div>
 
         <div class="tx-filter-group tx-filter-group-grow">
@@ -813,38 +931,12 @@ const historyExpanded = ref(false)
           </select>
         </div>
 
-        <div class="tx-filter-group">
-          <label class="tx-filter-label">Date — From</label>
-          <input type="date" v-model="filterDateFrom" class="tx-filter-field tx-filter-date" />
-        </div>
-        <div class="tx-filter-group">
-          <label class="tx-filter-label">Date — To</label>
-          <input type="date" v-model="filterDateTo" class="tx-filter-field tx-filter-date" />
-        </div>
-
-        <div class="tx-filter-group">
-          <label class="tx-filter-label">Amount — Min</label>
-          <input
-            type="number"
-            inputmode="decimal"
-            min="0"
-            step="0.01"
-            v-model="filterAmountMinStr"
-            class="tx-filter-field tx-filter-amount"
-            placeholder="0.00"
-          />
-        </div>
-        <div class="tx-filter-group">
-          <label class="tx-filter-label">Amount — Max</label>
-          <input
-            type="number"
-            inputmode="decimal"
-            min="0"
-            step="0.01"
-            v-model="filterAmountMaxStr"
-            class="tx-filter-field tx-filter-amount"
-            placeholder="0.00"
-          />
+        <!-- More / fewer toggle -->
+        <div class="tx-filter-more-wrap">
+          <button class="tx-filter-more-btn" @click="showMoreFilters = !showMoreFilters" :title="showMoreFilters ? 'Hide date & amount filters' : 'Show date & amount filters'">
+            <i class="pi" :class="showMoreFilters ? 'pi-chevron-up' : 'pi-chevron-down'" />
+            More
+          </button>
         </div>
 
         <div class="tx-filter-clear-wrap">
@@ -855,36 +947,114 @@ const historyExpanded = ref(false)
             <i class="pi pi-times" /> Clear
           </button>
         </div>
+
+        <!-- Expanded: date + amount range -->
+        <template v-if="showMoreFilters">
+          <div class="tx-filter-bar-row-break" />
+          <div class="tx-filter-group">
+            <label class="tx-filter-label">Date — From</label>
+            <input type="date" v-model="filterDateFrom" class="tx-filter-field tx-filter-date" />
+          </div>
+          <div class="tx-filter-group">
+            <label class="tx-filter-label">Date — To</label>
+            <input type="date" v-model="filterDateTo" class="tx-filter-field tx-filter-date" />
+          </div>
+          <div class="tx-filter-group">
+            <label class="tx-filter-label">Amount — Min</label>
+            <input
+              type="number"
+              inputmode="decimal"
+              min="0"
+              step="0.01"
+              v-model="filterAmountMinStr"
+              class="tx-filter-field tx-filter-amount"
+              placeholder="0.00"
+            />
+          </div>
+          <div class="tx-filter-group">
+            <label class="tx-filter-label">Amount — Max</label>
+            <input
+              type="number"
+              inputmode="decimal"
+              min="0"
+              step="0.01"
+              v-model="filterAmountMaxStr"
+              class="tx-filter-field tx-filter-amount"
+              placeholder="0.00"
+            />
+          </div>
+        </template>
       </div>
 
       <!-- Bulk action bar -->
       <div v-if="selectedCount > 0" class="tx-bulk-bar">
 
-        <!-- Selection info -->
-        <div class="tx-bulk-info">
-          <span class="tx-bulk-count">{{ selectedCount }} selected</span>
-          <button v-if="!allFilteredSelected" class="tx-bulk-select-all-link" @click="selectAllFiltered">
-            Select all {{ totalCount }}
+        <!-- Row 1: always-visible compact strip -->
+        <div class="tx-bulk-row">
+
+          <!-- Count + select-all -->
+          <div class="tx-bulk-info">
+            <span class="tx-bulk-count">{{ selectedCount }} selected</span>
+            <button v-if="!allFilteredSelected" class="tx-bulk-select-all-link" @click="selectAllFiltered">
+              Select all {{ totalCount }}
+            </button>
+            <span v-else class="tx-bulk-all-selected">All {{ totalCount }}</span>
+          </div>
+
+          <span class="tx-bulk-sep" />
+
+          <!-- Core stats: In / Out / Net always visible -->
+          <div class="tx-bulk-stats-core">
+            <span class="tx-bulk-stat">
+              <span class="tx-bulk-stat-label">In</span>
+              <span class="money-positive">{{ formatMoney(displayIn) }}</span>
+            </span>
+            <span class="tx-bulk-stat">
+              <span class="tx-bulk-stat-label">Out</span>
+              <span class="money-negative">{{ formatMoney(displayOut) }}</span>
+            </span>
+            <span class="tx-bulk-stat">
+              <span class="tx-bulk-stat-label">Net</span>
+              <span :class="displayNet >= 0 ? 'money-positive' : 'money-negative'">{{ formatMoney(displayNet) }}</span>
+            </span>
+            <button class="tx-bulk-expand-btn" :class="{ 'tx-bulk-expand-btn--active': showBulkStats }" @click="showBulkStats = !showBulkStats" title="More stats">
+              <i class="pi pi-chart-bar" />
+            </button>
+          </div>
+
+          <span class="tx-bulk-sep" />
+
+          <!-- Actions -->
+          <div class="tx-bulk-actions">
+            <button class="tx-bulk-icon-btn" @click="showBulkAssign = !showBulkAssign" :class="{ 'tx-bulk-icon-btn--active': showBulkAssign }" title="Assign item / account">
+              <i class="pi pi-tag" /> Assign
+            </button>
+            <button class="tx-bulk-icon-btn" @click="copySelected" :title="copyFeedback ? 'Copied!' : 'Copy to clipboard'">
+              <i :class="copyFeedback ? 'pi pi-check' : 'pi pi-copy'" />
+            </button>
+            <button class="tx-bulk-icon-btn" @click="duplicateSelected" title="Duplicate">
+              <i class="pi pi-clone" />
+            </button>
+            <button class="tx-bulk-icon-btn tx-bulk-icon-btn--lock" @click="lockSelected" title="Lock selected">
+              <i class="pi pi-lock" />
+            </button>
+            <button class="tx-bulk-icon-btn tx-bulk-icon-btn--lock" @click="unlockSelected" title="Unlock selected">
+              <i class="pi pi-lock-open" />
+            </button>
+            <button class="tx-bulk-icon-btn tx-bulk-icon-btn--danger" @click="deleteSelected" title="Delete selected">
+              <i class="pi pi-trash" />
+            </button>
+          </div>
+
+          <!-- Deselect pushed to far right -->
+          <button class="tx-bulk-clear-btn" @click="clearSelection" title="Deselect all">
+            <i class="pi pi-times" />
           </button>
-          <span v-else class="tx-bulk-all-selected">All {{ totalCount }} selected</span>
+
         </div>
 
-        <span class="tx-bulk-sep" />
-
-        <!-- Selection stats -->
-        <div class="tx-bulk-stats">
-          <span class="tx-bulk-stat">
-            <span class="tx-bulk-stat-label">In</span>
-            <span class="money-positive">{{ formatMoney(displayIn) }}</span>
-          </span>
-          <span class="tx-bulk-stat">
-            <span class="tx-bulk-stat-label">Out</span>
-            <span class="money-negative">{{ formatMoney(displayOut) }}</span>
-          </span>
-          <span class="tx-bulk-stat">
-            <span class="tx-bulk-stat-label">Net</span>
-            <span :class="displayNet >= 0 ? 'money-positive' : 'money-negative'">{{ formatMoney(displayNet) }}</span>
-          </span>
+        <!-- Row 2: extended stats (toggle) -->
+        <div v-if="showBulkStats" class="tx-bulk-row tx-bulk-row--secondary">
           <span class="tx-bulk-stat" v-if="displayAvgIn !== null">
             <span class="tx-bulk-stat-label">Avg In</span>
             <span class="money-positive">{{ formatMoney(displayAvgIn) }}</span>
@@ -911,10 +1081,8 @@ const historyExpanded = ref(false)
           </span>
         </div>
 
-        <span class="tx-bulk-sep" />
-
-        <!-- Assign -->
-        <div class="tx-bulk-assign-group">
+        <!-- Row 3: assign (toggle) -->
+        <div v-if="showBulkAssign" class="tx-bulk-row tx-bulk-row--secondary">
           <div class="tx-bulk-assign-field">
             <label class="tx-bulk-assign-label">Item</label>
             <select v-model="bulkItemIdStr" class="tx-select tx-bulk-select">
@@ -937,22 +1105,6 @@ const historyExpanded = ref(false)
           </div>
         </div>
 
-        <span class="tx-bulk-sep" />
-
-        <!-- Actions -->
-        <button class="tx-bulk-copy-btn" @click="copySelected" :title="copyFeedback ? 'Copied!' : 'Copy to clipboard'">
-          <i :class="copyFeedback ? 'pi pi-check' : 'pi pi-copy'" /> {{ copyFeedback ? 'Copied!' : 'Copy' }}
-        </button>
-        <button class="tx-bulk-duplicate-btn" @click="duplicateSelected">
-          <i class="pi pi-clone" /> Duplicate
-        </button>
-        <button class="tx-bulk-delete-btn" @click="deleteSelected">
-          <i class="pi pi-trash" /> Delete
-        </button>
-        <button class="tx-bulk-clear-btn" @click="clearSelection">
-          <i class="pi pi-times" /> Deselect
-        </button>
-
       </div>
 
       <!-- Top toolbar: add transaction -->
@@ -960,7 +1112,54 @@ const historyExpanded = ref(false)
         <button class="add-item-btn" :disabled="!!pending || editingId !== null" @click="startTransaction">
           <i class="pi pi-plus" /> Add Transaction
         </button>
+
+        <!-- Global lock menu -->
+        <div class="tx-lock-menu-wrap" ref="lockMenuRef">
+          <button class="tx-lock-menu-btn" @click="toggleLockMenu" title="Lock / unlock transactions">
+            <i class="pi pi-lock" /> Lock
+            <i class="pi pi-chevron-down tx-lock-menu-chevron" />
+          </button>
+          <div v-if="showLockMenu" class="tx-lock-dropdown">
+            <button class="tx-lock-dropdown-item" @click="openLockBeforeDate('lock'); showLockMenu = false">
+              <i class="pi pi-lock" /> Lock on or before date…
+            </button>
+            <button class="tx-lock-dropdown-item" @click="openLockBeforeDate('unlock'); showLockMenu = false">
+              <i class="pi pi-lock-open" /> Unlock on or before date…
+            </button>
+            <hr class="tx-lock-dropdown-hr" />
+            <button class="tx-lock-dropdown-item" @click="confirmLockAll(); showLockMenu = false">
+              <i class="pi pi-lock" /> Lock all
+            </button>
+            <button class="tx-lock-dropdown-item" @click="confirmUnlockAll(); showLockMenu = false">
+              <i class="pi pi-lock-open" /> Unlock all
+            </button>
+          </div>
+        </div>
       </div>
+
+      <!-- Lock-before-date modal -->
+      <Teleport to="body">
+        <div v-if="showLockModal" class="tx-lock-modal-overlay" @click.self="showLockModal = false">
+          <div class="tx-lock-modal">
+            <h3 class="tx-lock-modal-title">
+              <i :class="lockModalMode === 'lock' ? 'pi pi-lock' : 'pi pi-lock-open'" />
+              {{ lockModalMode === 'lock' ? 'Lock on or before date' : 'Unlock on or before date' }}
+            </h3>
+            <p class="tx-lock-modal-desc">
+              {{ lockModalMode === 'lock'
+                ? 'All transactions with a date on or before the selected date will be locked.'
+                : 'All transactions with a date on or before the selected date will be unlocked.' }}
+            </p>
+            <input type="date" v-model="lockModalDate" class="tx-lock-modal-input" />
+            <div class="tx-lock-modal-actions">
+              <button class="tx-lock-modal-cancel" @click="showLockModal = false">Cancel</button>
+              <button class="tx-lock-modal-confirm" @click="applyLockBeforeDate">
+                {{ lockModalMode === 'lock' ? 'Lock' : 'Unlock' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Teleport>
 
       <!-- Table -->
       <div
@@ -979,7 +1178,6 @@ const historyExpanded = ref(false)
             <col :style="colStyle('account')" />
             <col :style="colStyle('notes')" />
             <col :style="colStyle('added')" />
-            <col :style="colStyle('action')" />
           </colgroup>
           <thead>
             <tr>
@@ -1003,7 +1201,7 @@ const historyExpanded = ref(false)
                 <div class="th-resize-handle" @mousedown.stop="startColResize('date', $event)" /></th>
 
               <!-- Name -->
-              <th class="th-sortable" @click="toggleSort('name')">
+              <th class="tx-col-name th-sortable" @click="toggleSort('name')">
                 <div class="th-label">Name / Description <i :class="sortIcon('name')" class="tx-sort-icon" /></div>
                 <div class="th-resize-handle" @mousedown.stop="startColResize('name', $event)" /></th>
 
@@ -1041,8 +1239,6 @@ const historyExpanded = ref(false)
               <th class="tx-col-added th-sortable" @click="toggleSort('added')">
                 <div class="th-label">Added <i :class="sortIcon('added')" class="tx-sort-icon" /></div>
                 <div class="th-resize-handle" @mousedown.stop="startColResize('added', $event)" /></th>
-
-              <th class="tx-col-action"></th>
             </tr>
           </thead>
           <tbody>
@@ -1059,9 +1255,12 @@ const historyExpanded = ref(false)
                 @focusout="onEditFocusOut"
                 @keydown.escape.prevent="cancelEdit"
               >
-                <td class="tx-col-markers">
+                <td class="tx-col-markers" @click.stop>
                   <button class="tx-pin-btn" :class="{ 'tx-pin-btn--active': tx.id === cutoffTxId }" :title="tx.id === cutoffTxId ? 'Remove balance cutoff pin' : 'Pin: calculate balance from here'" @click.stop="setPinTx(tx.id)">
                     <i class="pi pi-map-marker" />
+                  </button>
+                  <button class="tx-flag-btn" :class="{ 'tx-flag-btn--active': tx.flagged }" title="Flag / unflag" @click.stop="store.patchTransaction(tx.id, { flagged: !tx.flagged })">
+                    <i class="pi" :class="tx.flagged ? 'pi-flag-fill' : 'pi-flag'" />
                   </button>
                 </td>
                 <td class="tx-col-check"></td>
@@ -1119,23 +1318,32 @@ const historyExpanded = ref(false)
                     @keydown.enter.prevent="commitEdit" />
                 </td>
                 <td class="tx-created-at">{{ formatCreatedAt(tx.createdAt) }}</td>
-                <td class="tx-col-action">
-                  <button class="tx-flag-btn" :class="{ 'tx-flag-btn--active': tx.flagged }" title="Flag / unflag" @click.stop="store.patchTransaction(tx.id, { flagged: !tx.flagged })">
-                    <i class="pi" :class="tx.flagged ? 'pi-flag-fill' : 'pi-flag'" />
-                  </button>
-                </td>
               </tr>
 
               <!-- Display row -->
               <tr
                 v-else
                 class="tx-row"
-                :class="{ 'tx-row-selected': isSelected(tx.id), 'tx-row-cutoff': tx.id === cutoffTxId, 'tx-row-flagged': tx.flagged }"
+                :class="{ 'tx-row-selected': isSelected(tx.id), 'tx-row-cutoff': tx.id === cutoffTxId, 'tx-row-flagged': tx.flagged, 'tx-row-locked': tx.locked }"
+                @dblclick="!tx.locked && startEdit(tx)"
               >
                 <td class="tx-col-markers" @click.stop>
                   <button class="tx-pin-btn" :class="{ 'tx-pin-btn--active': tx.id === cutoffTxId }" :title="tx.id === cutoffTxId ? 'Remove balance cutoff pin' : 'Pin: calculate balance from here'" @click.stop="setPinTx(tx.id)">
                     <i class="pi pi-map-marker" />
                   </button>
+                  <template v-if="tx.locked">
+                    <span class="tx-lock-indicator" title="Locked — unlock to edit">
+                      <i class="pi pi-lock" />
+                    </span>
+                  </template>
+                  <template v-else>
+                    <button class="tx-edit-btn" title="Edit" @click.stop="startEdit(tx)">
+                      <i class="pi pi-pencil" />
+                    </button>
+                    <button class="tx-flag-btn" :class="{ 'tx-flag-btn--active': tx.flagged }" title="Flag / unflag" @click.stop="store.patchTransaction(tx.id, { flagged: !tx.flagged })">
+                      <i class="pi" :class="tx.flagged ? 'pi-flag-fill' : 'pi-flag'" />
+                    </button>
+                  </template>
                 </td>
                 <td class="tx-col-check" @click.stop="toggleSelected(tx.id)">
                   <input
@@ -1154,21 +1362,13 @@ const historyExpanded = ref(false)
                 <td class="tx-col-account">{{ getAccountName(tx.accountId) }}</td>
                 <td class="tx-col-notes" :title="tx.notes">{{ tx.notes ?? '' }}</td>
                 <td class="tx-created-at">{{ formatCreatedAt(tx.createdAt) }}</td>
-                <td class="tx-col-action" @click.stop>
-                  <button class="tx-edit-btn" title="Edit" @click.stop="startEdit(tx)">
-                    <i class="pi pi-pencil" />
-                  </button>
-                  <button class="tx-flag-btn" :class="{ 'tx-flag-btn--active': tx.flagged }" title="Flag / unflag" @click.stop="store.patchTransaction(tx.id, { flagged: !tx.flagged })">
-                    <i class="pi" :class="tx.flagged ? 'pi-flag-fill' : 'pi-flag'" />
-                  </button>
-                </td>
               </tr>
 
             </template>
 
             <!-- Empty state -->
             <tr v-if="!pagedTransactions.length && !pending">
-              <td colspan="12" class="tx-empty">
+              <td colspan="11" class="tx-empty">
                 <span v-if="hasActiveFilters">No transactions match the current filters.</span>
                 <span v-else>No transactions yet. Click + Add Transaction below to get started.</span>
               </td>
@@ -1248,7 +1448,6 @@ const historyExpanded = ref(false)
                   @keydown.enter.prevent="commitTransaction" />
               </td>
               <td class="tx-created-at">—</td>
-              <td class="tx-col-action"></td>
             </tr>
 
           </tbody>

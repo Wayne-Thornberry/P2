@@ -14,4 +14,5 @@ export interface Transaction {
   accountId: string | null
   notes?: string          // optional memo
   flagged?: boolean       // user-set flag
+  locked?: boolean        // prevents editing/deletion when true
 }
