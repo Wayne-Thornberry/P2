@@ -1,8 +1,7 @@
-name: Build and Deploy to GitHub Pages
+name: Build and Deploy to GitHub Pages (disabled — superseded by release.yml)
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write

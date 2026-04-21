@@ -1,3 +1,7 @@
+<script setup lang="ts">
+const appVersion = __APP_VERSION__
+</script>
+
 <template>
   <div class="about-page">
 
@@ -5,7 +9,7 @@
     <div class="about-hero">
       <h1 class="about-title">Clearbook</h1>
       <p class="about-tagline">A personal budget tracker that keeps your finances clear.</p>
-      <span class="about-version">v1.0.0</span>
+      <span class="about-version">v{{ appVersion }}</span>
     </div>
 
     <!-- Purpose -->
