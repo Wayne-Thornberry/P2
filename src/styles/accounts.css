@@ -50,9 +50,61 @@
 }
 
 /* â”€â”€ Single account card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* -- Bank filter bar ---------------------------------------------------------------- */
+.acct-filter-bar {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  align-items: center;
+  padding-bottom: 0.1rem;
+}
+
+.acct-filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.22rem 0.65rem;
+  border-radius: 9999px;
+  font-size: 0.63rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1.5px solid var(--color-zinc-300);
+  background: transparent;
+  color: var(--color-zinc-500);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.acct-filter-pill:hover {
+  border-color: var(--color-zinc-400);
+  color: var(--color-zinc-700);
+}
+.dark .acct-filter-pill {
+  border-color: var(--color-zinc-600);
+  color: var(--color-zinc-400);
+}
+.dark .acct-filter-pill:hover {
+  border-color: var(--color-zinc-400);
+  color: var(--color-zinc-200);
+}
+.acct-filter-pill--active {
+  border-color: var(--pill-color, #6366f1);
+  color: var(--pill-color, #6366f1);
+  background: color-mix(in srgb, var(--pill-color, #6366f1) 12%, transparent);
+}
+.acct-filter-pill-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--pill-color, var(--color-zinc-400));
+  flex-shrink: 0;
+}
+
 .acct-card {
   background: #ffffff;
   border: 1px solid var(--color-zinc-300);
+  border-left: 3px solid var(--acct-bank-color, var(--color-zinc-300));
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -211,6 +263,11 @@
   cursor: pointer;
 }
 .acct-bank-select:focus { outline: 2px solid var(--cb-accent, #6366f1); outline-offset: 1px; }
+.acct-bank-label {
+  flex: 1;
+  font-size: 0.72rem;
+  opacity: 0.7;
+}
 
 .acct-type-badge {
   display: inline-flex;
@@ -228,8 +285,10 @@
 }
 .acct-type-badge:hover { opacity: 0.8; }
 .acct-type-badge--asset     { background: color-mix(in srgb, #10b981 15%, transparent); color: #059669; }
+.acct-type-badge--savings   { background: color-mix(in srgb, #6366f1 15%, transparent); color: #4f46e5; }
 .acct-type-badge--liability { background: color-mix(in srgb, #f97316 15%, transparent); color: #ea580c; }
 .dark .acct-type-badge--asset     { background: color-mix(in srgb, #10b981 20%, transparent); color: #34d399; }
+.dark .acct-type-badge--savings   { background: color-mix(in srgb, #6366f1 20%, transparent); color: #818cf8; }
 .dark .acct-type-badge--liability { background: color-mix(in srgb, #f97316 20%, transparent); color: #fb923c; }
 
 .acct-budget-label {
@@ -277,10 +336,13 @@
 }
 .acct-type-pick-btn:first-child { border-radius: 6px 0 0 6px; }
 .acct-type-pick-btn:last-child  { border-radius: 0 6px 6px 0; border-left: none; }
-.acct-type-pick-btn--active                              { background: #10b981; color: #fff; border-color: #10b981; }
+.acct-type-pick-btn + .acct-type-pick-btn { border-left: none; }
+.acct-type-pick-btn--active                               { background: #10b981; color: #fff; border-color: #10b981; }
+.acct-type-pick-btn--savings.acct-type-pick-btn--active   { background: #6366f1; color: #fff; border-color: #6366f1; }
 .acct-type-pick-btn--liability.acct-type-pick-btn--active { background: #f97316; color: #fff; border-color: #f97316; }
 .dark .acct-type-pick-btn { background: var(--color-zinc-700); border-color: var(--color-zinc-600); color: var(--color-zinc-400); }
-.dark .acct-type-pick-btn--active                              { background: #059669; border-color: #059669; color: #fff; }
+.dark .acct-type-pick-btn--active                               { background: #059669; border-color: #059669; color: #fff; }
+.dark .acct-type-pick-btn--savings.acct-type-pick-btn--active   { background: #4f46e5; border-color: #4f46e5; color: #fff; }
 .dark .acct-type-pick-btn--liability.acct-type-pick-btn--active { background: #ea580c; border-color: #ea580c; color: #fff; }
 
 

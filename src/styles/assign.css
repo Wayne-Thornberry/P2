@@ -480,24 +480,92 @@
   color: var(--color-zinc-400);
 }
 
-.assign-browse-controls {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.assign-browse-select {
-  flex: 1;
+.assign-browse-input {
+  width: 100%;
   font-size: 0.75rem;
   padding: 0.3rem 0.45rem;
   border: 2px solid var(--color-zinc-300);
   background: #ffffff;
   color: var(--color-zinc-900);
   outline: none;
-  cursor: pointer;
+  box-sizing: border-box;
+}
+.assign-browse-input:focus {
+  border-color: #3b82f6;
 }
 
-.dark .assign-browse-select {
+.dark .assign-browse-input {
+  background: var(--color-zinc-700);
+  color: var(--color-zinc-100);
+  border-color: var(--color-zinc-600);
+}
+.dark .assign-browse-input:focus {
+  border-color: #3b82f6;
+}
+
+.assign-browse-action-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.3rem;
+}
+
+.assign-browse-match-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.assign-browse-match-cat {
+  font-size: 0.58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-zinc-500);
+}
+
+.dark .assign-browse-match-cat {
+  color: var(--color-zinc-400);
+}
+
+.assign-browse-match-name {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-zinc-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dark .assign-browse-match-name {
+  color: var(--color-zinc-100);
+}
+
+.assign-browse-create-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.3rem;
+}
+
+.assign-browse-cat-select {
+  flex: 1;
+  font-size: 0.72rem;
+  padding: 0.3rem 0.4rem;
+  border: 2px solid var(--color-zinc-300);
+  background: #ffffff;
+  color: var(--color-zinc-900);
+  outline: none;
+  cursor: pointer;
+  min-width: 0;
+}
+.assign-browse-cat-select:focus {
+  border-color: #3b82f6;
+}
+
+.dark .assign-browse-cat-select {
   background: var(--color-zinc-700);
   color: var(--color-zinc-100);
   border-color: var(--color-zinc-600);
@@ -524,6 +592,27 @@
 .assign-browse-apply-btn:disabled {
   opacity: 0.35;
   cursor: default;
+}
+
+.assign-browse-apply-btn--create {
+  background: #6366f1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+.assign-browse-apply-btn--create:hover:not(:disabled) {
+  background: #4f46e5;
+}
+
+.dark .assign-browse-apply-btn--create {
+  background: #6366f1;
+  color: #ffffff;
+}
+
+.dark .assign-browse-apply-btn--create:hover:not(:disabled) {
+  background: #4f46e5;
 }
 
 .dark .assign-browse-apply-btn {

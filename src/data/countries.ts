@@ -49,6 +49,9 @@ export const SUPPORTED_COUNTRIES: CountryDef[] = [
       { id: 'swedbank', abbr: 'SW',  name: 'Swedbank',      color: '#FF5A05', prefix: 'Swedbank'                   },
       { id: 'handels',  abbr: 'SHB', name: 'Handelsbanken', color: '#1B3F6E', prefix: 'SHB'                        },
       { id: 'nordea',   abbr: 'NDA', name: 'Nordea',        color: '#00005E', prefix: 'Nordea'                     },
+      { id: 'rev',      abbr: 'R',   name: 'Revolut',       color: '#191C1F', prefix: 'Revolut',   adapterId: 'revolut' },
+      { id: 'n26',      abbr: 'N26', name: 'N26',           color: '#23B07D', prefix: 'N26'                        },
+      { id: 'wise',     abbr: 'W',   name: 'Wise',          color: '#00B9A0', prefix: 'Wise'                       },
     ],
   },
 ]

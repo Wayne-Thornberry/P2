@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, nextTick, watch } from 'vue'
+import { computed, ref, nextTick } from 'vue'
 import { useBudgetStore } from '../stores/budgetStore'
 import { useTransactionStore } from '../stores/transactionStore'
 import { useMonthStore } from '../stores/monthStore'
@@ -7,13 +7,11 @@ import { useSettingsStore } from '../stores/settingsStore'
 import { useAccountStore } from '../stores/accountStore'
 import type { BudgetItem, BudgetRow } from '../types/budget'
 import { useToast } from 'primevue/usetoast'
-import { getTodayStr } from '../utils/date'
 import Toast from 'primevue/toast'
 import BudgetTable from './BudgetTable.vue'
 import AssignPanel from './AssignPanel.vue'
 import { useConfirm } from '../composables/useConfirm'
 import { useBudgetFunds } from '../composables/useBudgetFunds'
-
 const store        = useBudgetStore()
 const txStore      = useTransactionStore()
 const monthStore   = useMonthStore()
@@ -22,7 +20,6 @@ const accountStore = useAccountStore()
 const toast        = useToast()
 const { confirm }  = useConfirm()
 const { budgetFunds, excludedAccountIds } = useBudgetFunds()
-
 const isMonthEmpty = computed(() => store.items.length === 0)
 
 // ── Add category ──────────────────────────────────────────────
@@ -84,7 +81,7 @@ const excludedAccountCount = computed(() => excludedAccountIds.value.size)
 
 const monthlyNet = computed(() =>
   txStore.transactions
-    .filter(t => monthStore.matchesActive(t.date))
+    .filter(t => monthStore.matchesActive(t.date) && !excludedAccountIds.value.has(t.accountId))
     .reduce((sum, t) => sum + (t.type === 'in' ? t.amount : -t.amount), 0)
 )
 
@@ -128,13 +125,13 @@ const budgetRows = computed<BudgetRow[]>(() =>
 )
 
 const overspentRows  = computed(() => budgetRows.value.filter(r => r.available < 0))
-const fundableRows   = computed(() => budgetRows.value.filter(r => r.available > 0))
-const fullyFundedCount = computed(() => budgetRows.value.filter(r => r.available === 0).length)
+const underBudgetRows = computed(() => budgetRows.value.filter(r => r.available > 0))
+const onTargetCount  = computed(() => budgetRows.value.filter(r => r.available === 0).length)
 const totalOverspent = computed(() =>
   Math.round(overspentRows.value.reduce((s, r) => s + Math.abs(r.available), 0) * 100) / 100
 )
-const totalFundable  = computed(() =>
-  Math.round(fundableRows.value.reduce((s, r) => s + r.available, 0) * 100) / 100
+const totalUnderBudget = computed(() =>
+  Math.round(underBudgetRows.value.reduce((s, r) => s + r.available, 0) * 100) / 100
 )
 
 // ── Budget vs Actual ──────────────────────────────────────────
@@ -170,46 +167,6 @@ function usageColor(pct: number): string {
   return 'rgb(34,197,94)'
 }
 
-const fundingAccountId = ref(accountStore.accounts[0]?.id ?? '')
-
-// Keep in sync if accounts change
-watch(() => accountStore.accounts, (accs) => {
-  if (!fundingAccountId.value && accs.length > 0) fundingAccountId.value = accs[0].id
-}, { immediate: true })
-
-function coverOverspent(): void {
-  const rows = [...overspentRows.value]
-  if (!fundingAccountId.value || rows.length === 0) return
-  for (const row of rows) {
-    txStore.addTransaction({
-      name:      `Refund: ${row.name}`,
-      date:      getTodayStr(),
-      type:      'in',
-      amount:    Math.abs(row.available),
-      itemId:    null,
-      accountId: fundingAccountId.value,
-    })
-  }
-  toast.add({ severity: 'warn', summary: 'Overspend covered', detail: `${rows.length} item${rows.length !== 1 ? 's' : ''} covered.`, life: 3000 })
-}
-
-function fundFully(): void {
-  const rows = [...fundableRows.value]
-  if (!fundingAccountId.value || rows.length === 0) return
-  const ym = `${monthStore.activeYear}-${String(monthStore.activeMonth).padStart(2, '0')}`
-  for (const row of rows) {
-    txStore.addTransaction({
-      name:      `Budget: ${row.name}`,
-      date:      `${ym}-01`,
-      type:      'out',
-      amount:    row.available,
-      itemId:    row.id,
-      accountId: fundingAccountId.value,
-    })
-  }
-  toast.add({ severity: 'success', summary: 'Funded', detail: `${rows.length} item${rows.length !== 1 ? 's' : ''} fully funded.`, life: 3000 })
-}
-
 async function handleDeleteItem(id: number): Promise<void> {
   const item = store.items.find(i => i.id === id)
   if (!item) return
@@ -237,29 +194,13 @@ async function handleDeleteCategory(category: string): Promise<void> {
   toast.add({ severity: 'info', summary: 'Category removed', detail: `"${category}" and ${count} item${count !== 1 ? 's' : ''} removed from ${monthStore.label}.`, life: 3000 })
 }
 
-function fundPartially(): void {
-  const rows = [...fundableRows.value]
-  if (!fundingAccountId.value || rows.length === 0) return
-  let remaining = totalFundsAvailable.value
-  if (remaining <= 0) return
-  const total = totalFundable.value
-  const ym    = `${monthStore.activeYear}-${String(monthStore.activeMonth).padStart(2, '0')}`
+function absorbOverspend(): void {
+  const rows = [...overspentRows.value]
+  if (rows.length === 0) return
   for (const row of rows) {
-    if (remaining <= 0) break
-    const share  = total > 0 ? row.available / total : 1 / rows.length
-    const amount = Math.min(row.available, Math.round(remaining * share * 100) / 100)
-    if (amount <= 0) continue
-    txStore.addTransaction({
-      name:      `Budget: ${row.name}`,
-      date:      `${ym}-01`,
-      type:      'out',
-      amount,
-      itemId:    row.id,
-      accountId: fundingAccountId.value,
-    })
-    remaining -= amount
+    store.updateItem({ ...row, assigned: Math.round(row.activity * 100) / 100 })
   }
-  toast.add({ severity: 'info', summary: 'Partially funded', detail: `Available funds distributed across ${rows.length} item${rows.length !== 1 ? 's' : ''}.`, life: 3000 })
+  toast.add({ severity: 'success', summary: 'Budget adjusted', detail: `${rows.length} item${rows.length !== 1 ? 's' : ''} budget increased to match spending.`, life: 3000 })
 }
 </script>
 
@@ -491,31 +432,22 @@ function fundPartially(): void {
         @viewTransaction="(name, ym) => emit('viewTransaction', name, ym)"
       />
 
-      <!-- YNAB-style quick funding -->
+      <!-- Quick budget overview -->
       <div class="quick-funding-panel">
         <div class="quick-funding-header">
-          <i class="pi pi-bolt" />
-          Quick Funding
-        </div>
-
-        <!-- Account selector -->
-        <div class="quick-funding-field">
-          <label class="quick-funding-label">From account</label>
-          <select v-model="fundingAccountId" class="quick-funding-select">
-            <option v-if="accountStore.accounts.length === 0" value="" disabled>No accounts — add one first</option>
-            <option v-for="acc in accountStore.accounts" :key="acc.id" :value="acc.id">{{ acc.name }}</option>
-          </select>
+          <i class="pi pi-chart-bar" />
+          Budget Overview
         </div>
 
         <!-- Budget status summary -->
         <div class="quick-funding-stats">
-          <div class="quick-funding-stat quick-funding-stat--good">
-            <span class="quick-funding-stat-num">{{ fullyFundedCount }}</span>
+          <div class="quick-funding-stat quick-funding-stat--good" :class="{ 'quick-funding-stat--dim': onTargetCount === 0 }">
+            <span class="quick-funding-stat-num">{{ onTargetCount }}</span>
             <span class="quick-funding-stat-lbl">on target</span>
           </div>
-          <div class="quick-funding-stat quick-funding-stat--warn" :class="{ 'quick-funding-stat--dim': fundableRows.length === 0 }">
-            <span class="quick-funding-stat-num">{{ fundableRows.length }}</span>
-            <span class="quick-funding-stat-lbl">available · {{ formatMoney(totalFundable) }}</span>
+          <div class="quick-funding-stat quick-funding-stat--warn" :class="{ 'quick-funding-stat--dim': underBudgetRows.length === 0 }">
+            <span class="quick-funding-stat-num">{{ underBudgetRows.length }}</span>
+            <span class="quick-funding-stat-lbl">under budget · {{ formatMoney(totalUnderBudget) }}</span>
           </div>
           <div class="quick-funding-stat quick-funding-stat--danger" :class="{ 'quick-funding-stat--dim': overspentRows.length === 0 }">
             <span class="quick-funding-stat-num">{{ overspentRows.length }}</span>
@@ -526,37 +458,15 @@ function fundPartially(): void {
         <!-- Action buttons -->
         <div class="quick-funding-actions">
           <button
-            class="quick-funding-btn quick-funding-btn--fund"
-            :disabled="fundableRows.length === 0 || !fundingAccountId || totalFundsAvailable < totalFundable"
-            :title="totalFundsAvailable < totalFundable ? 'Not enough funds — use Fund Partially instead' : 'Commit full available budget for every item'"
-            @click="fundFully"
-          >
-            <i class="pi pi-send" />
-            Fund Fully
-          </button>
-          <button
-            class="quick-funding-btn quick-funding-btn--partial"
-            :disabled="fundableRows.length === 0 || !fundingAccountId || totalFundsAvailable <= 0"
-            title="Distribute available funds proportionally across all items"
-            @click="fundPartially"
-          >
-            <i class="pi pi-circle-fill" />
-            Fund Partially
-          </button>
-          <button
             class="quick-funding-btn quick-funding-btn--cover"
-            :disabled="overspentRows.length === 0 || !fundingAccountId"
-            title="Create refund transactions to balance all overspent items"
-            @click="coverOverspent"
+            :disabled="overspentRows.length === 0"
+            title="Raise each overspent item's budget to match its actual spending"
+            @click="absorbOverspend"
           >
-            <i class="pi pi-arrow-circle-up" />
-            Cover Overspent
+            <i class="pi pi-arrow-up" />
+            Absorb Overspend
           </button>
         </div>
-
-        <p class="quick-funding-hint">
-          Total funds: <strong :class="totalFundsAvailable >= 0 ? 'money-positive' : 'money-negative'">{{ formatMoney(totalFundsAvailable) }}</strong>
-        </p>
       </div>
 
     </div><!-- /budget-right-panel -->

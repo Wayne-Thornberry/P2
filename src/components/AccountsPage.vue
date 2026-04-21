@@ -33,12 +33,18 @@ function formatMoney(v: number): string { return settings.formatMoney(v) }
 
 // â”€â”€ Add account â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const newName     = ref('')
-const newType     = ref<'asset' | 'liability'>('asset')
+const newType     = ref<'asset' | 'savings' | 'liability'>('asset')
 const addInputRef = ref<HTMLInputElement | null>(null)
 
 const openingBalanceAccountId = ref<string | null>(null)
 const openingBalanceStr       = ref('')
 const openingBalanceDate      = ref(getTodayStr())
+
+// Pending quick-add: user picks bank+type → OB form shown first → account created on confirm
+type PendingQuickAdd = { bank: typeof SUPPORTED_COUNTRIES[0]['banks'][0]; type: string }
+const pendingQuickAdd = ref<PendingQuickAdd | null>(null)
+const pendingObStr    = ref('0')
+const pendingObDate   = ref(getTodayStr())
 
 function commitAdd(): void {
   const name = newName.value.trim()
@@ -90,6 +96,13 @@ function commitRename(): void {
   if (editingId.value) accountStore.renameAccount(editingId.value, editName.value)
   editingId.value = null
   editName.value  = ''
+}
+
+function onNameInputBlur(e: FocusEvent): void {
+  // If focus moved to an element inside the same account card (e.g. bank select), don't exit edit mode
+  const related = e.relatedTarget as HTMLElement | null
+  if (related?.closest?.('.acct-card')) return
+  commitRename()
 }
 
 function cancelRename(): void {
@@ -253,7 +266,7 @@ const _allAccountDetails = computed(() =>
     ]
 
     return { id: acc.id, name: acc.name, balance, txCount, recent, thisMonthIn, thisMonthOut, lastMonthOut, spendTrend, maxOut, vsLastMonth, linkedGoals, linkedFinance,
-      type:             (acc.type ?? 'asset') as 'asset' | 'liability',
+      type:             (acc.type ?? 'asset') as 'asset' | 'savings' | 'liability',
       includedInBudget: acc.excludeFromBudget !== undefined ? !acc.excludeFromBudget : acc.type !== 'liability',
       archived:         acc.archived ?? false,
       bankId:           acc.bankId ?? '',
@@ -264,6 +277,24 @@ const _allAccountDetails = computed(() =>
 const accountDetails         = computed(() => _allAccountDetails.value.filter(a => !a.archived))
 const archivedAccountDetails = computed(() => _allAccountDetails.value.filter(a => a.archived))
 const showArchivedAccounts   = ref(false)
+
+// ── Bank filter ───────────────────────────────────────────────────────────
+const filterBankId = ref<string>('')
+
+const activeBanks = computed(() => {
+  const ids = new Set(accountDetails.value.map(a => a.bankId).filter(Boolean))
+  return (userCountry.value?.banks ?? []).filter(b => b.adapterId && ids.has(b.adapterId))
+})
+
+function getBankColor(bankId: string): string {
+  return userCountry.value?.banks.find(b => b.adapterId === bankId)?.color ?? ''
+}
+
+const filteredAccountDetails = computed(() =>
+  filterBankId.value === ''
+    ? accountDetails.value
+    : accountDetails.value.filter(a => a.bankId === filterBankId.value)
+)
 
 const unassignedDetails = computed(() => {
   const txs = txStore.transactions.filter(t => t.accountId === null)
@@ -287,8 +318,16 @@ const unassignedDetails = computed(() => {
 
 // ── Account type & budget helpers ─────────────────────────────────────────────────────────────────
 const LIABILITY_QUICK_TYPES = new Set(['Credit Card', 'Mortgage', 'Loan Account'])
+const SAVINGS_QUICK_TYPES   = new Set(['Savings Account'])
 
-function setAccountType(id: string, type: 'asset' | 'liability'): void {
+const ACCOUNT_TYPE_CYCLE: Array<'asset' | 'savings' | 'liability'> = ['asset', 'savings', 'liability']
+
+function cycleAccountType(id: string, current: 'asset' | 'savings' | 'liability'): void {
+  const next = ACCOUNT_TYPE_CYCLE[(ACCOUNT_TYPE_CYCLE.indexOf(current) + 1) % ACCOUNT_TYPE_CYCLE.length]
+  accountStore.updateAccount(id, { type: next, excludeFromBudget: undefined })
+}
+
+function setAccountType(id: string, type: 'asset' | 'savings' | 'liability'): void {
   accountStore.updateAccount(id, { type, excludeFromBudget: undefined })
 }
 
@@ -296,10 +335,12 @@ function setBankId(id: string, bankId: string): void {
   accountStore.updateAccount(id, { bankId: bankId || undefined })
 }
 
-// Adapters available as bank options (exclude generic — it's a fallback, not a real bank)
-const BANK_OPTIONS = CSV_ADAPTERS.filter(a => a.id !== 'generic')
+// Adapters available as bank options (exclude generic, filter by active currency)
+const bankOptions = computed(() =>
+  CSV_ADAPTERS.filter(a => a.id !== 'generic' && (!a.currency || a.currency === settings.currency))
+)
 
-function toggleBudgetInclude(id: string, acc: { type: 'asset' | 'liability'; includedInBudget: boolean }): void {
+function toggleBudgetInclude(id: string, acc: { type: 'asset' | 'savings' | 'liability'; includedInBudget: boolean }): void {
   const newIncluded = !acc.includedInBudget
   const typeDefault = acc.type !== 'liability'
   accountStore.updateAccount(id, { excludeFromBudget: newIncluded === typeDefault ? undefined : !newIncluded })
@@ -309,6 +350,12 @@ function toggleBudgetInclude(id: string, acc: { type: 'asset' | 'liability'; inc
 const ACCOUNT_TYPES = ['Current Account', 'Savings Account', 'Joint Account', 'Credit Card', 'Mortgage', 'Loan Account']
 const userCountry   = computed(() => getCountryById(settings.country) ?? null)
 const selectedBank  = ref<(typeof SUPPORTED_COUNTRIES[0]['banks'][0]) | null>(null)
+
+// Only list banks that have a registered (non-generic) CSV adapter — updates automatically as adapters are added
+const _supportedAdapterIds = new Set(CSV_ADAPTERS.filter(a => a.id !== 'generic').map(a => a.id))
+const quickAddBanks = computed(() =>
+  (userCountry.value?.banks ?? []).filter(b => b.adapterId && _supportedAdapterIds.has(b.adapterId))
+)
 
 function selectBank(bank: typeof SUPPORTED_COUNTRIES[0]['banks'][0]): void {
   selectedBank.value = selectedBank.value?.id === bank.id ? null : bank
@@ -323,15 +370,26 @@ function getNextAccountName(baseName: string): string {
 }
 
 function quickAddAccount(bank: typeof SUPPORTED_COUNTRIES[0]['banks'][0], type: string): void {
-  // If a previous account's OB prompt is still pending, skip it cleanly first
-  if (openingBalanceAccountId.value !== null) {
-    openingBalanceAccountId.value = null
-  }
-  const accType = LIABILITY_QUICK_TYPES.has(type) ? 'liability' : 'asset'
-  const id = accountStore.addAccount(getNextAccountName(`${bank.prefix} ${type}`), accType)
-  openingBalanceAccountId.value = id
-  openingBalanceStr.value       = '0'
-  openingBalanceDate.value      = getTodayStr()
+  // Show OB form FIRST — account is created only after the user confirms or skips
+  pendingQuickAdd.value = { bank, type }
+  pendingObStr.value    = '0'
+  pendingObDate.value   = getTodayStr()
+}
+
+function confirmPendingAdd(): void {
+  const qa = pendingQuickAdd.value
+  if (!qa) return
+  const accType = LIABILITY_QUICK_TYPES.has(qa.type) ? 'liability' : SAVINGS_QUICK_TYPES.has(qa.type) ? 'savings' : 'asset'
+  const id = accountStore.addAccount(getNextAccountName(`${qa.bank.prefix} ${qa.type}`), accType, qa.bank.adapterId)
+  const raw = pendingObStr.value.trim()
+  const amount = raw === '' ? 0 : parseFloat(raw)
+  if (!isNaN(amount)) txStore.addOpeningBalance(id, amount, pendingObDate.value)
+  pendingQuickAdd.value = null
+  selectedBank.value    = null
+}
+
+function cancelPendingAdd(): void {
+  pendingQuickAdd.value = null
 }
 </script>
 
@@ -345,6 +403,26 @@ function quickAddAccount(bank: typeof SUPPORTED_COUNTRIES[0]['banks'][0], type: 
       <!-- ── Left: account cards ──────────────────────────────────────── -->
       <div class="acct-cards-area">
 
+        <!-- ── Bank filter bar ──────────────────────────────────── -->
+        <div v-if="activeBanks.length >= 1" class="acct-filter-bar">
+          <button
+            class="acct-filter-pill"
+            :class="{ 'acct-filter-pill--active': filterBankId === '' }"
+            @click="filterBankId = ''"
+          >All</button>
+          <button
+            v-for="bank in activeBanks"
+            :key="bank.id"
+            class="acct-filter-pill"
+            :class="{ 'acct-filter-pill--active': filterBankId === bank.adapterId }"
+            :style="{ '--pill-color': bank.color }"
+            @click="filterBankId = bank.adapterId ?? ''"
+          >
+            <span class="acct-filter-pill-dot" />
+            {{ bank.abbr }}
+          </button>
+        </div>
+
         <div v-if="accountDetails.length === 0" class="acct-empty-state">
           <i class="pi pi-wallet" style="font-size:2rem;opacity:0.3" />
           <p>No accounts yet.</p>
@@ -352,10 +430,11 @@ function quickAddAccount(bank: typeof SUPPORTED_COUNTRIES[0]['banks'][0], type: 
         </div>
 
         <div
-          v-for="acc in accountDetails"
+          v-for="acc in filteredAccountDetails"
           :key="acc.id"
           class="acct-card"
           :class="{ 'acct-card--reconciling': reconcilingId === acc.id }"
+          :style="acc.bankId && getBankColor(acc.bankId) ? { borderLeftColor: getBankColor(acc.bankId) } : {}"
         >
           <!-- Card header -->
           <div class="acct-card-header">
@@ -367,7 +446,7 @@ function quickAddAccount(bank: typeof SUPPORTED_COUNTRIES[0]['banks'][0], type: 
                   :ref="(el) => { if (el) (el as HTMLInputElement).focus() }"
                   @keydown.enter.prevent="commitRename"
                   @keydown.escape="cancelRename"
-                  @blur="commitRename"
+                  @blur="onNameInputBlur($event)"
                 />
               </template>
               <template v-else>
@@ -412,12 +491,12 @@ function quickAddAccount(bank: typeof SUPPORTED_COUNTRIES[0]['banks'][0], type: 
           <div class="acct-type-row">
             <button
               class="acct-type-badge"
-              :class="acc.type === 'liability' ? 'acct-type-badge--liability' : 'acct-type-badge--asset'"
-              :title="acc.type === 'liability' ? 'Liability — click to change to Asset' : 'Asset — click to change to Liability'"
-              @click="setAccountType(acc.id, acc.type === 'liability' ? 'asset' : 'liability')"
+              :class="acc.type === 'liability' ? 'acct-type-badge--liability' : acc.type === 'savings' ? 'acct-type-badge--savings' : 'acct-type-badge--asset'"
+              :title="'Click to cycle: Asset → Savings → Liability'"
+              @click="cycleAccountType(acc.id, acc.type)"
             >
-              <i :class="acc.type === 'liability' ? 'pi pi-credit-card' : 'pi pi-wallet'" />
-              {{ acc.type === 'liability' ? 'Liability' : 'Asset' }}
+              <i :class="acc.type === 'liability' ? 'pi pi-credit-card' : acc.type === 'savings' ? 'pi pi-building-columns' : 'pi pi-wallet'" />
+              {{ acc.type === 'liability' ? 'Liability' : acc.type === 'savings' ? 'Savings' : 'Asset' }}
             </button>
             <label class="acct-budget-label" :class="{ 'acct-budget-label--excluded': !acc.includedInBudget }" :title="acc.includedInBudget ? 'Included in budget total' : 'Excluded from budget total'">
               <input type="checkbox" class="acct-budget-checkbox" :checked="acc.includedInBudget" @change="toggleBudgetInclude(acc.id, acc)" />
@@ -425,20 +504,27 @@ function quickAddAccount(bank: typeof SUPPORTED_COUNTRIES[0]['banks'][0], type: 
             </label>
           </div>
 
-          <!-- Bank picker (drives friendly-name cleaning in Transaction Log) -->
+          <!-- Bank (drives friendly-name cleaning in Transaction Log) -->
           <div class="acct-bank-row">
             <i class="pi pi-building-columns acct-bank-icon" />
-            <select
-              class="acct-bank-select"
-              :value="acc.bankId"
-              @change="setBankId(acc.id, ($event.target as HTMLSelectElement).value)"
-              title="Set bank for transaction name cleaning"
-            >
-              <option value="">— No bank selected —</option>
-              <option v-for="adapter in BANK_OPTIONS" :key="adapter.id" :value="adapter.id">
-                {{ adapter.name }}
-              </option>
-            </select>
+            <template v-if="editingId === acc.id">
+              <select
+                class="acct-bank-select"
+                :value="acc.bankId"
+                @change="setBankId(acc.id, ($event.target as HTMLSelectElement).value)"
+                title="Set bank for transaction name cleaning"
+              >
+                <option value="">— No bank selected —</option>
+                <option v-for="adapter in bankOptions" :key="adapter.id" :value="adapter.id">
+                  {{ adapter.name }}
+                </option>
+              </select>
+            </template>
+            <template v-else>
+              <span class="acct-bank-label">
+                {{ bankOptions.find(a => a.id === acc.bankId)?.name ?? '— No bank selected —' }}
+              </span>
+            </template>
           </div>
 
           <div class="acct-month-stats">
@@ -715,6 +801,9 @@ function quickAddAccount(bank: typeof SUPPORTED_COUNTRIES[0]['banks'][0], type: 
             <button type="button" :class="['acct-type-pick-btn', newType === 'asset' ? 'acct-type-pick-btn--active' : '']" @click="newType = 'asset'">
               <i class="pi pi-wallet" /> Asset
             </button>
+            <button type="button" :class="['acct-type-pick-btn acct-type-pick-btn--savings', newType === 'savings' ? 'acct-type-pick-btn--active' : '']" @click="newType = 'savings'">
+              <i class="pi pi-building-columns" /> Savings
+            </button>
             <button type="button" :class="['acct-type-pick-btn acct-type-pick-btn--liability', newType === 'liability' ? 'acct-type-pick-btn--active' : '']" @click="newType = 'liability'">
               <i class="pi pi-credit-card" /> Liability
             </button>
@@ -774,7 +863,7 @@ function quickAddAccount(bank: typeof SUPPORTED_COUNTRIES[0]['banks'][0], type: 
           <template v-else>
             <div class="bank-picker-grid">
               <button
-                v-for="bank in userCountry.banks"
+                v-for="bank in quickAddBanks"
                 :key="bank.id"
                 class="bank-tile"
                 :class="{ 'bank-tile--active': selectedBank?.id === bank.id }"
@@ -796,6 +885,40 @@ function quickAddAccount(bank: typeof SUPPORTED_COUNTRIES[0]['banks'][0], type: 
                     class="acct-btn bank-type-btn"
                     @click="quickAddAccount(selectedBank, type)"
                   >{{ type }}</button>
+                </div>
+              </div>
+            </Transition>
+            <!-- OB form shown BEFORE account creation -->
+            <Transition name="slide-down">
+              <div v-if="pendingQuickAdd" class="accounts-ob-panel">
+                <div class="accounts-ob-header">
+                  <i class="pi pi-flag" />
+                  <span>Opening balance for <strong>{{ pendingQuickAdd.bank.name }} {{ pendingQuickAdd.type }}</strong></span>
+                </div>
+                <div class="accounts-ob-body">
+                  <div class="accounts-ob-field">
+                    <label class="accounts-ob-label">Amount</label>
+                    <input
+                      type="text"
+                      inputmode="decimal"
+                      class="acct-name-input"
+                      v-model="pendingObStr"
+                      placeholder="0.00"
+                      :ref="(el) => { if (el) { (el as HTMLInputElement).focus(); (el as HTMLInputElement).select() } }"
+                      @focus="moneyFocus"
+                      @blur="moneyBlur"
+                      @keydown.enter.prevent="confirmPendingAdd"
+                      @keydown.escape="cancelPendingAdd"
+                    />
+                  </div>
+                  <div class="accounts-ob-field">
+                    <label class="accounts-ob-label">Date</label>
+                    <input type="date" class="acct-name-input" v-model="pendingObDate" @keydown.enter.prevent="confirmPendingAdd" />
+                  </div>
+                  <div class="accounts-ob-actions">
+                    <button class="acct-btn acct-btn-ghost" @click="cancelPendingAdd">Cancel</button>
+                    <button class="acct-btn acct-btn-primary" @click="confirmPendingAdd">Create Account</button>
+                  </div>
                 </div>
               </div>
             </Transition>

@@ -135,10 +135,9 @@ export const useTemplateStore = defineStore('template', () => {
     if (entry) { entry.assigned = updated.assigned; entry.category = updated.category }
   }
 
-  /** Remove from template, then let budgetStore check if globally orphaned. */
+  /** Remove from template only. Global items are never deleted implicitly. */
   function removeItem(id: number): void {
     entries.value = entries.value.filter(e => e.itemId !== id)
-    budgetStore.checkOrphan(id)
   }
 
   /** Remove from template only — no orphan check (called by deleteItemGlobally). */

@@ -77,6 +77,26 @@
 }
 .dark .tpl-items-panel-count { background: var(--color-zinc-700); color: var(--color-zinc-400); }
 
+.tpl-items-del-all-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.6rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.2rem 0.55rem;
+  border: 1.5px solid #ef4444;
+  background: none;
+  color: #ef4444;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.tpl-items-del-all-btn:hover { background: #ef4444; color: #fff; }
+.dark .tpl-items-del-all-btn { border-color: #f87171; color: #f87171; }
+.dark .tpl-items-del-all-btn:hover { background: #f87171; color: #18181b; }
+
 .tpl-items-panel-hint {
   font-size: 0.6rem;
   color: var(--color-zinc-500);

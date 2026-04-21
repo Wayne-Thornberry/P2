@@ -59,10 +59,13 @@ const countryLoading = ref(false)
 function switchCountry(id: string): void {
   countryMenuOpen.value = false
   if (id === settings.country) return
-  countryLoading.value = true
   settings.setCountry(id)
-  // Small delay so the spinner renders before the page freezes on reload
-  setTimeout(() => window.location.reload(), 50)
+  // Pre-paint the page background to match the current theme, preventing a white flash on reload
+  const dark = ['dark', 'midnight', 'forest', 'purple', 'slate'].includes(settings.theme)
+  document.documentElement.style.backgroundColor = dark ? '#18181b' : '#f4f4f5'
+  document.documentElement.style.colorScheme     = dark ? 'dark'    : 'light'
+  countryLoading.value = true
+  setTimeout(() => window.location.reload(), 80)
 }
 const { isDraggingOver, csvDialogVisible, pendingCsvFiles, backupDropVisible, pendingBackupJson, onDragEnter, onDragOver, onDragLeave, onDrop } = useCsvDrop()
 const { confirm } = useConfirm()
@@ -403,7 +406,7 @@ const breadcrumbSegments = computed(() =>
         <TemplatePage v-else-if="currentPage === 'template'" />
         <TransactionLog v-else-if="currentPage === 'transactions'" :monthFilter="txMonthFilter" :accountFilter="txAccountFilter" :itemFilter="txItemFilter" :nameFilter="txNameFilter" :typeFilter="txTypeFilter" :focusSearch="txFocusSearch" />
         <AccountsPage v-else-if="currentPage === 'accounts'" @viewTransactions="onViewAccountTransactions" @viewInReports="onViewAccountInReports" @viewBreakdown="onViewBreakdown" @viewSavingsGoal="onViewSavingsGoal" @viewFinance="onViewFinance" />
-        <ReportsPage  v-else-if="currentPage === 'reports'" :initialAccountId="reportsInitAccountId" :initialBreakdownMonth="reportsInitBreakdownMonth" @viewTransactions="onReportViewTransactions" />
+        <ReportsPage  v-else-if="currentPage === 'reports'" :initialAccountId="reportsInitAccountId" :initialBreakdownMonth="reportsInitBreakdownMonth" @viewTransactions="onReportViewTransactions" @navigate="navigate" />
         <SavingsGoalsPage v-else-if="currentPage === 'savings'" :focusGoalId="savingsGoalFocusId" />
         <FinancePage      v-else-if="currentPage === 'finance'" :focusKind="financeFocusKind" :focusId="financeFocusId" />
         <SettingsPage v-else-if="currentPage === 'settings'" />

@@ -93,7 +93,23 @@ function itemsInCategory(cat: string): BudgetItem[] {
   return budgetStore.items.filter(i => i.category === cat)
 }
 
-const browseItemId = ref<string>('')
+const browseText        = ref('')
+const browseNewCategory = ref('')
+
+// All items as a flat list for datalist lookup
+const allItems = computed(() => budgetStore.items)
+
+// The existing item whose name case-insensitively matches the typed text
+const browseMatchedItem = computed<BudgetItem | null>(() => {
+  const q = browseText.value.trim().toLowerCase()
+  if (!q) return null
+  return allItems.value.find(i => i.name.toLowerCase() === q) ?? null
+})
+
+// Whether the typed text is a genuinely new name (non-empty, no match)
+const browseIsNew = computed(() =>
+  browseText.value.trim().length > 0 && browseMatchedItem.value === null
+)
 
 // ── Bulk suggest ───────────────────────────────────────────────
 type BulkSuggest = {
@@ -155,18 +171,35 @@ function dismissBulkSuggest(): void {
 }
 
 function assignFromBrowse(): void {
-  if (!browseItemId.value) return
-  assign(parseInt(browseItemId.value, 10))
+  if (!browseMatchedItem.value) return
+  assign(browseMatchedItem.value.id)
+  browseText.value = ''
+  browseNewCategory.value = ''
+}
+
+function createAndAssign(): void {
+  const name = browseText.value.trim()
+  const cat  = browseNewCategory.value
+  if (!name || !cat) return
+  // addItem creates a global item + adds it to the active month entries
+  budgetStore.addItem(name, cat)
+  // Find the newly created item by name
+  const newItem = budgetStore.items.find(i => i.name === name)
+  if (newItem) assign(newItem.id)
+  browseText.value = ''
+  browseNewCategory.value = ''
 }
 
 function skip(): void {
   index.value = Math.min(index.value + 1, unassigned.value.length - 1)
-  browseItemId.value = ''
+  browseText.value = ''
+  browseNewCategory.value = ''
 }
 
 function prev(): void {
   index.value = Math.max(0, index.value - 1)
-  browseItemId.value = ''
+  browseText.value = ''
+  browseNewCategory.value = ''
 }
 
 // ── Display helpers ────────────────────────────────────────────
@@ -285,28 +318,39 @@ const progress = computed(() => {
         </button>
       </div>
 
-      <!-- Browse all -->
+      <!-- Browse / create item -->
       <div class="assign-browse-row">
-        <span class="assign-browse-label">Or choose from all items</span>
-        <div class="assign-browse-controls">
-          <select v-model="browseItemId" class="assign-browse-select">
-            <option value="">Select an item…</option>
-            <optgroup v-for="cat in allCategories" :key="cat" :label="cat">
-              <option
-                v-for="item in itemsInCategory(cat)"
-                :key="item.id"
-                :value="String(item.id)"
-              >
-                {{ item.name }}
-              </option>
-            </optgroup>
+        <span class="assign-browse-label">Or search items / create new</span>
+        <datalist id="assign-items-datalist">
+          <option v-for="item in allItems" :key="item.id" :value="item.name" />
+        </datalist>
+        <input
+          list="assign-items-datalist"
+          class="assign-browse-input"
+          v-model="browseText"
+          placeholder="Type to search or create…"
+          autocomplete="off"
+        />
+        <!-- Matched existing item -->
+        <div v-if="browseMatchedItem" class="assign-browse-action-row">
+          <span class="assign-browse-match-info">
+            <span class="assign-browse-match-cat">{{ browseMatchedItem.category }}</span>
+            <span class="assign-browse-match-name">{{ browseMatchedItem.name }}</span>
+          </span>
+          <button class="assign-browse-apply-btn" @click="assignFromBrowse">Assign</button>
+        </div>
+        <!-- New item —  show category picker + Create & Assign -->
+        <div v-else-if="browseIsNew" class="assign-browse-create-row">
+          <select v-model="browseNewCategory" class="assign-browse-cat-select">
+            <option value="">Select category…</option>
+            <option v-for="cat in allCategories" :key="cat" :value="cat">{{ cat }}</option>
           </select>
           <button
-            class="assign-browse-apply-btn"
-            :disabled="!browseItemId"
-            @click="assignFromBrowse"
+            class="assign-browse-apply-btn assign-browse-apply-btn--create"
+            :disabled="!browseNewCategory"
+            @click="createAndAssign"
           >
-            Assign
+            <i class="pi pi-plus" /> Create &amp; Assign
           </button>
         </div>
       </div>

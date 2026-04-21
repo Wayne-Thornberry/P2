@@ -836,16 +836,16 @@ tr.p-row-odd:hover .item-delete-btn { opacity: 1; color: var(--color-zinc-400); 
   overflow: hidden;
 }
 .category-bar.item-bar--over {
-  background: #22c55e;
+  background: #fee2e2;  /* light red when overspent */
 }
 .dark .category-bar {
   background: var(--color-zinc-700);
 }
 .dark .category-bar.item-bar--over {
-  background: #16a34a;
+  background: #450a0a;
 }
 
-/* Track — subtle gray, turns green when over 100% funded */
+/* Track — subtle gray, turns red when over 100% spent */
 .item-bar {
   position: relative;
   height: 4px;
@@ -855,13 +855,13 @@ tr.p-row-odd:hover .item-delete-btn { opacity: 1; color: var(--color-zinc-400); 
   width: 100%;
 }
 .item-bar--over {
-  background: #22c55e;  /* green shield base */
+  background: #fee2e2;  /* light red base when overspent */
 }
 .dark .item-bar {
   background: var(--color-zinc-700);
 }
 .dark .item-bar--over {
-  background: #16a34a;
+  background: #450a0a;
 }
 
 /* Colored fill overlay */

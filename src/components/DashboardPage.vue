@@ -33,8 +33,29 @@ const thisMonthTxs = computed(() =>
   txStore.transactions.filter(t => t.date.startsWith(_monthKey))
 )
 
-const monthIn  = computed(() => thisMonthTxs.value.filter(t => t.type === 'in').reduce((s, t) => s + t.amount, 0))
-const monthOut = computed(() => thisMonthTxs.value.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0))
+// Set of account IDs whose transactions count toward the budget net.
+// Mirrors the includedInBudget logic in AccountsPage:
+//   • default: asset = included, liability = excluded
+//   • excludeFromBudget overrides the default
+//   • archived accounts are always excluded
+const budgetAccountIds = computed(() => {
+  const ids = new Set<string | null>()
+  for (const acc of accountStore.accounts) {
+    if (acc.archived) continue
+    const included = acc.excludeFromBudget !== undefined ? !acc.excludeFromBudget : acc.type !== 'liability'
+    if (included) ids.add(acc.id)
+  }
+  // Unassigned transactions (accountId === null) count toward the net
+  ids.add(null)
+  return ids
+})
+
+const budgetMonthTxs = computed(() =>
+  thisMonthTxs.value.filter(t => budgetAccountIds.value.has(t.accountId))
+)
+
+const monthIn  = computed(() => budgetMonthTxs.value.filter(t => t.type === 'in').reduce((s, t) => s + t.amount, 0))
+const monthOut = computed(() => budgetMonthTxs.value.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0))
 const monthNet = computed(() => monthIn.value - monthOut.value)
 
 // ── Savings rate ──────────────────────────────────────────────
@@ -43,15 +64,22 @@ const savingsRate = computed(() =>
 )
 
 // ── Account balances ──────────────────────────────────────────
-const accountBalances = computed(() =>
-  accountStore.accounts.map(acc => {
+const accountBalances = computed(() => {
+  const rows = accountStore.accounts.map(acc => {
     const balance = txStore.transactions.reduce((s, t) => {
       if (t.accountId !== acc.id) return s
       return s + (t.type === 'in' ? t.amount : -t.amount)
     }, 0)
     return { id: acc.id, name: acc.name, balance: Math.round(balance * 100) / 100 }
   })
-)
+  // Show unassigned transactions as a row if any exist
+  const unassigned = txStore.transactions.filter(t => t.accountId === null)
+  if (unassigned.length > 0) {
+    const uBal = unassigned.reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0)
+    rows.push({ id: '__unassigned__', name: 'Unassigned', balance: Math.round(uBal * 100) / 100 })
+  }
+  return rows
+})
 
 const totalBalance = computed(() =>
   Math.round(accountBalances.value.reduce((s, a) => s + a.balance, 0) * 100) / 100

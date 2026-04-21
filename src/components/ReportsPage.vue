@@ -31,6 +31,7 @@ const PALETTE = [
 // ── Navigation emit ───────────────────────────────────────────
 const emit = defineEmits<{
   viewTransactions: [opts: { month?: string; accountId?: string; name?: string; type?: 'in' | 'out' }]
+  navigate:         [page: string]
 }>()
 
 const props = defineProps<{
@@ -1161,18 +1162,23 @@ watch(yearViewYear, y => {
           <span class="reports-stat-label">All-Time Net</span>
           <span class="reports-stat-value" :class="net >= 0 ? 'money-positive' : 'money-negative'">{{ formatMoney(net) }}</span>
         </div>
-        <div class="reports-stat-card">
+        <button class="reports-stat-card rpt-stat-link" @click="goTx({})" title="View all transactions">
           <span class="reports-stat-label">All-Time Transactions</span>
           <span class="reports-stat-value">{{ filteredTxCount }}</span>
-        </div>
+        </button>
         <div class="reports-stat-card">
           <span class="reports-stat-label">Years of Data</span>
           <span class="reports-stat-value">{{ availableYears.length }}</span>
         </div>
-        <div class="reports-stat-card">
+        <button
+          v-if="!selectedAccountId"
+          class="reports-stat-card rpt-stat-link"
+          @click="emit('navigate', 'accounts')"
+          title="Manage accounts"
+        >
           <span class="reports-stat-label">Active Accounts</span>
           <span class="reports-stat-value">{{ accountStore.accounts.length }}</span>
-        </div>
+        </button>
         <button
           v-if="overviewBiggestSpend"
           class="reports-stat-card rpt-stat-link"

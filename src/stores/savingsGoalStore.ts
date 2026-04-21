@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import { useTransactionStore } from './transactionStore'
 import { useSettingsStore } from './settingsStore'
+import { useAccountStore } from './accountStore'
 
 export interface SavingsGoal {
   id:               number
@@ -75,11 +76,16 @@ export const useSavingsGoalStore = defineStore('savingsGoals', () => {
   })
 
   function addGoal(name: string, targetAmount: number, deadline?: string, linkedAccountId?: string): SavingsGoal {
+    // Savings goals cannot be linked to liability accounts (loans/credit cards)
+    const accStore = useAccountStore()
+    const resolvedAccountId = linkedAccountId && accStore.accounts.find(a => a.id === linkedAccountId)?.type !== 'liability'
+      ? linkedAccountId
+      : undefined
     const color = COLORS[_nextGoalId % COLORS.length]
     const goal: SavingsGoal = {
       id: _nextGoalId++, name: name.trim(), targetAmount,
       deadline: deadline || undefined, color,
-      linkedAccountId: linkedAccountId || undefined,
+      linkedAccountId: resolvedAccountId,
       contributions: [], createdAt: new Date().toISOString(), archived: false,
     }
     goals.value.push(goal)
@@ -94,7 +100,13 @@ export const useSavingsGoalStore = defineStore('savingsGoals', () => {
     if (patch.deadline        !== undefined) g.deadline         = patch.deadline || undefined
     if (patch.color           !== undefined) g.color            = patch.color
     if (patch.archived        !== undefined) g.archived         = patch.archived
-    if (patch.linkedAccountId !== undefined) g.linkedAccountId  = patch.linkedAccountId || undefined
+    if ('linkedAccountId' in patch) {
+      const accStore = useAccountStore()
+      const isLiability = patch.linkedAccountId
+        ? accStore.accounts.find(a => a.id === patch.linkedAccountId)?.type === 'liability'
+        : false
+      g.linkedAccountId = isLiability ? undefined : (patch.linkedAccountId || undefined)
+    }
   }
 
   function deleteGoal(id: number): void {

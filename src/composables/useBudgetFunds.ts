@@ -7,7 +7,7 @@ import type { Account } from '../types/transaction'
 function _isExcluded(acc: Account): boolean {
   if (acc.archived) return true                          // archived accounts always excluded
   if (acc.excludeFromBudget !== undefined) return acc.excludeFromBudget
-  return acc.type === 'liability'
+  return acc.type === 'liability'                        // savings and asset are included by default
 }
 
 export function useBudgetFunds() {

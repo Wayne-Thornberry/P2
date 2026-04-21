@@ -313,7 +313,11 @@ const pagedTransactions = computed(() => {
   return filteredTransactions.value.slice(start, start + pageSize.value)
 })
 
-watch([filterSearch, filterYear, filterMonthNum, filterType, filterAccountId, filterItemId, filterAmountMinStr, filterAmountMaxStr, filterDateFrom, filterDateTo, filterFlagged, filterLocked, pageSize, sortCol, sortDir], () => { page.value = 1 })
+watch([filterSearch, filterYear, filterMonthNum, filterType, filterAccountId, filterItemId, filterAmountMinStr, filterAmountMaxStr, filterDateFrom, filterDateTo, filterFlagged, filterLocked, pageSize, sortCol, sortDir], () => {
+  page.value = 1
+  // Clear selection when filters change to avoid phantom selections across filter states
+  selectedIds.value = new Set()
+})
 
 // ── Running balance per transaction ─────────────────────────
 // Computed from the filtered set, chronological oldest→newest.
@@ -671,11 +675,15 @@ function filterByAmount(v: number): void {
   filterAmountMaxStr.value = s
 }
 
-// Toggle selection: deselect ALL when anything is selected, otherwise select current page
+// Toggle selection: toggle only the CURRENT PAGE items
 function toggleSelectPage(): void {
-  if (selectedCount.value > 0) {
-    selectedIds.value = new Set()
+  if (allPageSelected.value) {
+    // All current-page items are selected — deselect only the current page, preserve other pages
+    const next = new Set(selectedIds.value)
+    pagedTransactions.value.forEach(t => next.delete(t.id))
+    selectedIds.value = next
   } else {
+    // Select all current page items (may already have other pages selected)
     const next = new Set(selectedIds.value)
     pagedTransactions.value.forEach(t => next.add(t.id))
     selectedIds.value = next

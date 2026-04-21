@@ -161,6 +161,21 @@ async function deleteGlobally(item: BudgetItemDef): Promise<void> {
   budgetStore.deleteItemGlobally(item.id)
 }
 
+async function deleteAllGlobally(): Promise<void> {
+  const count = budgetStore.globalItems.length
+  if (count === 0) return
+  const ok = await confirm({
+    title: 'Delete all items?',
+    message: `Delete all ${count} item${count !== 1 ? 's' : ''} from every month, the template, and unassign all linked transactions? This cannot be undone.`,
+    confirmLabel: 'Delete All',
+    danger: true,
+  })
+  if (!ok) return
+  for (const item of [...budgetStore.globalItems]) {
+    budgetStore.deleteItemGlobally(item.id)
+  }
+}
+
 // ── Right panel: create global item ──────────────────────────
 const newPanelName    = ref('')
 const newPanelError   = ref('')
@@ -376,6 +391,14 @@ function grandTotal(): number {
         <div class="tpl-items-panel-header">
           <span class="tpl-items-panel-title">All Budget Items</span>
           <span class="tpl-items-panel-count">{{ budgetStore.globalItems.length }}</span>
+          <button
+            v-if="budgetStore.globalItems.length > 0"
+            class="tpl-items-del-all-btn"
+            title="Delete all items globally"
+            @click="deleteAllGlobally"
+          >
+            <i class="pi pi-trash" /> Delete All
+          </button>
         </div>
         <p class="tpl-items-panel-hint">Items exist globally. Deleting here removes them from every month and template.</p>
 

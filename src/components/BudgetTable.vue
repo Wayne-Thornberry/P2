@@ -5,11 +5,8 @@ import { useBudgetSelection } from '../composables/useBudgetSelection'
 import { useBudgetDrag } from '../composables/useBudgetDrag'
 import { useMoneyInput } from '../composables/useMoneyInput'
 import { useTransactionStore } from '../stores/transactionStore'
-import { useAccountStore } from '../stores/accountStore'
 import { useMonthStore } from '../stores/monthStore'
 import { useSettingsStore } from '../stores/settingsStore'
-import { useBudgetFunds } from '../composables/useBudgetFunds'
-import { getTodayStr } from '../utils/date'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import InputText from 'primevue/inputtext'
@@ -33,23 +30,8 @@ const emit = defineEmits<{
 const itemsRef = toRef(props, 'items')
 
 const transactionStore = useTransactionStore()
-const accountStore     = useAccountStore()
 const monthStore       = useMonthStore()
 const settings         = useSettingsStore()
-const { budgetFunds }  = useBudgetFunds()
-
-// Balance per account for the modal
-const accountBalanceMap = computed(() => {
-  const map = new Map<string, number>()
-  for (const t of transactionStore.transactions) {
-    if (!t.accountId) continue
-    map.set(t.accountId, (map.get(t.accountId) ?? 0) + (t.type === 'in' ? t.amount : -t.amount))
-  }
-  return map
-})
-
-// Running balance excluding liability accounts (from composable)
-const totalFundsAvailable = computed(() => budgetFunds.value)
 
 const tableItems = computed<BudgetRow[]>(() =>
   props.items.map(i => {
@@ -180,58 +162,39 @@ function spendPct(data: BudgetRow): number {
 
 /** Width (0-100) of the colored overlay bar. */
 function barFillWidth(pct: number): number {
-  if (pct >= 100) return Math.min(pct - 100, 100)  // blue overshield fill
-  return Math.max(0, Math.min(pct, 100))             // normal fill
+  if (pct >= 100) return Math.min(pct - 100, 100)  // red overshield fill
+  return Math.max(0, Math.min(pct, 100))
 }
 
-/** Color of the overlay bar. */
+/** Color of the overlay bar: green → yellow → red as spending increases. */
 function barFillColor(pct: number): string {
-  if (pct >= 100) return '#3b82f6'  // blue overshield
-  if (pct >= 50)  return '#eab308'  // yellow
-  return '#ef4444'                   // red
+  if (pct >= 100) return '#dc2626'  // dark red for overshield
+  if (pct >= 80)  return '#eab308'  // yellow caution
+  return '#22c55e'                   // green = under budget
 }
 
-// ── Funding / Refund modal ─────────────────────────────────────────────
-type FundMode = 'fund' | 'fund-partial' | 'fund-negative' | 'overspend' | 'refund'
+// ── Available column / Overspend modal ───────────────────────────────────
+type FundMode = 'overspend' | 'refund'
 const fundingModal = ref<{
   item: BudgetRow
   mode: FundMode
-  selectedAccountId: string
-  amount: number
 } | null>(null)
 
 function onAvailableClick(row: BudgetRow): void {
-  const headroom = row.available
-  const funds    = totalFundsAvailable.value
-  if (headroom === 0) return
-  if (headroom < 0) {
-    fundingModal.value = {
-      item:              row,
-      mode:              'overspend',
-      selectedAccountId: accountStore.accounts[0]?.id ?? '',
-      amount:            Math.abs(headroom),
-    }
-  } else if (funds > 0) {
-    fundingModal.value = {
-      item:              row,
-      mode:              funds >= headroom ? 'fund' : 'fund-partial',
-      selectedAccountId: accountStore.accounts[0]?.id ?? '',
-      amount:            Math.min(headroom, funds),
-    }
+  if (row.available === 0) return
+  if (row.available < 0) {
+    // Overspent — offer to absorb into budget by raising assigned
+    fundingModal.value = { item: row, mode: 'overspend' }
   } else {
-    // funds <= 0: warn that this will make total funds negative
-    fundingModal.value = {
-      item:              row,
-      mode:              'fund-negative',
-      selectedAccountId: accountStore.accounts[0]?.id ?? '',
-      amount:            headroom,
-    }
+    // Under budget — navigate to transactions for this item
+    const ym = `${monthStore.activeYear}-${String(monthStore.activeMonth).padStart(2, '0')}`
+    emit('viewItemTransactions', row.id, ym)
   }
 }
 
 function confirmFunding(): void {
   if (!fundingModal.value) return
-  const { item, mode, selectedAccountId, amount } = fundingModal.value
+  const { item, mode } = fundingModal.value
   const { activeYear, activeMonth } = monthStore
 
   if (mode === 'refund') {
@@ -252,30 +215,11 @@ function confirmFunding(): void {
   }
 
   if (mode === 'overspend') {
-    if (!selectedAccountId) return
-    transactionStore.addTransaction({
-      name:      `Refund: ${item.name}`,
-      date:      getTodayStr(),
-      type:      'in',
-      amount,
-      itemId:    null,
-      accountId: selectedAccountId,
-    })
+    // Increase assigned to match activity so available = 0
+    emit('update', { ...item, assigned: Math.round(item.activity * 100) / 100 })
     fundingModal.value = null
     return
   }
-
-  // 'fund', 'fund-partial', or 'fund-negative'
-  if (!selectedAccountId || amount <= 0) return
-  transactionStore.addTransaction({
-    name:      `Budget: ${item.name}`,
-    date:      getTodayStr(),
-    type:      'out',
-    amount,
-    itemId:    item.id,
-    accountId: selectedAccountId,
-  })
-  fundingModal.value = null
 }
 
 function categoryTotal(category: string, field: 'assigned' | 'activity' | 'available'): number {
@@ -401,35 +345,21 @@ function onCellEditComplete(event: { data: BudgetItem; newData: BudgetItem; fiel
 
       <Column columnKey="available" field="available" header="Available" style="width: 13rem">
         <template #body="{ data }">
-          <!-- Overspent: activity > assigned → headroom negative, shown blue -->
+          <!-- Overspent: click to absorb overspend into budget -->
           <button
             v-if="data.available < 0"
             class="activity-link available-overspend"
             @click.stop="onAvailableClick(data)"
-            title="Overspent — click to create a refund transaction"
+            title="Overspent — click to increase budget to cover"
           >{{ formatMoney(-data.available) }}</button>
-          <!-- Zero: neutral, not clickable -->
-          <span v-else-if="data.available <= 0">{{ formatMoney(0) }}</span>
-          <!-- Positive and funds fully cover it: green -->
-          <button
-            v-else-if="totalFundsAvailable >= data.available"
-            class="activity-link available-safe"
-            @click.stop="onAvailableClick(data)"
-            title="Click to fully fund this item"
-          >{{ formatMoney(data.available) }}</button>
-          <!-- Positive, partial funds available (at least 0.01): yellow —  show what you can fund now -->
-          <button
-            v-else-if="totalFundsAvailable >= 0.01"
-            class="activity-link available-partial"
-            @click.stop="onAvailableClick(data)"
-            title="Only partial funds available — click to fund what you can"
-          >{{ formatMoney(totalFundsAvailable) }}</button>
-          <!-- Positive but no funds left: red — clickable with warning -->
+          <!-- Zero: balanced -->
+          <span v-else-if="data.available === 0">{{ formatMoney(0) }}</span>
+          <!-- Positive: under budget, click to view transactions -->
           <button
             v-else
-            class="activity-link available-danger"
+            class="activity-link available-safe"
             @click.stop="onAvailableClick(data)"
-            title="No funds available — funding this will put you into negative"
+            title="Under budget — click to view transactions for this item"
           >{{ formatMoney(data.available) }}</button>
         </template>
       </Column>
@@ -534,114 +464,40 @@ function onCellEditComplete(event: { data: BudgetItem; newData: BudgetItem; fiel
       </template>
     </DataTable>
 
-    <!-- ── Funding / Refund modal ──────────────────────────────────── -->
+    <!-- ── Overspend / Unassign modal ──────────────────────────────────── -->
     <div v-if="fundingModal" class="fund-modal-overlay" @click.self="fundingModal = null">
       <div
         class="fund-modal"
         :class="{
-          'fund-modal-refund':       fundingModal.mode === 'refund',
-          'fund-modal--partial':     fundingModal.mode === 'fund-partial',
-          'fund-modal--negative':    fundingModal.mode === 'fund-negative',
-          'fund-modal--overspend':   fundingModal.mode === 'overspend',
+          'fund-modal-refund':     fundingModal.mode === 'refund',
+          'fund-modal--overspend': fundingModal.mode === 'overspend',
         }"
       >
-
         <div class="fund-modal-header">
-          <i :class="{
-            'pi pi-send':            fundingModal.mode === 'fund',
-            'pi pi-circle-fill':     fundingModal.mode === 'fund-partial',
-            'pi pi-exclamation-triangle': fundingModal.mode === 'fund-negative',
-            'pi pi-arrow-circle-up': fundingModal.mode === 'overspend',
-            'pi pi-undo':            fundingModal.mode === 'refund',
-          }" />
-          <span class="fund-modal-title">{{
-            fundingModal.mode === 'fund'          ? 'Fund Item' :
-            fundingModal.mode === 'fund-partial'  ? 'Partial Fund' :
-            fundingModal.mode === 'fund-negative' ? 'Warning — No Funds' :
-            fundingModal.mode === 'overspend'     ? 'Overspent — Create Refund' :
-                                                    'Unassign Transactions'
-          }}</span>
+          <i :class="fundingModal.mode === 'refund' ? 'pi pi-undo' : 'pi pi-arrow-up'" />
+          <span class="fund-modal-title">{{ fundingModal.mode === 'refund' ? 'Unassign Transactions' : 'Absorb Overspend' }}</span>
         </div>
 
         <div class="fund-modal-body">
-          <p v-if="fundingModal.mode === 'fund'" class="fund-modal-desc">
-            Allocate <strong>{{ formatMoney(fundingModal.amount) }}</strong> to
-            <strong>{{ fundingModal.item.name }}</strong> for {{ monthStore.label }}.
-            Select which account to draw from.
-          </p>
-          <p v-else-if="fundingModal.mode === 'fund-negative'" class="fund-modal-desc fund-modal-warn">
-            <i class="pi pi-exclamation-triangle" />
-            You have no funds available. Funding <strong>{{ formatMoney(fundingModal.amount) }}</strong>
-            for <strong>{{ fundingModal.item.name }}</strong> will put your total funds into negative.
-            Are you sure you want to proceed?
-          </p>
-          <p v-else-if="fundingModal.mode === 'fund-partial'" class="fund-modal-desc">
-            You only have <strong>{{ formatMoney(fundingModal.amount) }}</strong> available — not enough
-            to fully cover <strong>{{ fundingModal.item.name }}</strong>.
-            This will partially fund the item for {{ monthStore.label }}.
-          </p>
-          <p v-else-if="fundingModal.mode === 'overspend'" class="fund-modal-desc">
+          <p v-if="fundingModal.mode === 'overspend'" class="fund-modal-desc">
             <strong>{{ fundingModal.item.name }}</strong> is overspent by
-            <strong>{{ formatMoney(fundingModal.amount) }}</strong> for {{ monthStore.label }}.
-            A refund transaction will be created as unassigned income.
+            <strong>{{ formatMoney(Math.abs(fundingModal.item.available)) }}</strong> for {{ monthStore.label }}.
+            Increase the budget to <strong>{{ formatMoney(fundingModal.item.activity) }}</strong> to absorb this overspend?
           </p>
           <p v-else class="fund-modal-desc">
             This will unassign all transactions linked to
             <strong>{{ fundingModal.item.name }}</strong> for {{ monthStore.label }},
             returning them to the unassigned pool.
           </p>
-
-          <template v-if="fundingModal.mode !== 'refund'">
-            <div class="fund-modal-field">
-              <span class="fund-modal-label">Amount</span>
-              <span class="fund-modal-amount">{{ formatMoney(fundingModal.amount) }}</span>
-            </div>
-
-            <div class="fund-modal-field">
-              <label class="fund-modal-label" for="fund-account-select">{{
-                fundingModal.mode === 'overspend' ? 'Credit to account' : 'Draw from account'
-              }}</label>
-              <div v-if="accountStore.accounts.length === 0" class="fund-modal-no-accounts">
-                No accounts defined. Add accounts in the Accounts page first.
-              </div>
-              <template v-else>
-                <select id="fund-account-select" v-model="fundingModal.selectedAccountId" class="fund-modal-select">
-                  <option v-for="acc in accountStore.accounts" :key="acc.id" :value="acc.id">
-                    {{ acc.name }}
-                  </option>
-                </select>
-                <span
-                  v-if="fundingModal.selectedAccountId"
-                  class="fund-modal-account-bal"
-                  :class="(accountBalanceMap.get(fundingModal.selectedAccountId) ?? 0) >= 0 ? 'money-positive' : 'money-negative'"
-                >
-                  Balance: {{ formatMoney(accountBalanceMap.get(fundingModal.selectedAccountId) ?? 0) }}
-                </span>
-              </template>
-            </div>
-          </template>
         </div>
 
         <div class="fund-modal-actions">
           <button class="fund-modal-btn fund-modal-btn-cancel" @click="fundingModal = null">Cancel</button>
           <button
             class="fund-modal-btn"
-            :class="{
-              'fund-modal-btn-fund':    fundingModal.mode === 'fund',
-              'fund-modal-btn-partial': fundingModal.mode === 'fund-partial',
-              'fund-modal-btn-danger':  fundingModal.mode === 'fund-negative',
-              'fund-modal-btn-green':   fundingModal.mode === 'overspend',
-              'fund-modal-btn-refund':  fundingModal.mode === 'refund',
-            }"
-            :disabled="fundingModal.mode !== 'refund' && (!fundingModal.selectedAccountId || accountStore.accounts.length === 0)"
+            :class="fundingModal.mode === 'overspend' ? 'fund-modal-btn-green' : 'fund-modal-btn-refund'"
             @click="confirmFunding"
-          >{{
-            fundingModal.mode === 'fund'          ? 'Fund Item' :
-            fundingModal.mode === 'fund-partial'  ? 'Partially Fund' :
-            fundingModal.mode === 'fund-negative' ? 'Fund Anyway' :
-            fundingModal.mode === 'overspend'     ? 'Create Refund' :
-                                                    'Unassign All'
-          }}</button>
+          >{{ fundingModal.mode === 'overspend' ? 'Absorb' : 'Unassign All' }}</button>
         </div>
 
       </div>

@@ -249,21 +249,18 @@ export const useBudgetStore = defineStore('budget', () => {
     }
   }
 
-  /** Remove from active month only; cleans up globally if now orphaned. */
+  /** Remove from active month only. Global items are never deleted implicitly. */
   function deleteItem(id: number): void {
     const entries = _activeEntries()
     const idx = entries.findIndex(e => e.itemId === id)
     if (idx !== -1) entries.splice(idx, 1)
-    checkOrphan(id)
   }
 
   /** Remove all items with the given category from the active month only. */
   function deleteCategory(category: string): void {
     const entries = _activeEntries()
-    const removedIds = entries.filter(e => e.category === category).map(e => e.itemId)
-    const remaining  = entries.filter(e => e.category !== category)
+    const remaining = entries.filter(e => e.category !== category)
     entries.splice(0, entries.length, ...remaining)
-    for (const id of removedIds) checkOrphan(id)
   }
 
   /** Nuclear: remove from every month + template + globalItems + unassign transactions. */

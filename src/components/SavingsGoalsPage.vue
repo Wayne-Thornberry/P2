@@ -173,7 +173,7 @@ function monthlyNeeded(goal: SavingsGoal): number | null {
           <label class="sg-label">Link to account <span class="sg-optional">(optional)</span></label>
           <select class="sg-input" v-model="newLinkedAccountId">
             <option value="">— None (manual contributions) —</option>
-            <option v-for="acc in accounts.accounts" :key="acc.id" :value="acc.id">{{ acc.name }}</option>
+            <option v-for="acc in accounts.accounts.filter(a => (a.type ?? 'asset') !== 'liability')" :key="acc.id" :value="acc.id">{{ acc.name }}</option>
           </select>
           <span class="sg-optional" style="font-size:0.72rem;margin-top:0.25rem;">When linked, the goal tracks the account’s net balance automatically.</span>
         </div>
@@ -208,7 +208,7 @@ function monthlyNeeded(goal: SavingsGoal): number | null {
                 <input class="sg-input sg-input--sm" type="date" v-model="editDeadline" />
                 <select class="sg-input sg-input--sm" v-model="editLinkedAccountId">
                   <option value="">— No account link —</option>
-                  <option v-for="acc in accounts.accounts" :key="acc.id" :value="acc.id">{{ acc.name }}</option>
+                  <option v-for="acc in accounts.accounts.filter(a => (a.type ?? 'asset') !== 'liability')" :key="acc.id" :value="acc.id">{{ acc.name }}</option>
                 </select>
                 <div class="sg-edit-actions">
                   <button class="sg-btn sg-btn--primary sg-btn--xs" @click="submitEdit">Save</button>
