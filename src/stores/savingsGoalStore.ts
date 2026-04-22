@@ -3,6 +3,8 @@ import { ref, watch } from 'vue'
 import { useTransactionStore } from './transactionStore'
 import { useSettingsStore } from './settingsStore'
 import { useAccountStore } from './accountStore'
+import { roundCents, txNet } from '../utils/math'
+import { storageKey, loadStored } from '../utils/storeStorage'
 
 export interface SavingsGoal {
   id:               number
@@ -34,25 +36,8 @@ const COLORS = [
 export const useSavingsGoalStore = defineStore('savingsGoals', () => {
   const settings = useSettingsStore()
 
-  function _key(): string {
-    return settings.country ? `clearbook_savings_goals_${settings.country}` : 'clearbook_savings_goals'
-  }
-
-  function _load() {
-    try {
-      const key = _key()
-      let raw = localStorage.getItem(key)
-      // One-time migration from bare key for existing installs
-      if (raw === null && settings.country) {
-        raw = localStorage.getItem('clearbook_savings_goals')
-        if (raw !== null) {
-          localStorage.setItem(key, raw)
-          localStorage.removeItem('clearbook_savings_goals')
-        }
-      }
-      return JSON.parse(raw ?? 'null')
-    } catch { return null }
-  }
+  function _key(): string { return storageKey('clearbook_savings_goals', settings.country) }
+  function _load() { return loadStored('clearbook_savings_goals', settings.country) }
 
   const _saved = _load()
 
@@ -133,10 +118,10 @@ export const useSavingsGoalStore = defineStore('savingsGoals', () => {
       const txStore = useTransactionStore()
       const net = txStore.transactions
         .filter(t => t.accountId === goal.linkedAccountId)
-        .reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0)
-      return Math.round(net * 100) / 100
+        .reduce((sum, transaction) => sum + txNet(transaction), 0)
+      return roundCents(net)
     }
-    return Math.round(goal.contributions.reduce((s, c) => s + c.amount, 0) * 100) / 100
+    return roundCents(goal.contributions.reduce((sum, contribution) => sum + contribution.amount, 0))
   }
 
   function progressPct(goal: SavingsGoal): number {

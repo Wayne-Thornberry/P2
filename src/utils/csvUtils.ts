@@ -145,15 +145,15 @@ export function parseAmount(raw: string): number {
   s = s.replace(/[€$£]/g, '');
 
   // Detect European format: last separator is a comma
-if (/^\-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(s) && s.includes(',')) {
-  // e.g. 1.234,56 (must have a comma decimal)
-  s = s.replace(/\./g, '').replace(',', '.');
-} else if (/^\-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) {
+  if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(s) && s.includes(',')) {
+    // e.g. 1.234,56 (must have a comma decimal)
+    s = s.replace(/\./g, '').replace(',', '.');
+  } else if (/^-?\d{1,3}(,\d{3})+(\d+)?$/.test(s)) {
     // e.g. 1,234.56 or 1,234
     s = s.replace(/,/g, '');
   } else {
     // Plain number — comma might be decimal separator (e.g. "-206,71")
-    const commaDecimal = /^\-?\d+,\d{1,2}$/.test(s);
+    const commaDecimal = /^-?\d+,\d{1,2}$/.test(s);
     if (commaDecimal) s = s.replace(',', '.');
     else s = s.replace(/,/g, ''); // strip any remaining commas
   }

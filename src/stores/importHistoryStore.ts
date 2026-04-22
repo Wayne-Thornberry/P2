@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import { useSettingsStore } from './settingsStore'
+import { storageKey, loadStored } from '../utils/storeStorage'
 
 export interface ImportRecord {
   id: number
@@ -16,25 +17,8 @@ let _nextId = 1
 export const useImportHistoryStore = defineStore('importHistory', () => {
   const settings = useSettingsStore()
 
-  function _key(): string {
-    return settings.country ? `clearbook_import_history_${settings.country}` : 'clearbook_import_history'
-  }
-
-  function _load() {
-    try {
-      const key = _key()
-      let raw = localStorage.getItem(key)
-      // One-time migration from bare key for existing installs
-      if (raw === null && settings.country) {
-        raw = localStorage.getItem('clearbook_import_history')
-        if (raw !== null) {
-          localStorage.setItem(key, raw)
-          localStorage.removeItem('clearbook_import_history')
-        }
-      }
-      return JSON.parse(raw ?? 'null')
-    } catch { return null }
-  }
+  function _key(): string { return storageKey('clearbook_import_history', settings.country) }
+  function _load() { return loadStored('clearbook_import_history', settings.country) }
 
   const _saved = _load()
 

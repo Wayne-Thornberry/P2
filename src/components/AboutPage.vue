@@ -1,1 +1,167 @@
-<script setup lang="ts">const appVersion = __APP_VERSION__</script><template>  <div class="about-page">    <!-- Hero -->    <div class="about-hero">      <h1 class="about-title">Clearbook</h1>      <p class="about-tagline">A privacy-first, offline personal finance tracker.</p>      <span class="about-version">v{{ appVersion }}</span>    </div>    <!-- Purpose -->    <section class="about-section">      <h2 class="about-section-title">What is Clearbook?</h2>      <p class="about-body">        Clearbook is a privacy-first, offline personal finance app that lives entirely in your browser.        No accounts. No servers. No subscriptions. Your data stays in your browser's local storage and        never leaves your device unless you choose to export it.      </p>      <p class="about-body">        It follows the <strong>envelope budgeting</strong> philosophy — define budget categories each month,        assign money to them, and track exactly where every euro goes. On top of that it layers full        account management, savings goals, loan &amp; savings-account tracking, and multi-tab reports        — all working offline.      </p>    </section>    <!-- How to use -->    <section class="about-section">      <h2 class="about-section-title">How to Use</h2>      <ol class="about-steps">        <li class="about-step">          <span class="about-step-num">1</span>          <div>            <strong>Build your Template</strong> — Go to <em>Template</em> and add the budget categories            and line items that reflect your life (Rent, Groceries, Gym, Netflix…). This becomes your            reusable starting point each month.          </div>        </li>        <li class="about-step">          <span class="about-step-num">2</span>          <div>            <strong>Set up Accounts</strong> — Head to <em>Accounts</em> and add your bank accounts,            credit cards, or cash envelopes. Mark accounts as Asset or Liability — liabilities are            excluded from the budget total by default. Reconcile balances, archive historical accounts,            and click any month bar to jump straight to that month's breakdown in Reports.          </div>        </li>        <li class="about-step">          <span class="about-step-num">3</span>          <div>            <strong>Open a Budget month</strong> — In <em>Budget</em>, pick a month and assign amounts            to each line item. Generate entries from your template in one click, or fill them in manually.          </div>        </li>        <li class="about-step">          <span class="about-step-num">4</span>          <div>            <strong>Log Transactions</strong> — Use the <em>Transactions</em> log to record every            income and expense. Import a CSV from your bank (BOI, Revolut, SEB, Kandus, or generic            format), or add entries manually. Filter by month, account, budget item, type, or name.          </div>        </li>        <li class="about-step">          <span class="about-step-num">5</span>          <div>            <strong>Assign &amp; Categorise</strong> — Click <em>Assign</em> on the Budget page to            walk through unassigned transactions one at a time. Clearbook suggests categories based on            past patterns and lets you auto-assign in bulk.          </div>        </li>        <li class="about-step">          <span class="about-step-num">6</span>          <div>            <strong>Savings Goals &amp; Finance</strong> — Track savings targets with contributions in            <em>Savings Goals</em>. Track loans and savings accounts with amortisation charts in            <em>Finance</em>. Link both to an account for automatic balance tracking.          </div>        </li>        <li class="about-step">          <span class="about-step-num">7</span>          <div>            <strong>Review Reports</strong> — The <em>Reports</em> page offers four tabs: Overview            (all-time trends, filterable by account), Breakdown (month-by-month or date-range, per            account), Items (budget category analysis), and Finance (loan &amp; savings projections).          </div>        </li>        <li class="about-step">          <span class="about-step-num">8</span>          <div>            <strong>Backup your data</strong> — Use <em>Settings › Data › Export Backup</em> to            download a single JSON file containing everything. Restore it at any time with Import Backup,            or drop the file anywhere on the page.          </div>        </li>      </ol>    </section>    <!-- Key features -->    <section class="about-section">      <h2 class="about-section-title">Key Features</h2>      <div class="about-features">        <div class="about-feature">          <i class="pi pi-lock about-feature-icon" />          <div>            <strong>100% local</strong>            <p>All data lives in <code>localStorage</code>. Nothing is sent anywhere.</p>          </div>        </div>        <div class="about-feature">          <i class="pi pi-credit-card about-feature-icon" />          <div>            <strong>Account management</strong>            <p>Asset &amp; Liability types, reconcile, unlink, archive — with sparkbar history per account.</p>          </div>        </div>        <div class="about-feature">          <i class="pi pi-file-import about-feature-icon" />          <div>            <strong>CSV import</strong>            <p>Drop a bank export to bulk-add transactions. Supports BOI, Revolut, SEB, Kandus, and generic formats.</p>          </div>        </div>        <div class="about-feature">          <i class="pi pi-sparkles about-feature-icon" />          <div>            <strong>Auto-categorisation</strong>            <p>Pattern-matching suggests the right budget item based on transaction name history.</p>          </div>        </div>        <div class="about-feature">          <i class="pi pi-flag about-feature-icon" />          <div>            <strong>Savings Goals</strong>            <p>Set targets, log contributions, and link a goal to an account to track progress automatically.</p>          </div>        </div>        <div class="about-feature">          <i class="pi pi-percentage about-feature-icon" />          <div>            <strong>Finance tracker</strong>            <p>Track loans and savings accounts with amortisation schedules and balance projection charts.</p>          </div>        </div>        <div class="about-feature">          <i class="pi pi-chart-bar about-feature-icon" />          <div>            <strong>Reports</strong>            <p>Overview, breakdown, items, and finance tabs — all filterable by account and time range.</p>          </div>        </div>        <div class="about-feature">          <i class="pi pi-search about-feature-icon" />          <div>            <strong>Global search</strong>            <p>Instantly find any transaction by name from the header bar.</p>          </div>        </div>        <div class="about-feature">          <i class="pi pi-palette about-feature-icon" />          <div>            <strong>Eight themes</strong>            <p>Light, Dark, Midnight, Forest, Purple, Rose, Slate, and Teal.</p>          </div>        </div>        <div class="about-feature">          <i class="pi pi-globe about-feature-icon" />          <div>            <strong>Multi-country</strong>            <p>Separate data per country. Full locale and currency support.</p>          </div>        </div>        <div class="about-feature">          <i class="pi pi-arrow-right-arrow-left about-feature-icon" />          <div>            <strong>FX conversion</strong>            <p>Display all amounts in a second currency at a custom rate — never mutates stored data.</p>          </div>        </div>        <div class="about-feature">          <i class="pi pi-download about-feature-icon" />          <div>            <strong>Export / Import</strong>            <p>Back up everything to JSON and restore it on any device — or drag-and-drop to restore.</p>          </div>        </div>      </div>    </section>    <!-- Tech stack -->    <section class="about-section">      <h2 class="about-section-title">Tech Stack</h2>      <div class="about-stack">        <div class="about-stack-item">          <span class="about-stack-badge">Vue 3</span>          <span class="about-stack-desc">Composition API + <code>&lt;script setup&gt;</code> throughout</span>        </div>        <div class="about-stack-item">          <span class="about-stack-badge">TypeScript</span>          <span class="about-stack-desc">Strict typing on all stores, components, and utilities</span>        </div>        <div class="about-stack-item">          <span class="about-stack-badge">Pinia</span>          <span class="about-stack-desc">Setup-store style — accounts, budget, transactions, savings, loans, settings, template</span>        </div>        <div class="about-stack-item">          <span class="about-stack-badge">Vite</span>          <span class="about-stack-desc">Lightning-fast dev server and build tool</span>        </div>        <div class="about-stack-item">          <span class="about-stack-badge">Tailwind CSS v4</span>          <span class="about-stack-desc">Utility-first styling with <code>@import "tailwindcss"</code></span>        </div>        <div class="about-stack-item">          <span class="about-stack-badge">PrimeVue 4</span>          <span class="about-stack-desc">Aura preset — DataTable, Select, InputNumber, Checkbox, Dialog</span>        </div>        <div class="about-stack-item">          <span class="about-stack-badge">Chart.js</span>          <span class="about-stack-desc">Bar, line, doughnut, and area charts in Reports and Finance</span>        </div>        <div class="about-stack-item">          <span class="about-stack-badge">PrimeIcons</span>          <span class="about-stack-desc">Icon set used throughout the UI</span>        </div>        <div class="about-stack-item">          <span class="about-stack-badge">Vitest</span>          <span class="about-stack-desc">Unit tests for all stores and utilities (happy-dom environment)</span>        </div>        <div class="about-stack-item">          <span class="about-stack-badge">localStorage</span>          <span class="about-stack-desc">Persistence layer — no backend, no database, no network</span>        </div>      </div>    </section>    <!-- Seahorse -->    <div class="about-seahorse">🦀</div>  </div></template>
+<script setup lang="ts">const appVersion = __APP_VERSION__</script>
+<template>
+    <div class="about-page"> <!-- Hero -->
+        <div class="about-hero">
+            <h1 class="about-title">Clearbook</h1>
+            <p class="about-tagline">A privacy-first, offline personal finance tracker.</p> <span
+                class="about-version">v{{ appVersion }}</span>
+        </div> <!-- Purpose -->
+        <section class="about-section">
+            <h2 class="about-section-title">What is Clearbook?</h2>
+            <p class="about-body"> Clearbook is a privacy-first, offline personal finance app that lives entirely in
+                your browser. No accounts. No servers. No subscriptions. Your data stays in your browser's local storage
+                and never leaves your device unless you choose to export it. </p>
+            <p class="about-body"> It follows the <strong>envelope budgeting</strong> philosophy — define budget
+                categories each month, assign money to them, and track exactly where every euro goes. On top of that it
+                layers full account management, savings goals, loan &amp; savings-account tracking, and multi-tab
+                reports — all working offline. </p>
+        </section> <!-- How to use -->
+        <section class="about-section">
+            <h2 class="about-section-title">How to Use</h2>
+            <ol class="about-steps">
+                <li class="about-step"> <span class="about-step-num">1</span>
+                    <div> <strong>Build your Template</strong> — Go to <em>Template</em> and add the budget categories
+                        and line items that reflect your life (Rent, Groceries, Gym, Netflix…). This becomes your
+                        reusable starting point each month. </div>
+                </li>
+                <li class="about-step"> <span class="about-step-num">2</span>
+                    <div> <strong>Set up Accounts</strong> — Head to <em>Accounts</em> and add your bank accounts,
+                        credit cards, or cash envelopes. Mark accounts as Asset or Liability — liabilities are excluded
+                        from the budget total by default. Reconcile balances, archive historical accounts, and click any
+                        month bar to jump straight to that month's breakdown in Reports. </div>
+                </li>
+                <li class="about-step"> <span class="about-step-num">3</span>
+                    <div> <strong>Open a Budget month</strong> — In <em>Budget</em>, pick a month and assign amounts to
+                        each line item. Generate entries from your template in one click, or fill them in manually.
+                    </div>
+                </li>
+                <li class="about-step"> <span class="about-step-num">4</span>
+                    <div> <strong>Log Transactions</strong> — Use the <em>Transactions</em> log to record every income
+                        and expense. Import a CSV from your bank (BOI, Revolut, SEB, Kandus, or generic format), or add
+                        entries manually. Filter by month, account, budget item, type, or name. </div>
+                </li>
+                <li class="about-step"> <span class="about-step-num">5</span>
+                    <div> <strong>Assign &amp; Categorise</strong> — Click <em>Assign</em> on the Budget page to walk
+                        through unassigned transactions one at a time. Clearbook suggests categories based on past
+                        patterns and lets you auto-assign in bulk. </div>
+                </li>
+                <li class="about-step"> <span class="about-step-num">6</span>
+                    <div> <strong>Savings Goals &amp; Finance</strong> — Track savings targets with contributions in
+                        <em>Savings Goals</em>. Track loans and savings accounts with amortisation charts in
+                        <em>Finance</em>. Link both to an account for automatic balance tracking. </div>
+                </li>
+                <li class="about-step"> <span class="about-step-num">7</span>
+                    <div> <strong>Review Reports</strong> — The <em>Reports</em> page offers four tabs: Overview
+                        (all-time trends, filterable by account), Breakdown (month-by-month or date-range, per account),
+                        Items (budget category analysis), and Finance (loan &amp; savings projections). </div>
+                </li>
+                <li class="about-step"> <span class="about-step-num">8</span>
+                    <div> <strong>Backup your data</strong> — Use <em>Settings › Data › Export Backup</em> to download a
+                        single JSON file containing everything. Restore it at any time with Import Backup, or drop the
+                        file anywhere on the page. </div>
+                </li>
+            </ol>
+        </section> <!-- Key features -->
+        <section class="about-section">
+            <h2 class="about-section-title">Key Features</h2>
+            <div class="about-features">
+                <div class="about-feature"> <i class="pi pi-lock about-feature-icon" />
+                    <div> <strong>100% local</strong>
+                        <p>All data lives in <code>localStorage</code>. Nothing is sent anywhere.</p>
+                    </div>
+                </div>
+                <div class="about-feature"> <i class="pi pi-credit-card about-feature-icon" />
+                    <div> <strong>Account management</strong>
+                        <p>Asset &amp; Liability types, reconcile, unlink, archive — with sparkbar history per account.
+                        </p>
+                    </div>
+                </div>
+                <div class="about-feature"> <i class="pi pi-file-import about-feature-icon" />
+                    <div> <strong>CSV import</strong>
+                        <p>Drop a bank export to bulk-add transactions. Supports BOI, Revolut, SEB, Kandus, and generic
+                            formats.</p>
+                    </div>
+                </div>
+                <div class="about-feature"> <i class="pi pi-sparkles about-feature-icon" />
+                    <div> <strong>Auto-categorisation</strong>
+                        <p>Pattern-matching suggests the right budget item based on transaction name history.</p>
+                    </div>
+                </div>
+                <div class="about-feature"> <i class="pi pi-flag about-feature-icon" />
+                    <div> <strong>Savings Goals</strong>
+                        <p>Set targets, log contributions, and link a goal to an account to track progress
+                            automatically.</p>
+                    </div>
+                </div>
+                <div class="about-feature"> <i class="pi pi-percentage about-feature-icon" />
+                    <div> <strong>Finance tracker</strong>
+                        <p>Track loans and savings accounts with amortisation schedules and balance projection charts.
+                        </p>
+                    </div>
+                </div>
+                <div class="about-feature"> <i class="pi pi-chart-bar about-feature-icon" />
+                    <div> <strong>Reports</strong>
+                        <p>Overview, breakdown, items, and finance tabs — all filterable by account and time range.</p>
+                    </div>
+                </div>
+                <div class="about-feature"> <i class="pi pi-search about-feature-icon" />
+                    <div> <strong>Global search</strong>
+                        <p>Instantly find any transaction by name from the header bar.</p>
+                    </div>
+                </div>
+                <div class="about-feature"> <i class="pi pi-palette about-feature-icon" />
+                    <div> <strong>Eight themes</strong>
+                        <p>Light, Dark, Midnight, Forest, Purple, Rose, Slate, and Teal.</p>
+                    </div>
+                </div>
+                <div class="about-feature"> <i class="pi pi-globe about-feature-icon" />
+                    <div> <strong>Multi-country</strong>
+                        <p>Separate data per country. Full locale and currency support.</p>
+                    </div>
+                </div>
+                <div class="about-feature"> <i class="pi pi-arrow-right-arrow-left about-feature-icon" />
+                    <div> <strong>FX conversion</strong>
+                        <p>Display all amounts in a second currency at a custom rate — never mutates stored data.</p>
+                    </div>
+                </div>
+                <div class="about-feature"> <i class="pi pi-download about-feature-icon" />
+                    <div> <strong>Export / Import</strong>
+                        <p>Back up everything to JSON and restore it on any device — or drag-and-drop to restore.</p>
+                    </div>
+                </div>
+            </div>
+        </section> <!-- Tech stack -->
+        <section class="about-section">
+            <h2 class="about-section-title">Tech Stack</h2>
+            <div class="about-stack">
+                <div class="about-stack-item"> <span class="about-stack-badge">Vue 3</span> <span
+                        class="about-stack-desc">Composition API + <code>&lt;script setup&gt;</code> throughout</span>
+                </div>
+                <div class="about-stack-item"> <span class="about-stack-badge">TypeScript</span> <span
+                        class="about-stack-desc">Strict typing on all stores, components, and utilities</span> </div>
+                <div class="about-stack-item"> <span class="about-stack-badge">Pinia</span> <span
+                        class="about-stack-desc">Setup-store style — accounts, budget, transactions, savings, loans,
+                        settings, template</span> </div>
+                <div class="about-stack-item"> <span class="about-stack-badge">Vite</span> <span
+                        class="about-stack-desc">Lightning-fast dev server and build tool</span> </div>
+                <div class="about-stack-item"> <span class="about-stack-badge">Tailwind CSS v4</span> <span
+                        class="about-stack-desc">Utility-first styling with <code>@import "tailwindcss"</code></span>
+                </div>
+                <div class="about-stack-item"> <span class="about-stack-badge">PrimeVue 4</span> <span
+                        class="about-stack-desc">Aura preset — DataTable, Select, InputNumber, Checkbox, Dialog</span>
+                </div>
+                <div class="about-stack-item"> <span class="about-stack-badge">Chart.js</span> <span
+                        class="about-stack-desc">Bar, line, doughnut, and area charts in Reports and Finance</span>
+                </div>
+                <div class="about-stack-item"> <span class="about-stack-badge">PrimeIcons</span> <span
+                        class="about-stack-desc">Icon set used throughout the UI</span> </div>
+                <div class="about-stack-item"> <span class="about-stack-badge">Vitest</span> <span
+                        class="about-stack-desc">Unit tests for all stores and utilities (happy-dom environment)</span>
+                </div>
+                <div class="about-stack-item"> <span class="about-stack-badge">localStorage</span> <span
+                        class="about-stack-desc">Persistence layer — no backend, no database, no network</span> </div>
+            </div>
+        </section> <!-- Seahorse -->
+        <div class="about-seahorse">🦀</div>
+    </div>
+</template>

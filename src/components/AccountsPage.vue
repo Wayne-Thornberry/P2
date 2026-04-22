@@ -8,6 +8,7 @@ import { useLoanStore } from '../stores/loanStore'
 import { useMoneyInput } from '../composables/useMoneyInput'
 import { useConfirm } from '../composables/useConfirm'
 import { getTodayStr } from '../utils/date'
+import { roundCents, txNet } from '../utils/math'
 import { SUPPORTED_COUNTRIES, getCountryById } from '../data/countries'
 import { UNASSIGNED_ACCOUNT_ID } from '../types/transaction'
 import { CSV_ADAPTERS } from '../utils/csvAdapters'
@@ -188,7 +189,7 @@ const reconcileTargetStr = ref('')
 function accountBalance(id: string): number {
   return txStore.transactions
     .filter(t => t.accountId === id)
-    .reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0)
+    .reduce((sum, transaction) => sum + txNet(transaction), 0)
 }
 
 function startReconcile(id: string): void {
@@ -200,7 +201,7 @@ function cancelReconcile(): void { reconcilingId.value = null; reconcileTargetSt
 function commitReconcile(id: string): void {
   const target = parseFloat(reconcileTargetStr.value)
   if (isNaN(target)) { cancelReconcile(); return }
-  const diff = Math.round((target - accountBalance(id)) * 100) / 100
+  const diff = roundCents(target - accountBalance(id))
   if (diff === 0) { cancelReconcile(); return }
   txStore.addTransaction({ name: 'Reconciliation adjustment', date: getTodayStr(), type: diff > 0 ? 'in' : 'out', amount: Math.abs(diff), itemId: null, accountId: id })
   cancelReconcile()
@@ -231,7 +232,7 @@ function shortMonth(key: string): string {
 const _allAccountDetails = computed(() =>
   accountStore.accounts.map(acc => {
     const txs      = txStore.transactions.filter(t => t.accountId === acc.id)
-    const balance  = txs.reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0)
+    const balance  = txs.reduce((sum, transaction) => sum + txNet(transaction), 0)
     const txCount  = txs.length
     const recent   = txs.slice().sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)).slice(0, 4)
 
@@ -299,7 +300,7 @@ const filteredAccountDetails = computed(() =>
 const unassignedDetails = computed(() => {
   const txs = txStore.transactions.filter(t => t.accountId === null)
   if (txs.length === 0) return null
-  const balance      = txs.reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0)
+  const balance      = txs.reduce((sum, transaction) => sum + txNet(transaction), 0)
   const txCount      = txs.length
   const recent       = txs.slice().sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)).slice(0, 4)
   const nowTxs       = txs.filter(t => t.date.startsWith(_nowKey))
