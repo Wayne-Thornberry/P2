@@ -30,7 +30,7 @@ const activeLoans = computed(() => store.loans.filter(l => showArchived.value ||
 const activeSavs  = computed(() => store.savings.filter(s => showArchived.value || !s.archived))
 
 // ── Theme helpers (for charts) ────────────────────────────────
-const isDark     = computed(() => ['dark', 'midnight', 'forest', 'purple'].includes(settings.theme))
+const isDark     = computed(() => settings.isDark)
 const gridColor  = computed(() => isDark.value ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)')
 const labelColor = computed(() => isDark.value ? '#a1a1aa' : '#71717a')
 

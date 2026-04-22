@@ -230,7 +230,7 @@ const progress = computed(() => {
 </script>
 
 <template>
-  <div class="assign-panel" :class="{ dark: settings.theme === 'dark' || settings.theme === 'midnight' || settings.theme === 'forest' || settings.theme === 'purple', 'theme-midnight': settings.theme === 'midnight', 'theme-forest': settings.theme === 'forest', 'theme-purple': settings.theme === 'purple' }">
+  <div class="assign-panel" :class="{ dark: settings.isDark, 'theme-midnight': settings.theme === 'midnight', 'theme-forest': settings.theme === 'forest', 'theme-purple': settings.theme === 'purple' }">
 
     <!-- Header -->
     <div class="assign-dialog-header">

@@ -11,6 +11,7 @@ import BudgetTable from './BudgetTable.vue'
 import AssignPanel from './AssignPanel.vue'
 import { useConfirm } from '../composables/useConfirm'
 import { useBudgetFunds } from '../composables/useBudgetFunds'
+import { roundCents, txNet } from '../utils/math'
 const store        = useBudgetStore()
 const txStore      = useTransactionStore()
 const monthStore   = useMonthStore()
@@ -80,7 +81,7 @@ const excludedAccountCount = computed(() => excludedAccountIds.value.size)
 const monthlyNet = computed(() =>
   txStore.transactions
     .filter(t => monthStore.matchesActive(t.date) && (t.accountId === null || !excludedAccountIds.value.has(t.accountId)))
-    .reduce((sum, t) => sum + (t.type === 'in' ? t.amount : -t.amount), 0)
+    .reduce((sum, transaction) => sum + txNet(transaction), 0)
 )
 
 const unassignedActivity = computed(() =>
@@ -117,7 +118,7 @@ function selectMonth(month: number): void {
 const budgetRows = computed<BudgetRow[]>(() =>
   store.items.map(i => {
     const activity  = txStore.getItemActivity(i.id, monthStore.activeYear, monthStore.activeMonth)
-    const available = Math.round((i.assigned - activity) * 100) / 100
+    const available = roundCents(i.assigned - activity)
     return { ...i, activity, available }
   })
 )
@@ -126,10 +127,10 @@ const overspentRows  = computed(() => budgetRows.value.filter(r => r.available <
 const underBudgetRows = computed(() => budgetRows.value.filter(r => r.available > 0))
 const onTargetCount  = computed(() => budgetRows.value.filter(r => r.available === 0).length)
 const totalOverspent = computed(() =>
-  Math.round(overspentRows.value.reduce((s, r) => s + Math.abs(r.available), 0) * 100) / 100
+  roundCents(overspentRows.value.reduce((sum, row) => sum + Math.abs(row.available), 0))
 )
 const totalUnderBudget = computed(() =>
-  Math.round(underBudgetRows.value.reduce((s, r) => s + r.available, 0) * 100) / 100
+  roundCents(underBudgetRows.value.reduce((sum, row) => sum + row.available, 0))
 )
 
 // ── Budget vs Actual ──────────────────────────────────────────
@@ -142,17 +143,17 @@ const budgetRowsByCategory = computed(() => {
     if (!groups.has(cat)) groups.set(cat, { rows: [], assigned: 0, activity: 0, available: 0 })
     const g = groups.get(cat)!
     g.rows.push(row)
-    g.assigned   = Math.round((g.assigned  + row.assigned)  * 100) / 100
-    g.activity   = Math.round((g.activity  + row.activity)  * 100) / 100
-    g.available  = Math.round((g.available + row.available) * 100) / 100
+    g.assigned   = roundCents(g.assigned + row.assigned)
+    g.activity   = roundCents(g.activity + row.activity)
+    g.available  = roundCents(g.available + row.available)
   }
   return [...groups.entries()].map(([category, g]) => ({ category, ...g }))
 })
 
 const budgetTotals = computed(() => ({
-  assigned:  Math.round(budgetRows.value.reduce((s, r) => s + r.assigned,  0) * 100) / 100,
-  activity:  Math.round(budgetRows.value.reduce((s, r) => s + r.activity,  0) * 100) / 100,
-  available: Math.round(budgetRows.value.reduce((s, r) => s + r.available, 0) * 100) / 100,
+  assigned:  roundCents(budgetRows.value.reduce((sum, row) => sum + row.assigned, 0)),
+  activity:  roundCents(budgetRows.value.reduce((sum, row) => sum + row.activity, 0)),
+  available: roundCents(budgetRows.value.reduce((sum, row) => sum + row.available, 0)),
 }))
 
 function usagePct(assigned: number, activity: number): number {
@@ -196,7 +197,7 @@ function absorbOverspend(): void {
   const rows = [...overspentRows.value]
   if (rows.length === 0) return
   for (const row of rows) {
-    store.updateItem({ ...row, assigned: Math.round(row.activity * 100) / 100 })
+    store.updateItem({ ...row, assigned: roundCents(row.activity) })
   }
   toast.add({ severity: 'success', summary: 'Budget adjusted', detail: `${rows.length} item${rows.length !== 1 ? 's' : ''} budget increased to match spending.`, life: 3000 })
 }

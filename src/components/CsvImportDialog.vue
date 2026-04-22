@@ -5,6 +5,7 @@ import { useAccountStore } from '../stores/accountStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useImportHistoryStore } from '../stores/importHistoryStore'
 import { processMultipleCsvFiles, CSV_ADAPTERS } from '../utils/csvAdapters'
+import { roundCents, txNet } from '../utils/math'
 
 const props = defineProps<{
   visible: boolean
@@ -73,15 +74,11 @@ const importPlan = computed<ImportPlan | null>(() => {
 
   if (newNewest < earliestExisting) {
     // All new data is before existing records — backfill
-    const oldOBSigned = existingOBTx
-      ? (existingOBTx.type === 'in' ? existingOBTx.amount : -existingOBTx.amount)
-      : 0
+    const oldOBSigned = existingOBTx ? txNet(existingOBTx) : 0
     const newOBSigned = result.openingBalance ?? 0
     // Estimate net of new rows (dedup not applied yet, so this is approximate)
-    const estNet = Math.round(
-      result.allRows.reduce<number>((s, r) => s + (r.type === 'in' ? r.amount : -r.amount), 0) * 100
-    ) / 100
-    const gapDiff = Math.round((oldOBSigned - newOBSigned - estNet) * 100) / 100
+    const estNet = roundCents(result.allRows.reduce<number>((sum, row) => sum + txNet(row), 0))
+    const gapDiff = roundCents(oldOBSigned - newOBSigned - estNet)
     return {
       type:            'backfill',
       replaceOB:       existingOBTx !== null,
@@ -96,11 +93,9 @@ const importPlan = computed<ImportPlan | null>(() => {
   const dayAfterLatest = _dayAfter(latestExisting)
   if (newOldest > dayAfterLatest) {
     // New data starts after a gap from the latest existing transaction
-    const currentBalance = Math.round(
-      accountTxs.reduce<number>((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0) * 100
-    ) / 100
+    const currentBalance = roundCents(accountTxs.reduce<number>((sum, transaction) => sum + txNet(transaction), 0))
     const diff = result.openingBalance !== null
-      ? Math.round((result.openingBalance - currentBalance) * 100) / 100
+      ? roundCents(result.openingBalance - currentBalance)
       : 0
     return {
       type:            'forward',
@@ -171,10 +166,8 @@ async function handleImport(): Promise<void> {
   let forwardGapAmount = 0
   let forwardGapType: 'in' | 'out' = 'in'
   if (hasForwardGap && result.openingBalance !== null && result.openingDate) {
-    const currentBalance = Math.round(
-      preTxs.reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0) * 100
-    ) / 100
-    const diff = Math.round((result.openingBalance - currentBalance) * 100) / 100
+    const currentBalance = roundCents(preTxs.reduce((sum, transaction) => sum + txNet(transaction), 0))
+    const diff = roundCents(result.openingBalance - currentBalance)
     forwardGapAmount = Math.abs(diff)
     forwardGapType   = diff > 0 ? 'in' : 'out'
   }
@@ -224,7 +217,7 @@ async function handleImport(): Promise<void> {
       consumedCounts.set(key, consumed + 1)
     } else {
       batch.push({ name: row.details, date: row.isoDate, type: row.type, amount: row.amount, itemId: null, accountId })
-      actualNet = Math.round((actualNet + (row.type === 'in' ? row.amount : -row.amount)) * 100) / 100
+      actualNet = roundCents(actualNet + txNet(row))
     }
   }
 
@@ -246,11 +239,9 @@ async function handleImport(): Promise<void> {
 
   // 8. Backfill gap bridge
   if (isBackfill && earliestExisting) {
-    const oldOBSigned = existingOBTx
-      ? (existingOBTx.type === 'in' ? existingOBTx.amount : -existingOBTx.amount)
-      : 0
+    const oldOBSigned = existingOBTx ? txNet(existingOBTx) : 0
     const newOBSigned = result.openingBalance ?? 0
-    const gapDiff = Math.round((oldOBSigned - newOBSigned - actualNet) * 100) / 100
+    const gapDiff = roundCents(oldOBSigned - newOBSigned - actualNet)
     if (Math.abs(gapDiff) > 0.005) {
       txStore.addTransaction({
         name: 'Balance Adjustment', date: _dayBefore(earliestExisting),
@@ -280,7 +271,7 @@ async function handleImport(): Promise<void> {
       <div
         v-if="visible"
         class="csv-dialog-backdrop"
-        :class="{ dark: ['dark','midnight','forest','purple'].includes(settings.theme), 'theme-midnight': settings.theme === 'midnight', 'theme-forest': settings.theme === 'forest', 'theme-purple': settings.theme === 'purple' }"
+        :class="{ dark: settings.isDark, 'theme-midnight': settings.theme === 'midnight', 'theme-forest': settings.theme === 'forest', 'theme-purple': settings.theme === 'purple' }"
         @click.self="emit('close')"
       >
         <div class="csv-dialog" role="dialog" aria-modal="true">

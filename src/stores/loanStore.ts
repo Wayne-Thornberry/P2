@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import { useTransactionStore } from './transactionStore'
 import { useSettingsStore } from './settingsStore'
+import { roundCents, txNet } from '../utils/math'
+import { storageKey, loadStored } from '../utils/storeStorage'
 
 export interface LoanRecord {
   id:               number
@@ -48,13 +50,8 @@ let _nextSavId  = 1
 export const useLoanStore = defineStore('loans', () => {
   const settings = useSettingsStore()
 
-  function _key(): string {
-    return settings.country ? `clearbook_finance_${settings.country}` : 'clearbook_finance'
-  }
-
-  function _load() {
-    try { return JSON.parse(localStorage.getItem(_key()) ?? 'null') } catch { return null }
-  }
+  function _key(): string { return storageKey('clearbook_finance', settings.country) }
+  function _load() { return loadStored('clearbook_finance', settings.country) }
 
   const _saved = _load()
   const loans   = ref<LoanRecord[]>(_saved?.loans ?? [])
@@ -153,11 +150,11 @@ export const useLoanStore = defineStore('loans', () => {
       balance         = Math.max(0, balance - principal)
       rows.push({
         month: i + 1, date: label,
-        openingBalance: Math.round(opening   * 100) / 100,
-        payment:        Math.round(M         * 100) / 100,
-        interestPaid:   Math.round(interest  * 100) / 100,
-        principalPaid:  Math.round(principal * 100) / 100,
-        closingBalance: Math.round(balance   * 100) / 100,
+        openingBalance: roundCents(opening),
+        payment:        roundCents(M),
+        interestPaid:   roundCents(interest),
+        principalPaid:  roundCents(principal),
+        closingBalance: roundCents(balance),
       })
     }
     return rows
@@ -167,12 +164,12 @@ export const useLoanStore = defineStore('loans', () => {
     const r = loan.apr / 100 / 12
     const n = loan.termMonths
     const P = loan.principal
-    if (r === 0) return Math.round((P / n) * 100) / 100
-    return Math.round(P * r * Math.pow(1 + r, n) / (Math.pow(1 + r, n) - 1) * 100) / 100
+    if (r === 0) return roundCents(P / n)
+    return roundCents(P * r * Math.pow(1 + r, n) / (Math.pow(1 + r, n) - 1))
   }
 
   function totalInterest(loan: LoanRecord): number {
-    return Math.max(0, Math.round((monthlyPayment(loan) * loan.termMonths - loan.principal) * 100) / 100)
+    return Math.max(0, roundCents(monthlyPayment(loan) * loan.termMonths - loan.principal))
   }
 
   // ── Savings projection ────────────────────────────────────────
@@ -187,7 +184,7 @@ export const useLoanStore = defineStore('loans', () => {
       d.setMonth(d.getMonth() + i)
       const label   = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
       const balance = sav.startBalance * Math.pow(1 + rPerPeriod, i * periodsPerMonth)
-      return { date: label, balance: Math.round(balance * 100) / 100 }
+      return { date: label, balance: roundCents(balance) }
     })
   }
 
@@ -200,7 +197,7 @@ export const useLoanStore = defineStore('loans', () => {
     const byMonth = new Map<string, number>()
     let running   = 0
     for (const t of txs) {
-      running += t.type === 'in' ? t.amount : -t.amount
+      running += txNet(t)
       byMonth.set(t.date.slice(0, 7), running)
     }
     return byMonth
@@ -210,8 +207,8 @@ export const useLoanStore = defineStore('loans', () => {
     const txStore = useTransactionStore()
     const net = txStore.transactions
       .filter(t => t.accountId === accountId)
-      .reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0)
-    return Math.round(net * 100) / 100
+      .reduce((sum, transaction) => sum + txNet(transaction), 0)
+    return roundCents(net)
   }
 
   return {

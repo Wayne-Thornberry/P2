@@ -3,6 +3,7 @@ import { useTransactionStore } from '../stores/transactionStore'
 import { useAccountStore } from '../stores/accountStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import type { Account } from '../types/transaction'
+import { roundCents, txNet } from '../utils/math'
 
 function _isExcluded(acc: Account): boolean {
   if (acc.archived) return true                          // archived accounts always excluded
@@ -37,9 +38,7 @@ export function useBudgetFunds() {
       if (pinnedTx) txs = txs.filter(t => t.date >= pinnedTx.date)
     }
 
-    return Math.round(
-      txs.reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0) * 100,
-    ) / 100
+    return roundCents(txs.reduce((sum, transaction) => sum + txNet(transaction), 0))
   })
 
   return { budgetFunds, excludedAccountIds }

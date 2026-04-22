@@ -162,6 +162,6 @@
                         class="about-stack-desc">Persistence layer — no backend, no database, no network</span> </div>
             </div>
         </section> <!-- Seahorse -->
-        <div class="about-seahorse">🦀 <a href="https://github.com/Wayne-Thornberry/P2">GitHub Repository</a></div> 
+        <div class="about-seahorse">🦀</div>
     </div>
 </template>

@@ -5,35 +5,15 @@ import { useTransactionStore } from './transactionStore'
 import { useSettingsStore } from './settingsStore'
 import { useSavingsGoalStore } from './savingsGoalStore'
 import { useLoanStore } from './loanStore'
+import { storageKey, loadStored } from '../utils/storeStorage'
 
 let _nextAccId = 10
 
 export const useAccountStore = defineStore('accounts', () => {
   const settings = useSettingsStore()
 
-  function _key(): string {
-    return settings.country ? `clearbook_accounts_${settings.country}` : 'clearbook_accounts'
-  }
-
-  function _load() {
-    try {
-      const key = _key()
-      let raw = localStorage.getItem(key)
-      // One-time migration from bare key for existing installs
-      if (raw === null && settings.country) {
-        raw = localStorage.getItem('clearbook_accounts')
-        if (raw !== null) {
-          localStorage.setItem(key, raw)
-          localStorage.removeItem('clearbook_accounts')
-        }
-      }
-      if (raw === null) {
-        raw = localStorage.getItem('p2_accounts')
-        if (raw !== null) localStorage.removeItem('p2_accounts')
-      }
-      return JSON.parse(raw ?? 'null')
-    } catch { return null }
-  }
+  function _key(): string { return storageKey('clearbook_accounts', settings.country) }
+  function _load() { return loadStored('clearbook_accounts', settings.country, 'p2_accounts') }
 
   const _saved = _load()
 
