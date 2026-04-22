@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.7.1] - 2026-04-22
+
+### Changed
+- Merge pull request #5 from Wayne-Thornberry/reviewrevamp
+- Refactor financial calculations and storage management
+
+---
+
 ## [1.7.0] - 2026-04-22
 
 ### Changed
@@ -110,7 +118,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed-position pagination navigation arrows in Transaction log
 - MIT License
 
-[Unreleased]: https://github.com/Wayne-Thornberry/P2/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/Wayne-Thornberry/P2/compare/v1.7.1...HEAD
+[1.7.1]: https://github.com/Wayne-Thornberry/P2/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/Wayne-Thornberry/P2/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/Wayne-Thornberry/P2/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/Wayne-Thornberry/P2/compare/v1.3.0...v1.5.0
