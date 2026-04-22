@@ -3,7 +3,6 @@ import { ref, computed, toRef, nextTick, watch } from 'vue'
 import type { BudgetItem, BudgetItemDef, BudgetRow } from '../types/budget'
 import { useBudgetSelection } from '../composables/useBudgetSelection'
 import { useBudgetDrag } from '../composables/useBudgetDrag'
-import { useMoneyInput } from '../composables/useMoneyInput'
 import { useTransactionStore } from '../stores/transactionStore'
 import { useMonthStore } from '../stores/monthStore'
 import { useSettingsStore } from '../stores/settingsStore'
@@ -143,14 +142,28 @@ function toggleGroup(category: string): void {
 function formatMoney(v: number): string { return settings.formatMoney(v) }
 
 // ── Money input behaviour ──────────────────────────────────────────
-const { moneyFocus } = useMoneyInput()
+/** Raw string tracked during cell editing — avoids cursor-clobbering reactive reformats. */
+const editingRaw = ref('')
+
+function startMoneyEdit(e: FocusEvent, initialValue: unknown) {
+  editingRaw.value = (+( initialValue as number) || 0).toFixed(2)
+  const el = e.target as HTMLInputElement
+  setTimeout(() => el.select(), 0)
+}
+
+function onMoneyInput(e: Event, data: Record<string, unknown>, field: string) {
+  const raw = (e.target as HTMLInputElement).value
+  editingRaw.value = raw
+  data[field] = parseFloat(raw) || 0
+}
 
 /** Blur handler for the cell editor: normalise display then update the data object. */
 function moneyEditorBlur(e: FocusEvent, data: Record<string, unknown>, field: string) {
   const el = e.target as HTMLInputElement
   const parsed = parseFloat(el.value)
   const val = isNaN(parsed) ? 0 : Math.max(0, parsed)
-  el.value = val.toFixed(2)
+  editingRaw.value = val.toFixed(2)
+  el.value = editingRaw.value
   data[field] = val
 }
 
@@ -313,10 +326,10 @@ function onCellEditComplete(event: { data: BudgetItem; newData: BudgetItem; fiel
             type="text"
             inputmode="decimal"
             class="budget-money-editor"
-            :value="(+data[field] || 0).toFixed(2)"
+            :value="editingRaw"
             autofocus
-            @focus="moneyFocus"
-            @input="data[field] = Math.max(0, parseFloat(($event.target as HTMLInputElement).value) || 0)"
+            @focus="startMoneyEdit($event, data[field])"
+            @input="onMoneyInput($event, data as Record<string, unknown>, field)"
             @blur="moneyEditorBlur($event, data as Record<string, unknown>, field)"
           />
         </template>
