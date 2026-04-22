@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.8.0] - 2026-04-22
+
+### Changed
+- Merge branch 'main' of https://github.com/Wayne-Thornberry/P2
+- feat: update AboutPage component with detailed usage instructions and key features
+
+---
+
 ## [1.7.1] - 2026-04-22
 
 ### Changed
@@ -118,7 +126,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed-position pagination navigation arrows in Transaction log
 - MIT License
 
-[Unreleased]: https://github.com/Wayne-Thornberry/P2/compare/v1.7.1...HEAD
+[Unreleased]: https://github.com/Wayne-Thornberry/P2/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/Wayne-Thornberry/P2/compare/v1.7.1...v1.8.0
 [1.7.1]: https://github.com/Wayne-Thornberry/P2/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/Wayne-Thornberry/P2/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/Wayne-Thornberry/P2/compare/v1.5.0...v1.6.0
