@@ -6,6 +6,7 @@ import { useBudgetDrag } from '../composables/useBudgetDrag'
 import { useTransactionStore } from '../stores/transactionStore'
 import { useMonthStore } from '../stores/monthStore'
 import { useSettingsStore } from '../stores/settingsStore'
+import { roundCents } from '../utils/math'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import InputText from 'primevue/inputtext'
@@ -35,7 +36,7 @@ const settings         = useSettingsStore()
 const tableItems = computed<BudgetRow[]>(() =>
   props.items.map(i => {
     const activity  = transactionStore.getItemActivity(i.id, monthStore.activeYear, monthStore.activeMonth)
-    const available = Math.round((i.assigned - activity) * 100) / 100
+    const available = roundCents(i.assigned - activity)
     return { ...i, activity, available }
   })
 )
@@ -146,7 +147,7 @@ function formatMoney(v: number): string { return settings.formatMoney(v) }
 const editingRaw = ref('')
 
 function startMoneyEdit(e: FocusEvent, initialValue: unknown) {
-  editingRaw.value = (+( initialValue as number) || 0).toFixed(2)
+  editingRaw.value = (+(initialValue as number) || 0).toFixed(2)
   const el = e.target as HTMLInputElement
   setTimeout(() => el.select(), 0)
 }
@@ -229,7 +230,7 @@ function confirmFunding(): void {
 
   if (mode === 'overspend') {
     // Increase assigned to match activity so available = 0
-    emit('update', { ...item, assigned: Math.round(item.activity * 100) / 100 })
+    emit('update', { ...item, assigned: roundCents(item.activity) })
     fundingModal.value = null
     return
   }

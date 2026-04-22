@@ -6,6 +6,7 @@ import { useBudgetStore }      from '../stores/budgetStore'
 import { useSettingsStore }    from '../stores/settingsStore'
 import { useLoanStore }        from '../stores/loanStore'
 import { useSavingsGoalStore } from '../stores/savingsGoalStore'
+import { roundCents, txNet } from '../utils/math'
 
 const txStore      = useTransactionStore()
 const accountStore = useAccountStore()
@@ -68,21 +69,21 @@ const accountBalances = computed(() => {
   const rows = accountStore.accounts.map(acc => {
     const balance = txStore.transactions.reduce((s, t) => {
       if (t.accountId !== acc.id) return s
-      return s + (t.type === 'in' ? t.amount : -t.amount)
+      return s + txNet(t)
     }, 0)
-    return { id: acc.id, name: acc.name, balance: Math.round(balance * 100) / 100 }
+    return { id: acc.id, name: acc.name, balance: roundCents(balance) }
   })
   // Show unassigned transactions as a row if any exist
   const unassigned = txStore.transactions.filter(t => t.accountId === null)
   if (unassigned.length > 0) {
-    const uBal = unassigned.reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0)
-    rows.push({ id: '__unassigned__', name: 'Unassigned', balance: Math.round(uBal * 100) / 100 })
+    const uBal = unassigned.reduce((sum, transaction) => sum + txNet(transaction), 0)
+    rows.push({ id: '__unassigned__', name: 'Unassigned', balance: roundCents(uBal) })
   }
   return rows
 })
 
 const totalBalance = computed(() =>
-  Math.round(accountBalances.value.reduce((s, a) => s + a.balance, 0) * 100) / 100
+  roundCents(accountBalances.value.reduce((sum, account) => sum + account.balance, 0))
 )
 
 // ── Budget status ─────────────────────────────────────────────
@@ -91,12 +92,12 @@ const budgetStatus = computed(() => {
   if (items.length === 0) return null
   const rows = items.map(item => {
     const activity  = txStore.getItemActivity(item.id, _thisYear, _thisMonth)
-    const available = Math.round((item.assigned - activity) * 100) / 100
+    const available = roundCents(item.assigned - activity)
     const pct       = item.assigned > 0 ? Math.min(100, Math.round((activity / item.assigned) * 100)) : (activity > 0 ? 100 : 0)
     return { ...item, activity, available, pct }
   })
-  const totalAssigned = Math.round(rows.reduce((s, r) => s + r.assigned, 0) * 100) / 100
-  const totalActivity = Math.round(rows.reduce((s, r) => s + r.activity, 0) * 100) / 100
+  const totalAssigned = roundCents(rows.reduce((sum, row) => sum + row.assigned, 0))
+  const totalActivity = roundCents(rows.reduce((sum, row) => sum + row.activity, 0))
   const overCount     = rows.filter(r => r.available < 0).length
   const onTrack       = rows.filter(r => r.available >= 0).length
   const overallPct    = totalAssigned > 0 ? Math.min(100, Math.round((totalActivity / totalAssigned) * 100)) : 0
@@ -141,32 +142,32 @@ const activeLoans = computed(() => loanStore.loans.filter(l => !l.archived))
 const activeSavings = computed(() => loanStore.savings.filter(s => !s.archived))
 
 const totalMonthlyPayments = computed(() =>
-  Math.round(activeLoans.value.reduce((s, l) => s + loanStore.monthlyPayment(l), 0) * 100) / 100
+  roundCents(activeLoans.value.reduce((sum, loan) => sum + loanStore.monthlyPayment(loan), 0))
 )
 
 const totalLoanRemaining = computed(() => {
-  return Math.round(activeLoans.value.reduce((l, loan) => {
+  return roundCents(activeLoans.value.reduce((remaining, loan) => {
     const rows = loanStore.calcAmortization(loan)
     const nowYM = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}`
     const row = rows.find(r => r.date >= nowYM)
-    return l + (row?.openingBalance ?? loan.principal)
-  }, 0) * 100) / 100
+    return remaining + (row?.openingBalance ?? loan.principal)
+  }, 0))
 })
 
 const totalProjectedSavings = computed(() => {
-  return Math.round(activeSavings.value.reduce((s, sav) => {
-    if (sav.linkedAccountId) return s + loanStore.accountNetBalance(sav.linkedAccountId)
+  return roundCents(activeSavings.value.reduce((sum, savingsAccount) => {
+    if (savingsAccount.linkedAccountId) return sum + loanStore.accountNetBalance(savingsAccount.linkedAccountId)
     const elapsedMonths = Math.max(0,
-      (_now.getFullYear() - new Date(sav.startDate).getFullYear()) * 12 +
-      _now.getMonth() - new Date(sav.startDate).getMonth()
+      (_now.getFullYear() - new Date(savingsAccount.startDate).getFullYear()) * 12 +
+      _now.getMonth() - new Date(savingsAccount.startDate).getMonth()
     )
-    const proj = loanStore.calcSavingsProjection(sav, elapsedMonths)
-    return s + (proj[proj.length - 1]?.balance ?? sav.startBalance)
-  }, 0) * 100) / 100
+    const projection = loanStore.calcSavingsProjection(savingsAccount, elapsedMonths)
+    return sum + (projection[projection.length - 1]?.balance ?? savingsAccount.startBalance)
+  }, 0))
 })
 
 const finNetPosition = computed(() =>
-  Math.round((totalProjectedSavings.value - totalLoanRemaining.value) * 100) / 100
+  roundCents(totalProjectedSavings.value - totalLoanRemaining.value)
 )
 
 interface LoanDashRow {
@@ -215,7 +216,7 @@ const savDashRows = computed((): SavDashRow[] =>
       id: sav.id, name: sav.name, color: sav.color, apr: sav.apr,
       startBalance: sav.startBalance,
       projectedNow,
-      interestEarned: Math.round((projectedNow - sav.startBalance) * 100) / 100,
+      interestEarned: roundCents(projectedNow - sav.startBalance),
       compoundFreq: sav.compoundFreq,
     }
   })

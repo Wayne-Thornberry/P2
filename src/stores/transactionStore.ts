@@ -3,35 +3,16 @@ import { ref, computed, watch } from 'vue'
 import type { Transaction } from '../types/transaction'
 import { generateSeedTransactions } from '../data/transactionSeedData'
 import { useSettingsStore } from './settingsStore'
+import { roundCents, txNet } from '../utils/math'
+import { storageKey, loadStored } from '../utils/storeStorage'
 
 let _nextId = 500
 
 export const useTransactionStore = defineStore('transactions', () => {
   const settings = useSettingsStore()
 
-  function _key(): string {
-    return settings.country ? `clearbook_transactions_${settings.country}` : 'clearbook_transactions'
-  }
-
-  function _load() {
-    try {
-      const key = _key()
-      let raw = localStorage.getItem(key)
-      // One-time migration from bare key for existing installs
-      if (raw === null && settings.country) {
-        raw = localStorage.getItem('clearbook_transactions')
-        if (raw !== null) {
-          localStorage.setItem(key, raw)
-          localStorage.removeItem('clearbook_transactions')
-        }
-      }
-      if (raw === null) {
-        raw = localStorage.getItem('p2_transactions')
-        if (raw !== null) localStorage.removeItem('p2_transactions')
-      }
-      return JSON.parse(raw ?? 'null')
-    } catch { return null }
-  }
+  function _key(): string { return storageKey('clearbook_transactions', settings.country) }
+  function _load() { return loadStored('clearbook_transactions', settings.country, 'p2_transactions') }
 
   const _saved = _load()
 
@@ -102,15 +83,9 @@ export const useTransactionStore = defineStore('transactions', () => {
   // When no cutoff: all-time sum (original behaviour).
   const totalFunds = computed(() => {
     const cutoffTxId = settings.balanceCutoffTxId
-    if (!cutoffTxId) {
-      return Math.round(transactions.value.reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0) * 100) / 100
-    }
-    const pinnedTx = transactions.value.find(t => t.id === cutoffTxId)
-    if (!pinnedTx) {
-      return Math.round(transactions.value.reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0) * 100) / 100
-    }
-    const txs = transactions.value.filter(t => t.date >= pinnedTx.date)
-    return Math.round(txs.reduce((s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0) * 100) / 100
+    const pinnedTx = cutoffTxId ? transactions.value.find(t => t.id === cutoffTxId) : null
+    const txs = pinnedTx ? transactions.value.filter(t => t.date >= pinnedTx.date) : transactions.value
+    return roundCents(txs.reduce((sum, transaction) => sum + txNet(transaction), 0))
   })
 
   function patchTransaction(id: number, patch: Partial<Omit<Transaction, 'id' | 'createdAt'>>): void {

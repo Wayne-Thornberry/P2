@@ -42,6 +42,8 @@ function detect12h(locale: string): boolean {
 }
 
 // ── Store ──────────────────────────────────────────────────────
+const DARK_THEMES = new Set(['dark', 'midnight', 'forest', 'purple'])
+const ALL_THEMES  = ['dark', 'light', 'midnight', 'forest', 'purple', 'slate', 'rose', 'teal'] as const
 export const useSettingsStore = defineStore('settings', () => {
   const _locale      = Intl.DateTimeFormat().resolvedOptions().locale
                     || navigator.language
@@ -68,6 +70,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const country   = ref<string>(_saved?.country ?? '')
 
   const setupComplete = computed(() => country.value !== '')
+  const isDark        = computed(() => DARK_THEMES.has(theme.value))
 
   function setCountry(countryId: string): void {
     const def = getCountryById(countryId)
@@ -97,19 +100,13 @@ export const useSettingsStore = defineStore('settings', () => {
 
   // Apply theme immediately and reactively
   watchEffect(() => {
-    const t = theme.value
+    const t  = theme.value
+    const cl = document.documentElement.classList
     clearTimeout(_themeTransitionTimer)
-    document.documentElement.classList.add('theme-transitioning')
-    document.documentElement.classList.toggle('dark', t === 'dark' || t === 'midnight' || t === 'forest' || t === 'purple')
-    document.documentElement.classList.toggle('theme-dark', t === 'dark')
-    document.documentElement.classList.toggle('theme-light', t === 'light')
-    document.documentElement.classList.toggle('theme-midnight', t === 'midnight')
-    document.documentElement.classList.toggle('theme-forest', t === 'forest')
-    document.documentElement.classList.toggle('theme-purple', t === 'purple')
-    document.documentElement.classList.toggle('theme-slate', t === 'slate')
-    document.documentElement.classList.toggle('theme-rose', t === 'rose')
-    document.documentElement.classList.toggle('theme-teal', t === 'teal')
-    _themeTransitionTimer = setTimeout(() => document.documentElement.classList.remove('theme-transitioning'), 300)
+    cl.add('theme-transitioning')
+    cl.toggle('dark', DARK_THEMES.has(t))
+    for (const th of ALL_THEMES) cl.toggle(`theme-${th}`, t === th)
+    _themeTransitionTimer = setTimeout(() => cl.remove('theme-transitioning'), 300)
   })
 
   // Persist settings to localStorage whenever any setting changes
@@ -194,5 +191,5 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
-  return { theme, locale, currency, country, setupComplete, setCountry, dateStyle, timeStyle, balanceCutoffTxId, formatMoney, formatDate, formatCreatedAt, isConverting, conversionRate, conversionCurrency, activateConversion, deactivateConversion }
+  return { theme, locale, currency, country, setupComplete, isDark, setCountry, dateStyle, timeStyle, balanceCutoffTxId, formatMoney, formatDate, formatCreatedAt, isConverting, conversionRate, conversionCurrency, activateConversion, deactivateConversion }
 })

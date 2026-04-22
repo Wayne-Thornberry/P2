@@ -7,6 +7,7 @@ import { useMonthStore } from './monthStore'
 import { useTemplateStore } from './templateStore'
 import { useTransactionStore } from './transactionStore'
 import { useSettingsStore } from './settingsStore'
+import { storageKey, loadStored } from '../utils/storeStorage'
 
 let _nextItemId = 2000
 
@@ -14,29 +15,8 @@ export const useBudgetStore = defineStore('budget', () => {
   const monthStore = useMonthStore()
   const settings   = useSettingsStore()
 
-  function _key(): string {
-    return settings.country ? `clearbook_budget_${settings.country}` : 'clearbook_budget'
-  }
-
-  function _loadBudget() {
-    try {
-      const key = _key()
-      let raw = localStorage.getItem(key)
-      // One-time migration from bare key for existing installs
-      if (raw === null && settings.country) {
-        raw = localStorage.getItem('clearbook_budget')
-        if (raw !== null) {
-          localStorage.setItem(key, raw)
-          localStorage.removeItem('clearbook_budget')
-        }
-      }
-      if (raw === null) {
-        raw = localStorage.getItem('p2_budget')
-        if (raw !== null) localStorage.removeItem('p2_budget')
-      }
-      return JSON.parse(raw ?? 'null')
-    } catch { return null }
-  }
+  function _key(): string { return storageKey('clearbook_budget', settings.country) }
+  function _loadBudget() { return loadStored('clearbook_budget', settings.country, 'p2_budget') }
 
   const _saved = _loadBudget()
 
@@ -138,7 +118,7 @@ export const useBudgetStore = defineStore('budget', () => {
     const prevYear  = month === 1 ? year - 1 : year
     const prevMonth = month === 1 ? 12 : month - 1
     const source = monthlyEntries.value[prevYear]?.[prevMonth]
-    yearMap[month] = source ? JSON.parse(JSON.stringify(source)) as BudgetMonthEntry[] : []
+    yearMap[month] = source ? structuredClone(source) as BudgetMonthEntry[] : []
   }
 
   const _now = new Date()
@@ -301,7 +281,7 @@ export const useBudgetStore = defineStore('budget', () => {
     const y = monthStore.activeYear
     const m = monthStore.activeMonth
     monthlyEntries.value[y] ??= {}
-    monthlyEntries.value[y]![m] = JSON.parse(JSON.stringify(templateStore.entries))
+    monthlyEntries.value[y]![m] = structuredClone(templateStore.entries)
   }
 
   /**
@@ -315,7 +295,7 @@ export const useBudgetStore = defineStore('budget', () => {
     const y = monthStore.activeYear
     const m = monthStore.activeMonth
     monthlyEntries.value[y] ??= {}
-    monthlyEntries.value[y]![m] = JSON.parse(JSON.stringify(source))
+    monthlyEntries.value[y]![m] = structuredClone(source)
   }
 
   /** All year+month combinations that have at least one entry, sorted newest first. */

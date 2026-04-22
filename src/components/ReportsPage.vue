@@ -19,7 +19,7 @@ const loanStore    = useLoanStore()
 function formatMoney(v: number): string { return settings.formatMoney(v) }
 
 // ── Theme ──────────────────────────────────────────────────────
-const isDark  = computed(() => ['dark', 'midnight', 'forest', 'purple'].includes(settings.theme))
+const isDark  = computed(() => settings.isDark)
 const textClr = computed(() => isDark.value ? '#a1a1aa' : '#52525b')
 const gridClr = computed(() => isDark.value ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)')
 

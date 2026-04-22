@@ -4,34 +4,14 @@ import type { BudgetItem, BudgetItemDef, TemplateEntry } from '../types/budget'
 import { BUDGET_TEMPLATE } from '../data/budgetTemplate'
 import { useBudgetStore } from './budgetStore'
 import { useSettingsStore } from './settingsStore'
+import { storageKey, loadStored } from '../utils/storeStorage'
 
 export const useTemplateStore = defineStore('template', () => {
   const budgetStore = useBudgetStore()
   const settings    = useSettingsStore()
 
-  function _key(): string {
-    return settings.country ? `clearbook_template_${settings.country}` : 'clearbook_template'
-  }
-
-  function _loadTemplate() {
-    try {
-      const key = _key()
-      let raw = localStorage.getItem(key)
-      // One-time migration from bare key for existing installs
-      if (raw === null && settings.country) {
-        raw = localStorage.getItem('clearbook_template')
-        if (raw !== null) {
-          localStorage.setItem(key, raw)
-          localStorage.removeItem('clearbook_template')
-        }
-      }
-      if (raw === null) {
-        raw = localStorage.getItem('p2_template')
-        if (raw !== null) localStorage.removeItem('p2_template')
-      }
-      return JSON.parse(raw ?? 'null')
-    } catch { return null }
-  }
+  function _key(): string { return storageKey('clearbook_template', settings.country) }
+  function _loadTemplate() { return loadStored('clearbook_template', settings.country, 'p2_template') }
 
   const _saved = _loadTemplate()
 
@@ -165,7 +145,7 @@ export const useTemplateStore = defineStore('template', () => {
   }
 
   function getCopy(): BudgetItem[] {
-    return JSON.parse(JSON.stringify(items.value)) as BudgetItem[]
+    return structuredClone(items.value) as BudgetItem[]
   }
 
   function resetToDefault(): void {
