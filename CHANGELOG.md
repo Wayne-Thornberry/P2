@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.6.0] - 2026-04-21
+
+### Changed
+- Merge branch 'main' of https://github.com/Wayne-Thornberry/P2
+- feat: enhance bulk assignment logic and introduce deferred transaction suggestions
+
+---
+
 ## [1.5.0] - 2026-04-21
 
 ### Changed
@@ -94,7 +102,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed-position pagination navigation arrows in Transaction log
 - MIT License
 
-[Unreleased]: https://github.com/Wayne-Thornberry/P2/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/Wayne-Thornberry/P2/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/Wayne-Thornberry/P2/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/Wayne-Thornberry/P2/compare/v1.3.0...v1.5.0
 [1.4.0]: https://github.com/Wayne-Thornberry/P2/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/Wayne-Thornberry/P2/compare/v1.2.3...v1.3.0
