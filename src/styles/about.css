@@ -272,6 +272,42 @@ code {
 .about-seahorse {
   text-align: center;
   font-size: 3.5rem;
-  padding: 2rem 0 3rem;
+  padding: 2rem 0 1.5rem;
   line-height: 1;
+}
+
+.about-github {
+  text-align: center;
+  padding: 0 0 3rem;
+}
+
+.about-github-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.25rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-zinc-300);
+  color: var(--color-zinc-600);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.about-github-link:hover {
+  background: var(--color-zinc-100);
+  color: var(--color-zinc-900);
+  border-color: var(--color-zinc-400);
+}
+
+.dark .about-github-link {
+  border-color: var(--color-zinc-600);
+  color: var(--color-zinc-400);
+}
+
+.dark .about-github-link:hover {
+  background: var(--color-zinc-800);
+  color: var(--color-zinc-100);
+  border-color: var(--color-zinc-500);
 }

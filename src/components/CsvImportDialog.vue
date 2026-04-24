@@ -6,6 +6,7 @@ import { useSettingsStore } from '../stores/settingsStore'
 import { useImportHistoryStore } from '../stores/importHistoryStore'
 import { processMultipleCsvFiles, CSV_ADAPTERS } from '../utils/csvAdapters'
 import { roundCents, txNet } from '../utils/math'
+import { cleanTxName, txNamesMatch } from '../utils/txNameCleaner'
 
 const props = defineProps<{
   visible: boolean
@@ -205,9 +206,21 @@ async function handleImport(): Promise<void> {
     existingKeyCounts.set(key, (existingKeyCounts.get(key) ?? 0) + 1)
   }
 
+  // Build a cleaned-name → itemId lookup from all previously assigned transactions,
+  // so imported rows can be auto-assigned to a matching budget item.
+  const importBankId = selectedAdapterId.value || null
+  const accBankIdMap = new Map(accountStore.accounts.map(a => [a.id, a.bankId ?? null]))
+  const autoAssignMap = new Map<string, number>() // cleanedName → itemId
+  for (const t of txStore.transactions) {
+    if (t.itemId === null) continue
+    const txBankId = t.accountId ? (accBankIdMap.get(t.accountId) ?? null) : null
+    const cleaned = cleanTxName(t.name, txBankId)
+    if (!autoAssignMap.has(cleaned)) autoAssignMap.set(cleaned, t.itemId)
+  }
+
   const consumedCounts = new Map<string, number>()
   let actualNet = 0
-  const batch: Array<{ name: string; date: string; type: 'in' | 'out'; amount: number; itemId: null; accountId: string }> = []
+  const batch: Array<{ name: string; date: string; type: 'in' | 'out'; amount: number; itemId: number | null; accountId: string }> = []
 
   for (const row of result.allRows) {
     const key      = `${row.isoDate}|${row.details}|${row.amount}|${row.type}`
@@ -216,7 +229,13 @@ async function handleImport(): Promise<void> {
     if (consumed < existing) {
       consumedCounts.set(key, consumed + 1)
     } else {
-      batch.push({ name: row.details, date: row.isoDate, type: row.type, amount: row.amount, itemId: null, accountId })
+      // Auto-assign: check if any existing assigned transaction matches this merchant
+      const rowClean = cleanTxName(row.details, importBankId)
+      let autoItemId: number | null = null
+      for (const [existingClean, existingItemId] of autoAssignMap) {
+        if (txNamesMatch(rowClean, existingClean)) { autoItemId = existingItemId; break }
+      }
+      batch.push({ name: row.details, date: row.isoDate, type: row.type, amount: row.amount, itemId: autoItemId, accountId })
       actualNet = roundCents(actualNet + txNet(row))
     }
   }

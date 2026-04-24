@@ -472,11 +472,13 @@ const itemsData = computed(() =>
       return { ...item, assigned: 0, activity, available: -activity, pct: activity > 0 ? 100 : 0 }
     })
     .filter(item => item.activity !== 0)
-    .sort((a, b) => b.activity - a.activity)
+    .sort((a, b) => Math.abs(b.activity) - Math.abs(a.activity))
 )
 
-const itemsTotalSpent    = computed(() => itemsData.value.reduce((s, i) => s + i.activity, 0))
-const itemsUnassigned    = computed(() => txStore.getUnassignedActivity())
+const itemsTotalOutActivity = computed(() => itemsData.value.reduce((s, i) => s + (i.activity > 0 ? i.activity : 0), 0))
+const itemsTotalSpent       = itemsTotalOutActivity
+const itemsMaxAbsActivity   = computed(() => itemsData.value.reduce((m, i) => Math.max(m, Math.abs(i.activity)), 0))
+const itemsUnassigned       = computed(() => txStore.getUnassignedActivity())
 
 // ── Date range filter ─────────────────────────────────────────
 const _todayStr    = _now.toISOString().slice(0, 10)
@@ -863,7 +865,7 @@ function buildItems(): void {
     data: {
       labels:   top.map(i => i.name),
       datasets: [{
-        data:            top.map(i => i.activity),
+        data:            top.map(i => Math.abs(i.activity)),
         backgroundColor: PALETTE.slice(0, top.length).map(c => c.replace('rgb(', 'rgba(').replace(')', ', 0.8)')),
         borderColor:     dark ? '#27272a' : '#f4f4f5',
         borderWidth: 3,
@@ -873,7 +875,7 @@ function buildItems(): void {
       responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
       plugins: {
         legend: { position: 'right', labels: { color: tc, boxWidth: 12, padding: 10, font: { size: 11 } } },
-        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${formatMoney(ctx.parsed)}` } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${formatMoney(Math.abs(ctx.parsed))}` } },
       },
     },
   }))
@@ -1681,7 +1683,7 @@ watch(yearViewYear, y => {
         </div>
         <div class="reports-stat-card">
           <span class="reports-stat-label">Largest Single Item</span>
-          <span class="reports-stat-value money-negative">{{ itemsData.length ? formatMoney(itemsData[0].activity) : '—' }}</span>
+          <span class="reports-stat-value" :class="itemsData.length && itemsData[0].activity < 0 ? 'money-positive' : 'money-negative'">{{ itemsData.length ? formatMoney(Math.abs(itemsData[0].activity)) : '—' }}</span>
         </div>
       </div>
 
@@ -1711,7 +1713,7 @@ watch(yearViewYear, y => {
               >
                 <span class="items-rank-badge" :style="{ background: PALETTE[i % PALETTE.length].replace('rgb(', 'rgba(').replace(')', ', 0.15)'), color: PALETTE[i % PALETTE.length] }">{{ i + 1 }}</span>
                 <span class="items-rank-name">{{ item.name }}</span>
-                <span class="items-rank-amount money-negative">{{ formatMoney(item.activity) }}</span>
+                <span class="items-rank-amount" :class="item.activity < 0 ? 'money-positive' : 'money-negative'">{{ formatMoney(Math.abs(item.activity)) }}</span>
               </div>
             </div>
           </div>
@@ -1730,18 +1732,18 @@ watch(yearViewYear, y => {
               <div class="items-bar-meta">
                 <span class="items-bar-dot" :style="{ background: PALETTE[i % PALETTE.length] }" />
                 <span class="items-bar-name">{{ item.name }}</span>
-                <span class="items-bar-pct">{{ itemsTotalSpent > 0 ? Math.round((item.activity / itemsTotalSpent) * 100) : 0 }}%</span>
+                <span class="items-bar-pct">{{ itemsMaxAbsActivity > 0 ? Math.round((Math.abs(item.activity) / itemsMaxAbsActivity) * 100) : 0 }}%</span>
               </div>
               <div class="items-bar-track">
                 <div
                   class="items-bar-fill"
                   :style="{
-                    width: itemsTotalSpent > 0 ? Math.round((item.activity / itemsTotalSpent) * 100) + '%' : '0%',
+                    width: itemsMaxAbsActivity > 0 ? Math.round((Math.abs(item.activity) / itemsMaxAbsActivity) * 100) + '%' : '0%',
                     background: PALETTE[i % PALETTE.length],
                   }"
                 />
               </div>
-              <span class="items-bar-amount money-negative">{{ formatMoney(item.activity) }}</span>
+              <span class="items-bar-amount" :class="item.activity < 0 ? 'money-positive' : 'money-negative'">{{ formatMoney(Math.abs(item.activity)) }}</span>
             </div>
           </div>
         </div>

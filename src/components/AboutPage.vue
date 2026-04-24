@@ -163,5 +163,10 @@
             </div>
         </section> <!-- Seahorse -->
         <div class="about-seahorse">🦀</div>
+        <div class="about-github">
+            <a href="https://github.com/Wayne-Thornberry/P2" target="_blank" rel="noopener noreferrer" class="about-github-link">
+                <i class="pi pi-github" /> View on GitHub
+            </a>
+        </div>
     </div>
 </template>

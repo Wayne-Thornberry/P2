@@ -11,6 +11,7 @@ import { getTodayStr } from '../utils/date'
 import { useImportHistoryStore } from '../stores/importHistoryStore'
 import { useConfirm } from '../composables/useConfirm'
 import { cleanTxName, hasFriendlyName, txNamesMatch } from '../utils/txNameCleaner'
+import { CSV_ADAPTERS } from '../utils/csvAdapters'
 
 const props = defineProps<{ monthFilter?: string; accountFilter?: string; itemFilter?: number; nameFilter?: string; typeFilter?: 'all' | 'in' | 'out'; focusSearch?: boolean }>()
 
@@ -53,6 +54,17 @@ function formatCreatedAt(iso: string): string { return settings.formatCreatedAt(
 const itemNameMap    = computed(() => new Map(budgetStore.globalItems.map(i => [i.id, i.name])))
 const accountNameMap = computed(() => new Map(accountStore.accounts.map(a => [a.id, a.name])))
 const accountBankIdMap = computed(() => new Map(accountStore.accounts.map(a => [a.id, a.bankId ?? null])))
+const bankIdNameMap    = computed(() => new Map(CSV_ADAPTERS.map(a => [a.id, a.name])))
+
+function getAccountBankId(accountId: string | null): string | null {
+  return accountId ? (accountBankIdMap.value.get(accountId) ?? null) : null
+}
+
+function getBankDisplayName(accountId: string | null): string {
+  const bankId = getAccountBankId(accountId)
+  if (!bankId) return '—'
+  return bankIdNameMap.value.get(bankId) ?? bankId
+}
 
 // Flat sorted list of all global items for dropdowns
 const budgetItemsSorted = computed(() =>
@@ -94,6 +106,7 @@ const filterMonthNum     = ref(_parseMonthFilter(props.monthFilter).month)
 const filterType         = ref<'all' | 'in' | 'out'>(props.typeFilter ?? 'all')
 const filterAccountId    = ref<string | null>(props.accountFilter ?? null)
 const filterItemId       = ref<number | null>(props.itemFilter ?? null)
+const filterBankId       = ref<string | null>(null)
 const filterAmountMinStr = ref('')
 const filterAmountMaxStr = ref('')
 const filterDateFrom     = ref('')
@@ -101,6 +114,15 @@ const filterDateTo       = ref('')
 const filterFlagged      = ref(false)
 const filterLocked       = ref<'locked' | 'unlocked' | null>(null)
 const showMoreFilters    = ref(false)
+
+// Distinct bankIds present in accounts that have at least one transaction
+const availableBankIds = computed(() => {
+  const used = new Set<string>()
+  for (const acc of accountStore.accounts) {
+    if (acc.bankId && store.transactions.some(t => t.accountId === acc.id)) used.add(acc.bankId)
+  }
+  return [...used].sort()
+})
 
 // Auto-expand "More" section if a hidden filter is set programmatically (e.g. filterByAmount)
 watch([filterAmountMinStr, filterAmountMaxStr, filterDateFrom, filterDateTo], ([min, max, from, to]) => {
@@ -123,12 +145,12 @@ onMounted(() => { if (props.focusSearch) nextTick(() => searchInputRef.value?.fo
 // px widths; null = use CSS default (column not yet resized)
 const colWidths = ref<Record<string, number | null>>({
   check: null, date: null, name: null, friendly: null, in: null, out: null,
-  balance: null, item: null, account: null, notes: null, added: null, action: null,
+  balance: null, item: null, account: null, bank: null, notes: null, added: null, action: null,
 })
 
 // Maps thead <th> index → colWidths key (null = markers col, not in colWidths)
 const TH_COL_KEY_MAP: (string | null)[] = [
-  null, 'check', 'date', 'name', 'friendly', 'in', 'out', 'balance', 'item', 'account', 'notes', 'added', 'action',
+  null, 'check', 'date', 'name', 'friendly', 'in', 'out', 'balance', 'item', 'account', 'bank', 'notes', 'added', 'action',
 ]
 
 function startColResize(colKey: string, e: MouseEvent): void {
@@ -176,6 +198,7 @@ function colStyle(colKey: string): string {
 const hasActiveFilters = computed(() =>
   filterSearch.value !== '' || filterYear.value !== '' || filterMonthNum.value !== '' ||
   filterType.value !== 'all' || filterAccountId.value !== null || filterItemId.value !== null ||
+  filterBankId.value !== null ||
   filterAmountMinStr.value !== '' || filterAmountMaxStr.value !== '' ||
   filterDateFrom.value !== '' || filterDateTo.value !== '' || filterFlagged.value || filterLocked.value !== null
 )
@@ -187,6 +210,7 @@ function clearFilters(): void {
   filterType.value         = 'all'
   filterAccountId.value    = null
   filterItemId.value       = null
+  filterBankId.value       = null
   filterAmountMinStr.value = ''
   filterAmountMaxStr.value = ''
   filterDateFrom.value     = ''
@@ -268,6 +292,12 @@ const filteredTransactions = computed(() => {
     if (filterItemId.value === -1) list = list.filter(t => t.itemId === null)
     else list = list.filter(t => t.itemId === filterItemId.value)
   }
+  if (filterBankId.value !== null) {
+    list = list.filter(t => {
+      const bid = t.accountId ? (accountBankIdMap.value.get(t.accountId) ?? null) : null
+      return bid === filterBankId.value
+    })
+  }
   const amtMin = filterAmountMinStr.value !== '' ? parseFloat(filterAmountMinStr.value) : null
   const amtMax = filterAmountMaxStr.value !== '' ? parseFloat(filterAmountMaxStr.value) : null
   if (amtMin !== null && !isNaN(amtMin)) list = list.filter(t => t.amount >= amtMin - 0.005)
@@ -313,7 +343,7 @@ const pagedTransactions = computed(() => {
   return filteredTransactions.value.slice(start, start + pageSize.value)
 })
 
-watch([filterSearch, filterYear, filterMonthNum, filterType, filterAccountId, filterItemId, filterAmountMinStr, filterAmountMaxStr, filterDateFrom, filterDateTo, filterFlagged, filterLocked, pageSize, sortCol, sortDir], () => {
+watch([filterSearch, filterYear, filterMonthNum, filterType, filterAccountId, filterItemId, filterBankId, filterAmountMinStr, filterAmountMaxStr, filterDateFrom, filterDateTo, filterFlagged, filterLocked, pageSize, sortCol, sortDir], () => {
   page.value = 1
   // Clear selection when filters change to avoid phantom selections across filter states
   selectedIds.value = new Set()
@@ -848,7 +878,6 @@ function applyBulkItem(): void {
     store.updateTransaction(tx.id, { name: tx.name, date: tx.date, type: tx.type, amount: tx.amount, itemId, accountId: tx.accountId, notes: tx.notes })
   }
   bulkItemIdStr.value = ''
-  bulkAccountIdStr.value = ''
 }
 
 function applyBulkAccount(): void {
@@ -857,7 +886,6 @@ function applyBulkAccount(): void {
   for (const tx of targets) {
     store.updateTransaction(tx.id, { name: tx.name, date: tx.date, type: tx.type, amount: tx.amount, itemId: tx.itemId, accountId, notes: tx.notes })
   }
-  bulkItemIdStr.value = ''
   bulkAccountIdStr.value = ''
 }
 
@@ -1001,6 +1029,16 @@ const historyExpanded = ref(false)
             <option :value="UNASSIGNED_ACCOUNT_ID">— No account —</option>
             <option v-for="acc in accountStore.accounts" :key="acc.id" :value="acc.id">
               {{ acc.name }}
+            </option>
+          </select>
+        </div>
+
+        <div v-if="availableBankIds.length > 1" class="tx-filter-group">
+          <label class="tx-filter-label">Bank</label>
+          <select v-model="filterBankId" class="tx-filter-field tx-filter-select">
+            <option :value="null">All banks</option>
+            <option v-for="bid in availableBankIds" :key="bid" :value="bid">
+              {{ bankIdNameMap.get(bid) ?? bid }}
             </option>
           </select>
         </div>
@@ -1274,6 +1312,7 @@ const historyExpanded = ref(false)
             <col :style="colStyle('balance')" />
             <col :style="colStyle('item')" />
             <col :style="colStyle('account')" />
+            <col :style="colStyle('bank')" />
             <col :style="colStyle('notes')" />
             <col :style="colStyle('added')" />
           </colgroup>
@@ -1332,6 +1371,11 @@ const historyExpanded = ref(false)
               <th class="tx-col-account th-sortable" @click="toggleSort('account')">
                 <div class="th-label">Account <i :class="sortIcon('account')" class="tx-sort-icon" /></div>
                 <div class="th-resize-handle" @mousedown.stop="startColResize('account', $event)" /></th>
+
+              <!-- Bank -->
+              <th class="tx-col-bank">
+                <div class="th-label">Bank</div>
+                <div class="th-resize-handle" @mousedown.stop="startColResize('bank', $event)" /></th>
 
               <!-- Notes -->
               <th class="tx-col-notes">
@@ -1417,6 +1461,7 @@ const historyExpanded = ref(false)
                     </option>
                   </select>
                 </td>
+                <td class="tx-col-bank"></td>
                 <td class="tx-col-notes">
                   <input type="text" v-model="editDraft.notes" class="tx-input" placeholder="Notes…"
                     @keydown.enter.prevent="commitEdit" />
@@ -1465,6 +1510,7 @@ const historyExpanded = ref(false)
                 <td class="tx-col-balance" :class="runningBalanceMap.has(tx.id) ? ((runningBalanceMap.get(tx.id) ?? 0) >= 0 ? 'money-positive' : 'money-negative') : 'tx-balance-hidden'">{{ runningBalanceMap.has(tx.id) ? formatMoney(runningBalanceMap.get(tx.id)!) : '—' }}</td>
                 <td class="tx-col-item">{{ getItemName(tx.itemId) }}</td>
                 <td class="tx-col-account">{{ getAccountName(tx.accountId) }}</td>
+                <td class="tx-col-bank">{{ getBankDisplayName(tx.accountId) }}</td>
                 <td class="tx-col-notes" :title="tx.notes">{{ tx.notes ?? '' }}</td>
                 <td class="tx-created-at">{{ formatCreatedAt(tx.createdAt) }}</td>
               </tr>
@@ -1473,7 +1519,7 @@ const historyExpanded = ref(false)
 
             <!-- Empty state -->
             <tr v-if="!pagedTransactions.length && !pending">
-              <td colspan="12" class="tx-empty">
+              <td colspan="13" class="tx-empty">
                 <span v-if="hasActiveFilters">No transactions match the current filters.</span>
                 <span v-else>No transactions yet. Click + Add Transaction below to get started.</span>
               </td>
@@ -1549,6 +1595,7 @@ const historyExpanded = ref(false)
                   </option>
                 </select>
               </td>
+              <td class="tx-col-bank"></td>
               <td class="tx-col-notes">
                 <input type="text" v-model="pending.notes" class="tx-input" placeholder="Notes…"
                   @keydown.enter.prevent="commitTransaction" />
