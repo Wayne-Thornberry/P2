@@ -44,6 +44,15 @@ export const useTransactionStore = defineStore('transactions', () => {
     transactions.value = transactions.value.filter(t => t.id !== id)
   }
 
+  /**
+   * Delete multiple transactions in a single reactive update.
+   * Avoids O(n²) cost and N localStorage writes when deleting many rows at once.
+   */
+  function bulkDeleteTransactions(ids: Set<number>): void {
+    if (ids.size === 0) return
+    transactions.value = transactions.value.filter(t => !ids.has(t.id))
+  }
+
   function updateTransaction(id: number, fields: Omit<Transaction, 'id' | 'createdAt'>): void {
     const idx = transactions.value.findIndex(t => t.id === id)
     if (idx !== -1) {
@@ -76,6 +85,21 @@ export const useTransactionStore = defineStore('transactions', () => {
         return true
       })
       .reduce((sum, t) => sum + (t.type === 'out' ? t.amount : -t.amount), 0)
+  }
+
+  /**
+   * Build a Map<itemId → activity> for a given month in a single pass.
+   * Use this instead of calling getItemActivity per item to avoid O(items × transactions) cost.
+   */
+  function getMonthlyActivityMap(year: number, month: number): Map<number, number> {
+    const map = new Map<number, number>()
+    for (const t of transactions.value) {
+      if (t.itemId === null) continue
+      const [y, m] = t.date.split('-').map(Number)
+      if (y !== year || m !== month) continue
+      map.set(t.itemId, (map.get(t.itemId) ?? 0) + (t.type === 'out' ? t.amount : -t.amount))
+    }
+    return map
   }
 
   // Running balance across all accounts, respecting optional balance cutoff setting.
@@ -177,5 +201,5 @@ export const useTransactionStore = defineStore('transactions', () => {
     }
   }
 
-  return { transactions, totalFunds, addTransaction, bulkAddTransactions, deleteTransaction, updateTransaction, patchTransaction, lockTransactions, unlockTransactions, lockOnOrBefore, unlockOnOrBefore, lockAll, unlockAll, addOpeningBalance, getItemActivity, getUnassignedActivity, unassignItem, loadSeedData, $import }
+  return { transactions, totalFunds, addTransaction, bulkAddTransactions, deleteTransaction, bulkDeleteTransactions, updateTransaction, patchTransaction, lockTransactions, unlockTransactions, lockOnOrBefore, unlockOnOrBefore, lockAll, unlockAll, addOpeningBalance, getItemActivity, getUnassignedActivity, getMonthlyActivityMap, unassignItem, loadSeedData, $import }
 })

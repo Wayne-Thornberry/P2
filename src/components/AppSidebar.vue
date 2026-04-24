@@ -11,10 +11,10 @@ const emit = defineEmits<{ navigate: [page: string] }>()
   ]">
 
     <!-- Brand -->
-    <div class="px-5 py-5 border-b-2 border-zinc-300 dark:border-zinc-600">
+    <button class="px-5 py-5 border-b-2 border-zinc-300 dark:border-zinc-600 text-left w-full hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors" @click="emit('navigate', 'dashboard')">
       <p class="text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-zinc-100 leading-tight">Clearbook</p>
       <p class="text-xs font-mono text-zinc-400 dark:text-zinc-500">Budget Tracker</p>
-    </div>
+    </button>
 
     <!-- Nav -->
     <nav class="flex-1 px-3 py-4 flex flex-col gap-1">

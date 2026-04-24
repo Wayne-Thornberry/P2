@@ -746,7 +746,7 @@ async function deleteSelected(): Promise<void> {
     danger: true,
   })
   if (!ok) return
-  for (const t of targets) store.deleteTransaction(t.id)
+  store.bulkDeleteTransactions(new Set(targets.map(t => t.id)))
   clearSelection()
 }
 

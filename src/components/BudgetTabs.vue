@@ -78,23 +78,27 @@ const emit = defineEmits<{
 const totalFundsAvailable = computed(() => budgetFunds.value)
 const excludedAccountCount = computed(() => excludedAccountIds.value.size)
 
-const monthlyNet = computed(() =>
-  txStore.transactions
-    .filter(t => monthStore.matchesActive(t.date) && (t.accountId === null || !excludedAccountIds.value.has(t.accountId)))
-    .reduce((sum, transaction) => sum + txNet(transaction), 0)
-)
+const _monthStats = computed(() => {
+  const y = monthStore.activeYear
+  const m = monthStore.activeMonth
+  const excluded = excludedAccountIds.value
+  let net = 0, unassignedAct = 0, unassignedCnt = 0
+  for (const t of txStore.transactions) {
+    const [ty, tm] = t.date.split('-').map(Number)
+    if (ty !== y || tm !== m) continue
+    const delta = txNet(t)
+    if (!t.accountId || !excluded.has(t.accountId)) net += delta
+    if (t.itemId === null) {
+      unassignedAct += (t.type === 'out' ? t.amount : -t.amount)
+      unassignedCnt++
+    }
+  }
+  return { net, unassignedAct, unassignedCnt }
+})
 
-const unassignedActivity = computed(() =>
-  txStore.getUnassignedActivity(monthStore.activeYear, monthStore.activeMonth)
-)
-
-const unassignedCount = computed(() =>
-  txStore.transactions.filter(t => {
-    if (t.itemId !== null) return false
-    const [y, m] = t.date.split('-').map(Number)
-    return y === monthStore.activeYear && m === monthStore.activeMonth
-  }).length
-)
+const monthlyNet        = computed(() => _monthStats.value.net)
+const unassignedActivity = computed(() => _monthStats.value.unassignedAct)
+const unassignedCount   = computed(() => _monthStats.value.unassignedCnt)
 
 function formatMoney(v: number): string { return settings.formatMoney(v) }
 
@@ -115,13 +119,14 @@ function selectMonth(month: number): void {
 }
 
 // ── YNAB-style quick funding ───────────────────────────────────
-const budgetRows = computed<BudgetRow[]>(() =>
-  store.items.map(i => {
-    const activity  = txStore.getItemActivity(i.id, monthStore.activeYear, monthStore.activeMonth)
+const budgetRows = computed<BudgetRow[]>(() => {
+  const activityMap = txStore.getMonthlyActivityMap(monthStore.activeYear, monthStore.activeMonth)
+  return store.items.map(i => {
+    const activity  = activityMap.get(i.id) ?? 0
     const available = roundCents(i.assigned - activity)
     return { ...i, activity, available }
   })
-)
+})
 
 const overspentRows  = computed(() => budgetRows.value.filter(r => r.available < 0))
 const underBudgetRows = computed(() => budgetRows.value.filter(r => r.available > 0))

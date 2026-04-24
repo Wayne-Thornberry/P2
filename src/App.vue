@@ -123,70 +123,45 @@ function navigate(page: string): void {
 }
 
 function onGlobalSearchSelect(tx: Transaction): void {
+  goToTransactions({ name: tx.name })
+}
+
+function goToTransactions(opts: {
+  month?: string
+  accountId?: string
+  itemId?: number
+  name?: string
+  type?: 'all' | 'in' | 'out'
+}): void {
   settings.deactivateConversion()
-  txMonthFilter.value   = ''
-  txAccountFilter.value = undefined
-  txItemFilter.value    = undefined
-  txNameFilter.value    = tx.name
-  txTypeFilter.value    = 'all'
+  txMonthFilter.value   = opts.month ?? ''
+  txAccountFilter.value = opts.accountId
+  txItemFilter.value    = opts.itemId
+  txNameFilter.value    = opts.name ?? ''
+  txTypeFilter.value    = opts.type ?? 'all'
   txFocusSearch.value   = false
   activeNavItem.value   = 'transactions'
   currentPage.value     = 'transactions'
 }
 
 function onViewTransactions(yearMonth: string): void {
-  settings.deactivateConversion()
-  txMonthFilter.value   = yearMonth
-  txAccountFilter.value = undefined
-  txItemFilter.value    = undefined
-  txNameFilter.value    = ''
-  txFocusSearch.value   = false
-  activeNavItem.value   = 'transactions'
-  currentPage.value     = 'transactions'
+  goToTransactions({ month: yearMonth })
 }
 
 function onViewTransactionByName(txName: string, yearMonth: string): void {
-  settings.deactivateConversion()
-  txMonthFilter.value   = yearMonth
-  txAccountFilter.value = undefined
-  txItemFilter.value    = undefined
-  txNameFilter.value    = txName
-  txFocusSearch.value   = false
-  activeNavItem.value   = 'transactions'
-  currentPage.value     = 'transactions'
+  goToTransactions({ month: yearMonth, name: txName })
 }
 
 function onViewAccountTransactions(accountId: string): void {
-  settings.deactivateConversion()
-  txMonthFilter.value   = ''
-  txAccountFilter.value = accountId
-  txItemFilter.value    = undefined
-  txFocusSearch.value   = false
-  activeNavItem.value   = 'transactions'
-  currentPage.value     = 'transactions'
+  goToTransactions({ accountId })
 }
 
 function onViewItemTransactions(itemId: number, yearMonth: string): void {
-  settings.deactivateConversion()
-  txMonthFilter.value   = yearMonth
-  txAccountFilter.value = undefined
-  txItemFilter.value    = itemId
-  txNameFilter.value    = ''
-  txFocusSearch.value   = false
-  activeNavItem.value   = 'transactions'
-  currentPage.value     = 'transactions'
+  goToTransactions({ month: yearMonth, itemId })
 }
 
 function onReportViewTransactions(opts: { month?: string; accountId?: string; name?: string; type?: 'in' | 'out' }): void {
-  settings.deactivateConversion()
-  txMonthFilter.value   = opts.month ?? ''
-  txAccountFilter.value = opts.accountId ?? undefined
-  txItemFilter.value    = undefined
-  txNameFilter.value    = opts.name ?? ''
-  txTypeFilter.value    = opts.type ?? 'all'
-  txFocusSearch.value   = false
-  activeNavItem.value   = 'transactions'
-  currentPage.value     = 'transactions'
+  goToTransactions({ month: opts.month, accountId: opts.accountId, name: opts.name, type: opts.type })
 }
 
 function onViewAccountInReports(accountId: string): void {
@@ -400,9 +375,9 @@ const breadcrumbSegments = computed(() =>
           v-if="currentPage === 'dashboard'"
           @navigate="navigate"
           @viewTransactions="onViewTransactions"
-          @viewSearchFor="(name) => { txMonthFilter = ''; txAccountFilter = undefined; txItemFilter = undefined; txNameFilter = name; txTypeFilter = 'all'; txFocusSearch = false; activeNavItem = 'transactions'; currentPage = 'transactions' }"
+          @viewSearchFor="(name) => goToTransactions({ name })"
         />
-        <BudgetTabs v-else-if="currentPage === 'budget'" @navigate="currentPage = $event" @viewTransactions="onViewTransactions" @viewItemTransactions="onViewItemTransactions" @viewTransaction="onViewTransactionByName" />
+        <BudgetTabs v-else-if="currentPage === 'budget'" @navigate="navigate($event)" @viewTransactions="onViewTransactions" @viewItemTransactions="onViewItemTransactions" @viewTransaction="onViewTransactionByName" />
         <TemplatePage v-else-if="currentPage === 'template'" />
         <TransactionLog v-else-if="currentPage === 'transactions'" :monthFilter="txMonthFilter" :accountFilter="txAccountFilter" :itemFilter="txItemFilter" :nameFilter="txNameFilter" :typeFilter="txTypeFilter" :focusSearch="txFocusSearch" />
         <AccountsPage v-else-if="currentPage === 'accounts'" @viewTransactions="onViewAccountTransactions" @viewInReports="onViewAccountInReports" @viewBreakdown="onViewBreakdown" @viewSavingsGoal="onViewSavingsGoal" @viewFinance="onViewFinance" />

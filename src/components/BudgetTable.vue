@@ -33,9 +33,13 @@ const transactionStore = useTransactionStore()
 const monthStore       = useMonthStore()
 const settings         = useSettingsStore()
 
+const activityByItem = computed(() =>
+  transactionStore.getMonthlyActivityMap(monthStore.activeYear, monthStore.activeMonth)
+)
+
 const tableItems = computed<BudgetRow[]>(() =>
   props.items.map(i => {
-    const activity  = transactionStore.getItemActivity(i.id, monthStore.activeYear, monthStore.activeMonth)
+    const activity  = activityByItem.value.get(i.id) ?? 0
     const available = roundCents(i.assigned - activity)
     return { ...i, activity, available }
   })
