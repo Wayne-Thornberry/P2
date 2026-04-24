@@ -47,11 +47,11 @@ export function exportAllData(): string {
       timeStyle: settings.timeStyle,
       country:   settings.country,
     },
-    accounts:             structuredClone(accountStore.accounts),
-    transactions:         structuredClone(txnStore.transactions),
-    budgetGlobalItems:    structuredClone(budgetStore.globalItems),
-    budgetMonthlyEntries: structuredClone(budgetStore.monthlyEntries),
-    templateItems:        structuredClone(templateStore.items),
+    accounts:             JSON.parse(JSON.stringify(accountStore.accounts)),
+    transactions:         JSON.parse(JSON.stringify(txnStore.transactions)),
+    budgetGlobalItems:    JSON.parse(JSON.stringify(budgetStore.globalItems)),
+    budgetMonthlyEntries: JSON.parse(JSON.stringify(budgetStore.monthlyEntries)),
+    templateItems:        JSON.parse(JSON.stringify(templateStore.items)),
   }
 
   return JSON.stringify(data, null, 2)

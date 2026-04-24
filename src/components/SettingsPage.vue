@@ -137,7 +137,7 @@ function generateBudgets(): void {
     budgetStore.monthlyEntries[year] ??= {}
     if (hasTemplate) {
       // Deep-copy template entries into this month
-      budgetStore.monthlyEntries[year]![m] = structuredClone(templateStore.entries)
+      budgetStore.monthlyEntries[year]![m] = JSON.parse(JSON.stringify(templateStore.entries))
     } else {
       // Seed from the default budget items — register global items if needed
       budgetStore.monthlyEntries[year]![m] = seedItems.map(item => ({

@@ -145,7 +145,7 @@ export const useTemplateStore = defineStore('template', () => {
   }
 
   function getCopy(): BudgetItem[] {
-    return structuredClone(items.value) as BudgetItem[]
+    return JSON.parse(JSON.stringify(items.value)) as BudgetItem[]
   }
 
   function resetToDefault(): void {

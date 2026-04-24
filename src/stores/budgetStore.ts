@@ -118,7 +118,7 @@ export const useBudgetStore = defineStore('budget', () => {
     const prevYear  = month === 1 ? year - 1 : year
     const prevMonth = month === 1 ? 12 : month - 1
     const source = monthlyEntries.value[prevYear]?.[prevMonth]
-    yearMap[month] = source ? structuredClone(source) as BudgetMonthEntry[] : []
+    yearMap[month] = source ? JSON.parse(JSON.stringify(source)) as BudgetMonthEntry[] : []
   }
 
   const _now = new Date()
@@ -281,7 +281,7 @@ export const useBudgetStore = defineStore('budget', () => {
     const y = monthStore.activeYear
     const m = monthStore.activeMonth
     monthlyEntries.value[y] ??= {}
-    monthlyEntries.value[y]![m] = structuredClone(templateStore.entries)
+    monthlyEntries.value[y]![m] = JSON.parse(JSON.stringify(templateStore.entries))
   }
 
   /**
@@ -295,7 +295,7 @@ export const useBudgetStore = defineStore('budget', () => {
     const y = monthStore.activeYear
     const m = monthStore.activeMonth
     monthlyEntries.value[y] ??= {}
-    monthlyEntries.value[y]![m] = structuredClone(source)
+    monthlyEntries.value[y]![m] = JSON.parse(JSON.stringify(source))
   }
 
   /** All year+month combinations that have at least one entry, sorted newest first. */
