@@ -6,6 +6,7 @@ import { useBudgetDrag } from '../composables/useBudgetDrag'
 import { useTransactionStore } from '../stores/transactionStore'
 import { useMonthStore } from '../stores/monthStore'
 import { useSettingsStore } from '../stores/settingsStore'
+import { usePlannerStore } from '../stores/plannerStore'
 import { roundCents } from '../utils/math'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
@@ -15,6 +16,7 @@ import Checkbox from 'primevue/checkbox'
 const props = defineProps<{
   items: BudgetItem[]
   availableToAdd: BudgetItemDef[]
+  idealMode?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -32,14 +34,30 @@ const itemsRef = toRef(props, 'items')
 const transactionStore = useTransactionStore()
 const monthStore       = useMonthStore()
 const settings         = useSettingsStore()
+const plannerStore     = usePlannerStore()
 
 const activityByItem = computed(() =>
   transactionStore.getMonthlyActivityMap(monthStore.activeYear, monthStore.activeMonth)
 )
 
+const idealActivityMap = computed<Map<number, number>>(() => {
+  const result = new Map<number, number>()
+  const ideal = plannerStore.idealSimulation
+  if (!ideal) return result
+  const expenseItems = ideal.items.filter(i => i.kind === 'expense')
+  for (const budgetItem of props.items) {
+    const norm = budgetItem.name.toLowerCase().trim()
+    const match = expenseItems.find(e => e.name.toLowerCase().trim() === norm)
+    if (match) result.set(budgetItem.id, match.amount)
+  }
+  return result
+})
+
 const tableItems = computed<BudgetRow[]>(() =>
   props.items.map(i => {
-    const activity  = activityByItem.value.get(i.id) ?? 0
+    const activity  = props.idealMode
+      ? (idealActivityMap.value.get(i.id) ?? 0)
+      : (activityByItem.value.get(i.id) ?? 0)
     const available = roundCents(i.assigned - activity)
     return { ...i, activity, available }
   })
@@ -340,7 +358,7 @@ function onCellEditComplete(event: { data: BudgetItem; newData: BudgetItem; fiel
         </template>
       </Column>
 
-      <Column columnKey="activity" field="activity" header="Activity" style="width: 13rem">
+      <Column columnKey="activity" field="activity" :header="props.idealMode ? 'Ideal' : 'Activity'" style="width: 13rem">
         <template #body="{ data }">
           <div class="activity-cell">
             <button

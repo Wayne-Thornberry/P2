@@ -11,6 +11,8 @@ import AboutPage from './components/AboutPage.vue'
 import DashboardPage from './components/DashboardPage.vue'
 import SavingsGoalsPage from './components/SavingsGoalsPage.vue'
 import FinancePage from './components/FinancePage.vue'
+import PlannerPage from './components/PlannerPage.vue'
+import PerformancePage from './components/PerformancePage.vue'
 import GlobalSearch from './components/GlobalSearch.vue'
 import SetupScreen from './components/SetupScreen.vue'
 import CsvImportDialog from './components/CsvImportDialog.vue'
@@ -211,6 +213,8 @@ const PAGE_BREADCRUMBS: Record<string, BreadcrumbSegment[]> = {
   reports:      [{ icon: 'pi-chart-bar',   label: 'Reports'      }],
   savings:      [{ icon: 'pi-flag',        label: 'Savings Goals' }],
   finance:      [{ icon: 'pi-percentage',  label: 'Finance'       }, { label: 'Loans & Savings' }],
+  planner:      [{ icon: 'pi-calculator',  label: 'Planner' }],
+  performance:  [{ icon: 'pi-chart-line',   label: 'Performance' }],
   settings:     [{ icon: 'pi-cog',         label: 'Settings'     }],
   about:        [{ icon: 'pi-info-circle', label: 'About'        }],
 }
@@ -383,7 +387,9 @@ const breadcrumbSegments = computed(() =>
         <AccountsPage v-else-if="currentPage === 'accounts'" @viewTransactions="onViewAccountTransactions" @viewInReports="onViewAccountInReports" @viewBreakdown="onViewBreakdown" @viewSavingsGoal="onViewSavingsGoal" @viewFinance="onViewFinance" />
         <ReportsPage  v-else-if="currentPage === 'reports'" :initialAccountId="reportsInitAccountId" :initialBreakdownMonth="reportsInitBreakdownMonth" @viewTransactions="onReportViewTransactions" @navigate="navigate" />
         <SavingsGoalsPage v-else-if="currentPage === 'savings'" :focusGoalId="savingsGoalFocusId" />
-        <FinancePage      v-else-if="currentPage === 'finance'" :focusKind="financeFocusKind" :focusId="financeFocusId" />
+        <FinancePage          v-else-if="currentPage === 'finance'" :focusKind="financeFocusKind" :focusId="financeFocusId" />
+        <PlannerPage         v-else-if="currentPage === 'planner'" />
+        <PerformancePage     v-else-if="currentPage === 'performance'" @navigate="navigate" />
         <SettingsPage v-else-if="currentPage === 'settings'" />
         <AboutPage    v-else-if="currentPage === 'about'" />
       </main>

@@ -1,0 +1,335 @@
+/* ── Performance page ────────────────────────────────────────── */
+
+.perf-root {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* ── Header ──────────────────────────────────────────────────── */
+
+.perf-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.perf-title {
+  font-size: 1.35rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: var(--color-zinc-900);
+  margin: 0;
+}
+.dark .perf-title { color: var(--color-zinc-100); }
+
+.perf-subtitle {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-zinc-400);
+  margin: 0.2rem 0 0;
+}
+
+.perf-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.perf-month-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-zinc-400);
+  white-space: nowrap;
+}
+
+.perf-month-input {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 2px solid var(--color-zinc-300);
+  border-radius: 0.375rem;
+  background: var(--color-zinc-50);
+  color: var(--color-zinc-900);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.12s;
+}
+.dark .perf-month-input {
+  background: var(--color-zinc-800);
+  border-color: var(--color-zinc-600);
+  color: var(--color-zinc-100);
+}
+.perf-month-input:focus { border-color: var(--color-zinc-500); }
+
+/* ── No-ideal state ──────────────────────────────────────────── */
+
+.perf-no-ideal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 3rem 1.5rem;
+  border: 2px dashed var(--color-zinc-300);
+  border-radius: 0.5rem;
+  text-align: center;
+}
+.dark .perf-no-ideal { border-color: var(--color-zinc-600); }
+
+.perf-no-ideal-icon {
+  font-size: 2rem;
+  color: var(--color-zinc-300);
+}
+.dark .perf-no-ideal-icon { color: var(--color-zinc-600); }
+
+.perf-no-ideal-msg {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-zinc-500);
+  margin: 0;
+}
+.dark .perf-no-ideal-msg { color: var(--color-zinc-400); }
+
+.perf-no-ideal-hint {
+  font-size: 0.8rem;
+  color: var(--color-zinc-400);
+  max-width: 28rem;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.perf-go-planner-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.65rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: var(--color-zinc-900);
+  color: var(--color-zinc-100);
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.dark .perf-go-planner-btn { background: var(--color-zinc-100); color: var(--color-zinc-900); }
+.perf-go-planner-btn:hover { background: var(--color-zinc-700); }
+.dark .perf-go-planner-btn:hover { background: var(--color-zinc-300); }
+
+/* ── Summary bar ─────────────────────────────────────────────── */
+
+.perf-summary {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  padding: 1rem 1.25rem;
+  background: var(--color-zinc-100);
+  border: 2px solid var(--color-zinc-200);
+  border-radius: 0.5rem;
+  flex-wrap: wrap;
+}
+.dark .perf-summary {
+  background: var(--color-zinc-800);
+  border-color: var(--color-zinc-700);
+}
+
+.perf-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.perf-summary-item--ideal {
+  margin-left: auto;
+  align-items: flex-end;
+}
+
+.perf-summary-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-zinc-400);
+}
+
+.perf-summary-value {
+  font-size: 1.1rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  font-feature-settings: "tnum";
+  color: var(--color-zinc-700);
+}
+.dark .perf-summary-value { color: var(--color-zinc-200); }
+
+.perf-summary-ideal-name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-amber-600);
+}
+.dark .perf-summary-ideal-name { color: var(--color-amber-400); }
+
+/* ── Value colours ───────────────────────────────────────────── */
+
+.perf-value--over  { color: var(--color-red-600) !important; }
+.dark .perf-value--over { color: var(--color-red-400) !important; }
+
+.perf-value--under { color: var(--color-zinc-400) !important; }
+.dark .perf-value--under { color: var(--color-zinc-500) !important; }
+
+.perf-value--ok    { color: var(--color-emerald-600) !important; }
+.dark .perf-value--ok { color: var(--color-emerald-400) !important; }
+
+/* ── Section ─────────────────────────────────────────────────── */
+
+.perf-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.perf-section-title {
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-zinc-600);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 2px solid var(--color-zinc-200);
+}
+.dark .perf-section-title {
+  color: var(--color-zinc-300);
+  border-bottom-color: var(--color-zinc-700);
+}
+
+.perf-section-total {
+  margin-left: auto;
+  font-size: 0.85rem;
+  letter-spacing: -0.01em;
+  font-feature-settings: "tnum";
+}
+
+.perf-section-desc {
+  font-size: 0.75rem;
+  color: var(--color-zinc-400);
+  margin: 0;
+}
+
+/* ── Income summary row ──────────────────────────────────────── */
+
+.perf-income-summary {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.6rem 1rem;
+  background: var(--color-zinc-100);
+  border-radius: 0.375rem;
+  flex-wrap: wrap;
+}
+.dark .perf-income-summary {
+  background: var(--color-zinc-800);
+}
+
+/* ── Table ───────────────────────────────────────────────────── */
+
+.perf-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.perf-th {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-zinc-400);
+  background: var(--color-zinc-100);
+  border-bottom: 2px solid var(--color-zinc-200);
+  white-space: nowrap;
+}
+.dark .perf-th {
+  background: var(--color-zinc-800);
+  border-bottom-color: var(--color-zinc-700);
+  color: var(--color-zinc-500);
+}
+
+.perf-th--num    { text-align: right; }
+.perf-th--status { text-align: center; }
+
+.perf-tr:nth-child(even) { background: var(--color-zinc-50); }
+.dark .perf-tr:nth-child(even) { background: color-mix(in srgb, var(--color-zinc-700) 30%, transparent); }
+
+.perf-td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--color-zinc-100);
+  color: var(--color-zinc-700);
+  font-weight: 600;
+}
+.dark .perf-td {
+  border-bottom-color: var(--color-zinc-700);
+  color: var(--color-zinc-200);
+}
+
+.perf-td--num    { text-align: right; font-feature-settings: "tnum"; white-space: nowrap; }
+.perf-td--date   { font-size: 0.75rem; color: var(--color-zinc-400); white-space: nowrap; }
+.perf-td--status { text-align: center; }
+
+/* ── Status badge ────────────────────────────────────────────── */
+
+.perf-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.55rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 0.25rem;
+  white-space: nowrap;
+}
+
+.perf-status-badge--ok {
+  background: color-mix(in srgb, var(--color-emerald-500) 12%, transparent);
+  color: var(--color-emerald-700);
+}
+.dark .perf-status-badge--ok { color: var(--color-emerald-400); }
+
+.perf-status-badge--over {
+  background: color-mix(in srgb, var(--color-red-500) 12%, transparent);
+  color: var(--color-red-700);
+}
+.dark .perf-status-badge--over { color: var(--color-red-400); }
+
+.perf-status-badge--under {
+  background: var(--color-zinc-100);
+  color: var(--color-zinc-500);
+}
+.dark .perf-status-badge--under {
+  background: var(--color-zinc-700);
+  color: var(--color-zinc-400);
+}
+
+/* ── Empty state ─────────────────────────────────────────────── */
+
+.perf-empty {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-zinc-400);
+  text-align: center;
+  padding: 1.5rem 0;
+}

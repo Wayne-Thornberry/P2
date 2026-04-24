@@ -18,6 +18,8 @@
 @import "./styles/assign.css";
 @import "./styles/about.css";
 @import "./styles/accounts.css";
+@import "./styles/planner.css";
+@import "./styles/performance.css";
 @import "./styles/csv-import.css";
 @import "./styles/theme-midnight.css";
 @import "./styles/theme-forest.css";

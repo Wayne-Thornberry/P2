@@ -11,6 +11,7 @@ import BudgetTable from './BudgetTable.vue'
 import AssignPanel from './AssignPanel.vue'
 import { useConfirm } from '../composables/useConfirm'
 import { useBudgetFunds } from '../composables/useBudgetFunds'
+import { usePlannerStore } from '../stores/plannerStore'
 import { roundCents, txNet } from '../utils/math'
 const store        = useBudgetStore()
 const txStore      = useTransactionStore()
@@ -19,6 +20,8 @@ const settings     = useSettingsStore()
 const toast        = useToast()
 const { confirm }  = useConfirm()
 const { budgetFunds, excludedAccountIds } = useBudgetFunds()
+const plannerStore = usePlannerStore()
+const idealMode    = ref(false)
 const isMonthEmpty = computed(() => store.items.length === 0)
 
 // ── Add category ──────────────────────────────────────────────
@@ -139,7 +142,7 @@ const totalUnderBudget = computed(() =>
 )
 
 // ── Budget vs Actual ──────────────────────────────────────────
-const viewMode = ref<'budget' | 'actual'>('budget')
+const viewMode = ref<'budget' | 'actual' | 'ideal'>('budget')
 
 const budgetRowsByCategory = computed(() => {
   const groups = new Map<string, { rows: BudgetRow[]; assigned: number; activity: number; available: number }>()
@@ -335,6 +338,7 @@ function absorbOverspend(): void {
       <div class="budget-view-mode">
         <button class="budget-view-mode-btn" :class="{ 'budget-view-mode-btn--active': viewMode === 'budget' }"   @click="viewMode = 'budget'">Budget</button>
         <button class="budget-view-mode-btn" :class="{ 'budget-view-mode-btn--active': viewMode === 'actual' }" @click="viewMode = 'actual'">vs Actual</button>
+        <button v-if="plannerStore.idealSimulation" class="budget-view-mode-btn" :class="{ 'budget-view-mode-btn--active': viewMode === 'ideal' }" @click="viewMode = 'ideal'">vs Ideal</button>
       </div>
     </div>
 
@@ -343,6 +347,21 @@ function absorbOverspend(): void {
       v-if="!isMonthEmpty && viewMode === 'budget'"
       :items="store.items"
       :availableToAdd="store.availableToAdd"
+      @update="(item: BudgetItem) => { store.updateItem(item); toast.add({ severity: 'success', summary: 'Saved', detail: item.name + ' updated.', life: 2000 }) }"
+      @reorder="(items: BudgetItem[]) => store.reorderItems(items)"
+      @addItem="(name: string, category: string) => store.addItem(name, category)"
+      @addExistingItem="(id: number, cat: string) => store.addExistingItem(id, cat)"
+      @viewItemTransactions="(id: number, ym: string) => emit('viewItemTransactions', id, ym)"
+      @deleteItem="handleDeleteItem"
+      @deleteCategory="handleDeleteCategory"
+    />
+
+    <!-- Budget vs Ideal (planner simulation) -->
+    <BudgetTable
+      v-else-if="!isMonthEmpty && viewMode === 'ideal'"
+      :items="store.items"
+      :availableToAdd="store.availableToAdd"
+      :idealMode="true"
       @update="(item: BudgetItem) => { store.updateItem(item); toast.add({ severity: 'success', summary: 'Saved', detail: item.name + ' updated.', life: 2000 }) }"
       @reorder="(items: BudgetItem[]) => store.reorderItems(items)"
       @addItem="(name: string, category: string) => store.addItem(name, category)"

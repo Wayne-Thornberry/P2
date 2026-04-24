@@ -67,6 +67,18 @@ const emit = defineEmits<{ navigate: [page: string] }>()
         Finance
       </a>
       <a href="#"
+        :class="['flex items-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-widest transition-colors', props.currentPage === 'planner' ? 'bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900' : 'text-zinc-500 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700']"
+        @click.prevent="emit('navigate', 'planner')">
+        <i class="pi pi-calculator text-xs" />
+        Planner
+      </a>
+      <a href="#"
+        :class="['flex items-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-widest transition-colors', props.currentPage === 'performance' ? 'bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900' : 'text-zinc-500 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700']"
+        @click.prevent="emit('navigate', 'performance')">
+        <i class="pi pi-chart-line text-xs" />
+        Performance
+      </a>
+      <a href="#"
         :class="['flex items-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-widest transition-colors', props.currentPage === 'settings' ? 'bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900' : 'text-zinc-500 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700']"
         @click.prevent="emit('navigate', 'settings')">
         <i class="pi pi-cog text-xs" />

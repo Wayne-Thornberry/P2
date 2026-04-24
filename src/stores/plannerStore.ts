@@ -1,0 +1,241 @@
+import { defineStore } from 'pinia'
+import { ref, watch, computed } from 'vue'
+import { useSettingsStore } from './settingsStore'
+import { storageKey, loadStored } from '../utils/storeStorage'
+
+// ── Types ──────────────────────────────────────────────────────
+export interface PlannerItem {
+  id:     number
+  name:   string
+  amount: number   // always a positive value; treated as a deduction from income
+}
+
+export interface SimulationItem {
+  id:             number
+  name:           string
+  amount:         number          // always positive
+  kind:           'income' | 'expense'
+  source:         'custom' | 'transaction' | 'planner'
+  transactionId?: number
+  plannerItemId?: number
+}
+
+export interface MonthSimulation {
+  id:        number
+  name:      string
+  month:     string   // YYYY-MM
+  items:     SimulationItem[]
+  createdAt: string
+  isIdeal?:  boolean
+}
+
+let _nextId        = 1
+let _nextSimId     = 1
+let _nextSimItemId = 1
+
+// ── Store ──────────────────────────────────────────────────────
+export const usePlannerStore = defineStore('planner', () => {
+  const settings = useSettingsStore()
+
+  function _key(): string { return storageKey('clearbook_planner', settings.country) }
+  function _load() { return loadStored('clearbook_planner', settings.country) }
+
+  const _saved = _load()
+
+  const income      = ref<number>(_saved?.income ?? 0)
+  const items       = ref<PlannerItem[]>(_saved?.items ?? [])
+  const simulations = ref<MonthSimulation[]>(_saved?.simulations ?? [])
+  if (_saved?.nextId        != null) _nextId        = _saved.nextId
+  if (_saved?.nextSimId     != null) _nextSimId     = _saved.nextSimId
+  if (_saved?.nextSimItemId != null) _nextSimItemId = _saved.nextSimItemId
+
+  function _persist(): void {
+    localStorage.setItem(_key(), JSON.stringify({
+      income: income.value,
+      items:  items.value,
+      nextId: _nextId,
+      simulations:   simulations.value,
+      nextSimId:     _nextSimId,
+      nextSimItemId: _nextSimItemId,
+    }))
+  }
+
+  watch([income, items, simulations], _persist, { deep: true })
+
+  // Reload when country changes
+  watch(() => settings.country, () => {
+    const saved = _load()
+    _nextId        = saved?.nextId        ?? 1
+    _nextSimId     = saved?.nextSimId     ?? 1
+    _nextSimItemId = saved?.nextSimItemId ?? 1
+    income.value      = saved?.income      ?? 0
+    items.value       = saved?.items       ?? []
+    simulations.value = saved?.simulations ?? []
+  })
+
+  // ── Actions ────────────────────────────────────────────────
+  function addItem(name: string, amount: number): PlannerItem {
+    const item: PlannerItem = { id: _nextId++, name: name.trim(), amount }
+    items.value.push(item)
+    return item
+  }
+
+  function updateItem(id: number, patch: Partial<Pick<PlannerItem, 'name' | 'amount'>>): void {
+    const item = items.value.find(i => i.id === id)
+    if (!item) return
+    if (patch.name   !== undefined) item.name   = patch.name.trim()
+    if (patch.amount !== undefined) item.amount = patch.amount
+  }
+
+  function removeItem(id: number): void {
+    items.value = items.value.filter(i => i.id !== id)
+  }
+
+  function moveItem(id: number, direction: 'up' | 'down'): void {
+    const idx = items.value.findIndex(i => i.id === id)
+    if (idx === -1) return
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (swapIdx < 0 || swapIdx >= items.value.length) return
+    const copy = [...items.value]
+    ;[copy[idx], copy[swapIdx]] = [copy[swapIdx], copy[idx]]
+    items.value = copy
+  }
+
+  function setIncome(value: number): void {
+    income.value = value
+  }
+
+  // ── Commitment computed ────────────────────────────────────
+  function runningBalances(): number[] {
+    let balance = income.value
+    return items.value.map(item => {
+      balance -= item.amount
+      return balance
+    })
+  }
+
+  function totalCommitted(): number {
+    return items.value.reduce((sum, i) => sum + i.amount, 0)
+  }
+
+  function remaining(): number {
+    return income.value - totalCommitted()
+  }
+
+  // ── Simulation actions ─────────────────────────────────────
+  function addSimulation(name: string, month: string): MonthSimulation {
+    const sim: MonthSimulation = {
+      id: _nextSimId++, name: name.trim(), month,
+      items: [], createdAt: new Date().toISOString(),
+    }
+    simulations.value.push(sim)
+    return sim
+  }
+
+  function updateSimulation(id: number, patch: Partial<Pick<MonthSimulation, 'name' | 'month'>>): void {
+    const sim = simulations.value.find(s => s.id === id)
+    if (!sim) return
+    if (patch.name  !== undefined) sim.name  = patch.name.trim()
+    if (patch.month !== undefined) sim.month = patch.month
+  }
+
+  function removeSimulation(id: number): void {
+    simulations.value = simulations.value.filter(s => s.id !== id)
+  }
+
+  function setIdeal(id: number | null): void {
+    for (const s of simulations.value) s.isIdeal = s.id === id
+  }
+
+  const idealSimulation = computed(() => simulations.value.find(s => s.isIdeal) ?? null)
+
+  function addSimulationItem(
+    simId: number,
+    name: string,
+    amount: number,
+    kind: SimulationItem['kind'],
+    source: SimulationItem['source'],
+    transactionId?: number,
+    plannerItemId?: number,
+  ): void {
+    const sim = simulations.value.find(s => s.id === simId)
+    if (!sim) return
+    sim.items.push({ id: _nextSimItemId++, name, amount, kind, source, transactionId, plannerItemId })
+  }
+
+  function updateSimulationItem(
+    simId: number,
+    itemId: number,
+    patch: Partial<Pick<SimulationItem, 'name' | 'amount' | 'kind'>>,
+  ): void {
+    const item = simulations.value.find(s => s.id === simId)?.items.find(i => i.id === itemId)
+    if (!item) return
+    if (patch.name   !== undefined) item.name   = patch.name
+    if (patch.amount !== undefined) item.amount = patch.amount
+    if (patch.kind   !== undefined) item.kind   = patch.kind
+  }
+
+  function removeSimulationItem(simId: number, itemId: number): void {
+    const sim = simulations.value.find(s => s.id === simId)
+    if (!sim) return
+    sim.items = sim.items.filter(i => i.id !== itemId)
+  }
+
+  function moveSimulationItem(simId: number, itemId: number, direction: 'up' | 'down'): void {
+    const sim = simulations.value.find(s => s.id === simId)
+    if (!sim) return
+    const idx = sim.items.findIndex(i => i.id === itemId)
+    if (idx === -1) return
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (swapIdx < 0 || swapIdx >= sim.items.length) return
+    const copy = [...sim.items]
+    ;[copy[idx], copy[swapIdx]] = [copy[swapIdx], copy[idx]]
+    sim.items = copy
+  }
+
+  // ── Simulation computed ────────────────────────────────────
+  function simRunningBalances(simId: number): number[] {
+    const sim = simulations.value.find(s => s.id === simId)
+    if (!sim) return []
+    let balance = 0
+    return sim.items.map(item => {
+      balance = item.kind === 'income' ? balance + item.amount : balance - item.amount
+      return balance
+    })
+  }
+
+  function simSummary(simId: number): { totalIncome: number; totalExpenses: number; remaining: number } {
+    const sim = simulations.value.find(s => s.id === simId)
+    if (!sim) return { totalIncome: 0, totalExpenses: 0, remaining: 0 }
+    const totalIncome   = sim.items.filter(i => i.kind === 'income').reduce((s, i) => s + i.amount, 0)
+    const totalExpenses = sim.items.filter(i => i.kind === 'expense').reduce((s, i) => s + i.amount, 0)
+    return { totalIncome, totalExpenses, remaining: totalIncome - totalExpenses }
+  }
+
+  return {
+    // Commitments
+    income,
+    items,
+    setIncome,
+    addItem,
+    updateItem,
+    removeItem,
+    moveItem,
+    runningBalances,
+    totalCommitted,
+    remaining,
+    // Simulations
+    simulations,
+    addSimulation,
+    updateSimulation,
+    removeSimulation,
+    setIdeal,
+    idealSimulation,
+    addSimulationItem,
+    updateSimulationItem,
+    removeSimulationItem,
+    moveSimulationItem,
+    simRunningBalances,
+    simSummary,
+  }
+})

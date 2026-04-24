@@ -6,15 +6,17 @@ import { useBudgetStore }      from '../stores/budgetStore'
 import { useSettingsStore }    from '../stores/settingsStore'
 import { useLoanStore }        from '../stores/loanStore'
 import { useSavingsGoalStore } from '../stores/savingsGoalStore'
+import { usePlannerStore }     from '../stores/plannerStore'
 import { roundCents, txNet } from '../utils/math'
 import { useBudgetFunds } from '../composables/useBudgetFunds'
 
-const txStore      = useTransactionStore()
-const accountStore = useAccountStore()
-const budgetStore  = useBudgetStore()
-const settings     = useSettingsStore()
-const loanStore    = useLoanStore()
-const goalStore    = useSavingsGoalStore()
+const txStore        = useTransactionStore()
+const accountStore   = useAccountStore()
+const budgetStore    = useBudgetStore()
+const settings       = useSettingsStore()
+const loanStore      = useLoanStore()
+const goalStore      = useSavingsGoalStore()
+const plannerStore   = usePlannerStore()
 
 function formatMoney(v: number): string { return settings.formatMoney(v) }
 
@@ -49,6 +51,19 @@ const monthNet = computed(() => monthIn.value - monthOut.value)
 const savingsRate = computed(() =>
   monthIn.value > 0 ? Math.round(((monthIn.value - monthOut.value) / monthIn.value) * 100) : 0
 )
+
+// ── Performance card ──────────────────────────────────────────
+const perfIdeal = computed(() => plannerStore.idealSimulation)
+
+const perfIdealTotal = computed(() =>
+  perfIdeal.value?.items.filter(i => i.kind === 'expense').reduce((s, i) => s + i.amount, 0) ?? 0
+)
+
+const perfActualTotal = computed(() =>
+  thisMonthTxs.value.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0)
+)
+
+const perfVariance = computed(() => perfActualTotal.value - perfIdealTotal.value)
 
 // ── Account balances ──────────────────────────────────────────
 const accountBalances = computed(() => {
@@ -529,6 +544,46 @@ const goalDashRows = computed((): GoalDashRow[] =>
           </div>
         </div>
 
+      </div>
+    </section>
+
+    <!-- ── Performance card ──────────────────────────────── -->
+    <section v-if="perfIdeal" class="dash-section">
+      <div class="dash-section-header">
+        <span class="dash-section-title"><i class="pi pi-chart-line" /> Performance</span>
+        <button class="dash-link" @click="emit('navigate', 'performance')">View details →</button>
+      </div>
+      <div class="dash-perf-card">
+        <div class="dash-perf-heading">
+          <span class="dash-perf-badge"><i class="pi pi-star-fill" /> {{ perfIdeal.name }}</span>
+          <span class="dash-perf-pct" :class="perfActualTotal > perfIdealTotal ? 'dash-perf-pct--over' : 'dash-perf-pct--ok'">
+            {{ perfIdealTotal > 0 ? Math.round((perfActualTotal / perfIdealTotal) * 100) : 0 }}% of budget used
+          </span>
+        </div>
+        <div class="dash-perf-bar-track">
+          <div
+            class="dash-perf-bar-fill"
+            :class="perfActualTotal > perfIdealTotal ? 'dash-perf-bar--over' : 'dash-perf-bar--ok'"
+            :style="{ width: perfIdealTotal > 0 ? `${Math.min((perfActualTotal / perfIdealTotal) * 100, 100)}%` : '0%' }"
+          />
+        </div>
+        <div class="dash-stat-grid dash-perf-stats">
+          <div class="dash-stat-card">
+            <span class="dash-stat-label">Ideal budget</span>
+            <span class="dash-stat-value">{{ formatMoney(perfIdealTotal) }}</span>
+          </div>
+          <div class="dash-stat-card">
+            <span class="dash-stat-label">Actual spend</span>
+            <span class="dash-stat-value" :class="perfActualTotal > perfIdealTotal ? 'money-negative' : 'money-positive'">{{ formatMoney(perfActualTotal) }}</span>
+          </div>
+          <div class="dash-stat-card">
+            <span class="dash-stat-label">Variance</span>
+            <span class="dash-stat-value" :class="perfVariance > 0 ? 'money-negative' : perfVariance < 0 ? 'money-positive' : ''">
+              {{ perfVariance >= 0 ? '+' : '' }}{{ formatMoney(perfVariance) }}
+            </span>
+            <span class="dash-stat-sub">{{ perfVariance > 0 ? 'over budget' : perfVariance < 0 ? 'under budget' : 'on target' }}</span>
+          </div>
+        </div>
       </div>
     </section>
 
