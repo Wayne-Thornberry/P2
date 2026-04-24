@@ -21,7 +21,6 @@ const toast        = useToast()
 const { confirm }  = useConfirm()
 const { budgetFunds, excludedAccountIds } = useBudgetFunds()
 const plannerStore = usePlannerStore()
-const idealMode    = ref(false)
 const isMonthEmpty = computed(() => store.items.length === 0)
 
 // ── Add category ──────────────────────────────────────────────

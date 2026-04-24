@@ -17,7 +17,7 @@ const accountBankIdMap = computed(() =>
   new Map(accountStore.accounts.map(a => [a.id, a.bankId ?? null]))
 )
 
-function txClean(tx: { name: string; accountId?: string }): string {
+function txClean(tx: { name: string; accountId?: string | null }): string {
   const bankId = tx.accountId ? (accountBankIdMap.value.get(tx.accountId) ?? null) : null
   return cleanTxName(tx.name, bankId)
 }
@@ -27,12 +27,6 @@ function fmt(v: number): string { return settings.formatMoney(v) }
 function currentMonth(): string {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
-
-function formatMonth(ym: string): string {
-  if (!ym) return ''
-  const [y, m] = ym.split('-')
-  return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
 }
 
 const selectedMonth = ref(currentMonth())

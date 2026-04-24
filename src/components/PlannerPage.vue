@@ -18,7 +18,7 @@ const accountBankIdMap = computed(() =>
   new Map(accountStore.accounts.map(a => [a.id, a.bankId ?? null]))
 )
 
-function txClean(tx: { name: string; accountId?: string }): string {
+function txClean(tx: { name: string; accountId?: string | null }): string {
   const bankId = tx.accountId ? (accountBankIdMap.value.get(tx.accountId) ?? null) : null
   return cleanTxName(tx.name, bankId)
 }
@@ -213,7 +213,7 @@ const incomeTxList = computed(() => {
     .sort((a, b) => b.amount - a.amount)
 })
 
-function addIncomeTx(txId: number, tx: { name: string; accountId?: string }, amount: number): void {
+function addIncomeTx(txId: number, tx: { name: string; accountId?: string | null }, amount: number): void {
   if (!activeSim.value) return
   store.addSimulationItem(activeSim.value.id, txClean(tx), amount, 'income', 'transaction', txId)
 }
@@ -252,7 +252,7 @@ const expenseTxList = computed(() => {
     .sort((a, b) => txClean(a).localeCompare(txClean(b)))
 })
 
-function addExpenseTx(txId: number, tx: { name: string; accountId?: string }, amount: number): void {
+function addExpenseTx(txId: number, tx: { name: string; accountId?: string | null }, amount: number): void {
   if (!activeSim.value) return
   store.addSimulationItem(activeSim.value.id, txClean(tx), amount, 'expense', 'transaction', txId)
 }
