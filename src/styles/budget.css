@@ -881,6 +881,108 @@ tr.p-row-odd:hover .item-delete-btn { opacity: 1; color: var(--color-zinc-400); 
   gap: 0.4rem;
 }
 
+/* ── Assigned cell with recurring bracket ─────────────────────── */
+.assigned-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.assigned-recurring-badge {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.72rem;
+  color: #10b981;
+  cursor: pointer;
+  font-style: italic;
+  opacity: 0.85;
+  transition: opacity 0.1s;
+}
+.assigned-recurring-badge:hover {
+  opacity: 1;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.dark .assigned-recurring-badge {
+  color: #34d399;
+}
+
+.assigned-recurring-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 100;
+  background: var(--color-zinc-50);
+  border: 1px solid var(--color-zinc-200);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  padding: 0.5rem;
+  min-width: 14rem;
+  max-width: 22rem;
+}
+.dark .assigned-recurring-popover {
+  background: var(--color-zinc-800);
+  border-color: var(--color-zinc-700);
+}
+
+.recurring-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-zinc-500);
+  margin-bottom: 0.4rem;
+}
+.recurring-popover-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.1rem 0.25rem;
+  color: var(--color-zinc-400);
+  font-size: 0.65rem;
+}
+.recurring-popover-close:hover {
+  color: var(--color-zinc-700);
+}
+
+.recurring-popover-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  padding: 0.2rem 0;
+  border-top: 1px solid var(--color-zinc-100);
+}
+.dark .recurring-popover-row {
+  border-top-color: var(--color-zinc-700);
+}
+.recurring-popover-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-zinc-700);
+}
+.dark .recurring-popover-name {
+  color: var(--color-zinc-300);
+}
+.recurring-popover-amt {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.recurring-popover-date {
+  font-size: 0.68rem;
+  color: var(--color-zinc-400);
+  white-space: nowrap;
+}
+
+
 .activity-link {
   background: none;
   border: none;

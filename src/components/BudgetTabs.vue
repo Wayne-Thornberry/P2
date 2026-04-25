@@ -4,14 +4,13 @@ import { useBudgetStore } from '../stores/budgetStore'
 import { useTransactionStore } from '../stores/transactionStore'
 import { useMonthStore } from '../stores/monthStore'
 import { useSettingsStore } from '../stores/settingsStore'
-import type { BudgetItem, BudgetRow } from '../types/budget'
+import type { BudgetItem } from '../types/budget'
 import { useToast } from 'primevue/usetoast'
 import Toast from 'primevue/toast'
 import BudgetTable from './BudgetTable.vue'
 import AssignPanel from './AssignPanel.vue'
 import { useConfirm } from '../composables/useConfirm'
 import { useBudgetFunds } from '../composables/useBudgetFunds'
-import { usePlannerStore } from '../stores/plannerStore'
 import { roundCents, txNet } from '../utils/math'
 const store        = useBudgetStore()
 const txStore      = useTransactionStore()
@@ -20,7 +19,6 @@ const settings     = useSettingsStore()
 const toast        = useToast()
 const { confirm }  = useConfirm()
 const { budgetFunds, excludedAccountIds } = useBudgetFunds()
-const plannerStore = usePlannerStore()
 const isMonthEmpty = computed(() => store.items.length === 0)
 
 // ── Add category ──────────────────────────────────────────────
@@ -139,39 +137,6 @@ const totalOverspent = computed(() =>
 const totalUnderBudget = computed(() =>
   roundCents(underBudgetRows.value.reduce((sum, row) => sum + row.available, 0))
 )
-
-// ── Budget vs Actual ──────────────────────────────────────────
-const viewMode = ref<'budget' | 'actual' | 'ideal'>('budget')
-
-const budgetRowsByCategory = computed(() => {
-  const groups = new Map<string, { rows: BudgetRow[]; assigned: number; activity: number; available: number }>()
-  for (const row of budgetRows.value) {
-    const cat = row.category || 'Uncategorised'
-    if (!groups.has(cat)) groups.set(cat, { rows: [], assigned: 0, activity: 0, available: 0 })
-    const g = groups.get(cat)!
-    g.rows.push(row)
-    g.assigned   = roundCents(g.assigned + row.assigned)
-    g.activity   = roundCents(g.activity + row.activity)
-    g.available  = roundCents(g.available + row.available)
-  }
-  return [...groups.entries()].map(([category, g]) => ({ category, ...g }))
-})
-
-const budgetTotals = computed(() => ({
-  assigned:  roundCents(budgetRows.value.reduce((sum, row) => sum + row.assigned, 0)),
-  activity:  roundCents(budgetRows.value.reduce((sum, row) => sum + row.activity, 0)),
-  available: roundCents(budgetRows.value.reduce((sum, row) => sum + row.available, 0)),
-}))
-
-function usagePct(assigned: number, activity: number): number {
-  if (assigned === 0) return activity > 0 ? 100 : 0
-  return Math.min(999, Math.round((activity / assigned) * 100))
-}
-function usageColor(pct: number): string {
-  if (pct >= 100) return 'rgb(239,68,68)'
-  if (pct >= 80)  return 'rgb(245,158,11)'
-  return 'rgb(34,197,94)'
-}
 
 async function handleDeleteItem(id: number): Promise<void> {
   const item = store.items.find(i => i.id === id)
@@ -334,16 +299,11 @@ function absorbOverspend(): void {
         <i class="pi pi-list" />
         View Transactions for {{ monthStore.label }}
       </button>
-      <div class="budget-view-mode">
-        <button class="budget-view-mode-btn" :class="{ 'budget-view-mode-btn--active': viewMode === 'budget' }"   @click="viewMode = 'budget'">Budget</button>
-        <button class="budget-view-mode-btn" :class="{ 'budget-view-mode-btn--active': viewMode === 'actual' }" @click="viewMode = 'actual'">vs Actual</button>
-        <button v-if="plannerStore.idealSimulation" class="budget-view-mode-btn" :class="{ 'budget-view-mode-btn--active': viewMode === 'ideal' }" @click="viewMode = 'ideal'">vs Ideal</button>
-      </div>
     </div>
 
     <!-- Budget table -->
     <BudgetTable
-      v-if="!isMonthEmpty && viewMode === 'budget'"
+      v-if="!isMonthEmpty"
       :items="store.items"
       :availableToAdd="store.availableToAdd"
       @update="(item: BudgetItem) => { store.updateItem(item); toast.add({ severity: 'success', summary: 'Saved', detail: item.name + ' updated.', life: 2000 }) }"
@@ -355,76 +315,8 @@ function absorbOverspend(): void {
       @deleteCategory="handleDeleteCategory"
     />
 
-    <!-- Budget vs Ideal (planner simulation) -->
-    <BudgetTable
-      v-else-if="!isMonthEmpty && viewMode === 'ideal'"
-      :items="store.items"
-      :availableToAdd="store.availableToAdd"
-      :idealMode="true"
-      @update="(item: BudgetItem) => { store.updateItem(item); toast.add({ severity: 'success', summary: 'Saved', detail: item.name + ' updated.', life: 2000 }) }"
-      @reorder="(items: BudgetItem[]) => store.reorderItems(items)"
-      @addItem="(name: string, category: string) => store.addItem(name, category)"
-      @addExistingItem="(id: number, cat: string) => store.addExistingItem(id, cat)"
-      @viewItemTransactions="(id: number, ym: string) => emit('viewItemTransactions', id, ym)"
-      @deleteItem="handleDeleteItem"
-      @deleteCategory="handleDeleteCategory"
-    />
-
-    <!-- Budget vs Actual comparison table -->
-    <div v-if="!isMonthEmpty && viewMode === 'actual'" class="bva-wrap">
-      <table class="bva-table">
-        <thead>
-          <tr>
-            <th class="bva-th-name">Item</th>
-            <th class="bva-th-num">Assigned</th>
-            <th class="bva-th-num">Actual</th>
-            <th class="bva-th-num">Available</th>
-            <th class="bva-th-bar">Usage</th>
-          </tr>
-        </thead>
-        <tbody>
-          <template v-for="group in budgetRowsByCategory" :key="group.category">
-            <!-- Category header row -->
-            <tr class="bva-cat-row">
-              <td class="bva-cat-name" colspan="5">{{ group.category }}</td>
-            </tr>
-            <!-- Item rows -->
-            <tr v-for="row in group.rows" :key="row.id" class="bva-item-row">
-              <td class="bva-item-name">{{ row.name }}</td>
-              <td class="bva-num">{{ formatMoney(row.assigned) }}</td>
-              <td class="bva-num">{{ formatMoney(row.activity) }}</td>
-              <td class="bva-num" :class="row.available < 0 ? 'bva-over' : (row.assigned > 0 ? 'bva-ok' : '')">{{ formatMoney(row.available) }}</td>
-              <td class="bva-bar-cell">
-                <div class="bva-bar-wrap">
-                  <div class="bva-bar" :style="{ width: Math.min(100, usagePct(row.assigned, row.activity)) + '%', background: usageColor(usagePct(row.assigned, row.activity)) }" />
-                </div>
-                <span class="bva-bar-pct" :class="usagePct(row.assigned, row.activity) >= 100 ? 'bva-over' : ''">{{ usagePct(row.assigned, row.activity) }}%</span>
-              </td>
-            </tr>
-            <!-- Category subtotal -->
-            <tr class="bva-subtotal-row">
-              <td class="bva-subtotal-label">{{ group.category }} total</td>
-              <td class="bva-num bva-subtotal-val">{{ formatMoney(group.assigned) }}</td>
-              <td class="bva-num bva-subtotal-val">{{ formatMoney(group.activity) }}</td>
-              <td class="bva-num bva-subtotal-val" :class="group.available < 0 ? 'bva-over' : 'bva-ok'">{{ formatMoney(group.available) }}</td>
-              <td />
-            </tr>
-          </template>
-        </tbody>
-        <tfoot>
-          <tr class="bva-total-row">
-            <td class="bva-total-label">Total</td>
-            <td class="bva-num bva-total-val">{{ formatMoney(budgetTotals.assigned) }}</td>
-            <td class="bva-num bva-total-val">{{ formatMoney(budgetTotals.activity) }}</td>
-            <td class="bva-num bva-total-val" :class="budgetTotals.available < 0 ? 'bva-over' : 'bva-ok'">{{ formatMoney(budgetTotals.available) }}</td>
-            <td />
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-
-    <!-- Add category (budget mode only) -->
-    <div v-if="!isMonthEmpty && viewMode === 'budget'" class="budget-add-category">
+    <!-- Add category -->
+    <div v-if="!isMonthEmpty" class="budget-add-category">
       <template v-if="addingCategory">
         <input
           ref="newCatInputRef"

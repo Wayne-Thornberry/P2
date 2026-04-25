@@ -349,6 +349,50 @@ watch([filterSearch, filterYear, filterMonthNum, filterType, filterAccountId, fi
   selectedIds.value = new Set()
 })
 
+// ── Recurring role map ────────────────────────────────────────
+// Maps transaction id → 'origin' | 'linked-past' | 'linked-future'
+// An 'origin' is a transaction the user explicitly marked recurring.
+// 'linked-past' / 'linked-future' are other transactions sharing the same
+// merchant name and direction (in/out), relative to the origin's date.
+type RecurringRole = 'origin' | 'linked-past' | 'linked-future'
+
+const recurringRoleMap = computed<Map<number, RecurringRole>>(() => {
+  const map = new Map<number, RecurringRole>()
+  const origins = store.transactions.filter(t => t.recurring)
+  if (origins.length === 0) return map
+
+  const originData = origins.map(o => ({
+    id:        o.id,
+    date:      o.date,
+    type:      o.type,
+    cleanName: getFriendlyName(o),
+  }))
+  const originIds = new Set(origins.map(o => o.id))
+
+  for (const tx of store.transactions) {
+    if (originIds.has(tx.id)) {
+      map.set(tx.id, 'origin')
+      continue
+    }
+    const txName = getFriendlyName(tx)
+    for (const origin of originData) {
+      if (tx.type === origin.type && txNamesMatch(txName, origin.cleanName)) {
+        map.set(tx.id, tx.date < origin.date ? 'linked-past' : 'linked-future')
+        break
+      }
+    }
+  }
+  return map
+})
+
+function recurringRowClass(txId: number): string {
+  const role = recurringRoleMap.value.get(txId)
+  if (role === 'origin')        return 'tx-row-recurring-origin'
+  if (role === 'linked-past')   return 'tx-row-recurring-past'
+  if (role === 'linked-future') return 'tx-row-recurring-future'
+  return ''
+}
+
 // ── Running balance per transaction ─────────────────────────
 // Computed from the filtered set, chronological oldest→newest.
 // Maps transaction id → running balance at that point in time.
@@ -1406,8 +1450,14 @@ const historyExpanded = ref(false)
                   <button class="tx-pin-btn" :class="{ 'tx-pin-btn--active': tx.id === cutoffTxId }" :title="tx.id === cutoffTxId ? 'Remove balance cutoff pin' : 'Pin: calculate balance from here'" @click.stop="setPinTx(tx.id)">
                     <i class="pi pi-map-marker" />
                   </button>
+                  <button class="tx-lock-btn" :class="{ 'tx-lock-btn--active': tx.locked }" :title="tx.locked ? 'Unlock transaction' : 'Lock transaction'" @click.stop="store.patchTransaction(tx.id, { locked: !tx.locked })">
+                    <i class="pi" :class="tx.locked ? 'pi-lock' : 'pi-lock-open'" />
+                  </button>
                   <button class="tx-flag-btn" :class="{ 'tx-flag-btn--active': tx.flagged }" title="Flag / unflag" @click.stop="store.patchTransaction(tx.id, { flagged: !tx.flagged })">
                     <i class="pi" :class="tx.flagged ? 'pi-flag-fill' : 'pi-flag'" />
+                  </button>
+                  <button class="tx-recurring-btn" :class="{ 'tx-recurring-btn--active': tx.recurring }" title="Mark as recurring origin" @click.stop="store.patchTransaction(tx.id, { recurring: !tx.recurring })">
+                    <i class="pi pi-sync" />
                   </button>
                 </td>
                 <td class="tx-col-check"></td>
@@ -1473,26 +1523,25 @@ const historyExpanded = ref(false)
               <tr
                 v-else
                 class="tx-row"
-                :class="{ 'tx-row-selected': isSelected(tx.id), 'tx-row-cutoff': tx.id === cutoffTxId, 'tx-row-flagged': tx.flagged, 'tx-row-locked': tx.locked }"
+                :class="[{ 'tx-row-selected': isSelected(tx.id), 'tx-row-cutoff': tx.id === cutoffTxId, 'tx-row-flagged': tx.flagged, 'tx-row-locked': tx.locked }, recurringRowClass(tx.id)]"
                 @dblclick="!tx.locked && startEdit(tx)"
               >
                 <td class="tx-col-markers" @click.stop>
                   <button class="tx-pin-btn" :class="{ 'tx-pin-btn--active': tx.id === cutoffTxId }" :title="tx.id === cutoffTxId ? 'Remove balance cutoff pin' : 'Pin: calculate balance from here'" @click.stop="setPinTx(tx.id)">
                     <i class="pi pi-map-marker" />
                   </button>
-                  <template v-if="tx.locked">
-                    <span class="tx-lock-indicator" title="Locked — unlock to edit">
-                      <i class="pi pi-lock" />
-                    </span>
-                  </template>
-                  <template v-else>
-                    <button class="tx-edit-btn" title="Edit" @click.stop="startEdit(tx)">
-                      <i class="pi pi-pencil" />
-                    </button>
-                    <button class="tx-flag-btn" :class="{ 'tx-flag-btn--active': tx.flagged }" title="Flag / unflag" @click.stop="store.patchTransaction(tx.id, { flagged: !tx.flagged })">
-                      <i class="pi" :class="tx.flagged ? 'pi-flag-fill' : 'pi-flag'" />
-                    </button>
-                  </template>
+                  <button class="tx-lock-btn" :class="{ 'tx-lock-btn--active': tx.locked }" :title="tx.locked ? 'Unlock transaction' : 'Lock transaction'" @click.stop="store.patchTransaction(tx.id, { locked: !tx.locked })">
+                    <i class="pi" :class="tx.locked ? 'pi-lock' : 'pi-lock-open'" />
+                  </button>
+                  <button v-if="!tx.locked" class="tx-edit-btn" title="Edit" @click.stop="startEdit(tx)">
+                    <i class="pi pi-pencil" />
+                  </button>
+                  <button class="tx-flag-btn" :class="{ 'tx-flag-btn--active': tx.flagged }" title="Flag / unflag" @click.stop="store.patchTransaction(tx.id, { flagged: !tx.flagged })">
+                    <i class="pi" :class="tx.flagged ? 'pi-flag-fill' : 'pi-flag'" />
+                  </button>
+                  <button class="tx-recurring-btn" :class="{ 'tx-recurring-btn--active': tx.recurring }" :title="tx.recurring ? 'Remove recurring origin mark' : 'Mark as recurring origin'" @click.stop="store.patchTransaction(tx.id, { recurring: !tx.recurring })">
+                    <i class="pi pi-sync" />
+                  </button>
                 </td>
                 <td class="tx-col-check" @click.stop="toggleSelected(tx.id)">
                   <input

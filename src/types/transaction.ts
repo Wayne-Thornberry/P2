@@ -39,4 +39,5 @@ export interface Transaction {
   notes?: string          // optional memo
   flagged?: boolean       // user-set flag
   locked?: boolean        // prevents editing/deletion when true
+  recurring?: boolean     // marks this as a recurring-origin transaction
 }

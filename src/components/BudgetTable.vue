@@ -6,7 +6,6 @@ import { useBudgetDrag } from '../composables/useBudgetDrag'
 import { useTransactionStore } from '../stores/transactionStore'
 import { useMonthStore } from '../stores/monthStore'
 import { useSettingsStore } from '../stores/settingsStore'
-import { usePlannerStore } from '../stores/plannerStore'
 import { roundCents } from '../utils/math'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
@@ -16,8 +15,8 @@ import Checkbox from 'primevue/checkbox'
 const props = defineProps<{
   items: BudgetItem[]
   availableToAdd: BudgetItemDef[]
-  idealMode?: boolean
-}>()
+}>(
+)
 
 const emit = defineEmits<{
   update: [item: BudgetItem]
@@ -34,30 +33,42 @@ const itemsRef = toRef(props, 'items')
 const transactionStore = useTransactionStore()
 const monthStore       = useMonthStore()
 const settings         = useSettingsStore()
-const plannerStore     = usePlannerStore()
 
 const activityByItem = computed(() =>
   transactionStore.getMonthlyActivityMap(monthStore.activeYear, monthStore.activeMonth)
 )
 
-const idealActivityMap = computed<Map<number, number>>(() => {
-  const result = new Map<number, number>()
-  const ideal = plannerStore.idealSimulation
-  if (!ideal) return result
-  const expenseItems = ideal.items.filter(i => i.kind === 'expense')
-  for (const budgetItem of props.items) {
-    const norm = budgetItem.name.toLowerCase().trim()
-    const match = expenseItems.find(e => e.name.toLowerCase().trim() === norm)
-    if (match) result.set(budgetItem.id, match.amount)
+// ── Recurring expected values ─────────────────────────────────
+// Maps itemId → array of recurring-origin transactions assigned to that item.
+// These represent expected recurring amounts for that budget line.
+const recurringOriginsByItem = computed(() => {
+  const map = new Map<number, typeof transactionStore.transactions[0][]>()
+  for (const tx of transactionStore.transactions) {
+    if (!tx.recurring || tx.itemId === null) continue
+    if (!map.has(tx.itemId)) map.set(tx.itemId, [])
+    map.get(tx.itemId)!.push(tx)
   }
-  return result
+  return map
 })
+
+function recurringExpected(itemId: number): number {
+  const txs = recurringOriginsByItem.value.get(itemId)
+  if (!txs || txs.length === 0) return 0
+  return roundCents(txs.reduce((sum, t) => sum + (t.type === 'out' ? t.amount : -t.amount), 0))
+}
+
+// Popover state for recurring bracket click
+const recurringPopoverItemId = ref<number | null>(null)
+function showRecurringPopover(itemId: number): void {
+  recurringPopoverItemId.value = recurringPopoverItemId.value === itemId ? null : itemId
+}
+function hideRecurringPopover(): void {
+  recurringPopoverItemId.value = null
+}
 
 const tableItems = computed<BudgetRow[]>(() =>
   props.items.map(i => {
-    const activity  = props.idealMode
-      ? (idealActivityMap.value.get(i.id) ?? 0)
-      : (activityByItem.value.get(i.id) ?? 0)
+    const activity  = activityByItem.value.get(i.id) ?? 0
     const available = roundCents(i.assigned - activity)
     return { ...i, activity, available }
   })
@@ -343,7 +354,35 @@ function onCellEditComplete(event: { data: BudgetItem; newData: BudgetItem; fiel
       </Column>
 
       <Column columnKey="assigned" field="assigned" header="Assigned" style="width: 13rem">
-        <template #body="{ data }">{{ formatMoney(data.assigned) }}</template>
+        <template #body="{ data }">
+          <div class="assigned-cell">
+            <span>{{ formatMoney(data.assigned) }}</span>
+            <template v-if="recurringExpected(data.id) !== 0">
+              <button
+                class="assigned-recurring-badge"
+                :title="`Recurring expected: ${formatMoney(Math.abs(recurringExpected(data.id)))}`"
+                @click.stop="showRecurringPopover(data.id)"
+              >(exp. {{ formatMoney(Math.abs(recurringExpected(data.id))) }})</button>
+              <div v-if="recurringPopoverItemId === data.id" class="assigned-recurring-popover" @click.stop>
+                <div class="recurring-popover-header">
+                  <span>Recurring origins</span>
+                  <button class="recurring-popover-close" @click="hideRecurringPopover"><i class="pi pi-times" /></button>
+                </div>
+                <div
+                  v-for="tx in recurringOriginsByItem.get(data.id) ?? []"
+                  :key="tx.id"
+                  class="recurring-popover-row"
+                >
+                  <span class="recurring-popover-name">{{ tx.name }}</span>
+                  <span class="recurring-popover-amt" :class="tx.type === 'in' ? 'money-positive' : 'money-negative'">
+                    {{ tx.type === 'in' ? '+' : '-' }}{{ formatMoney(tx.amount) }}
+                  </span>
+                  <span class="recurring-popover-date">{{ tx.date.slice(0, 7) }}</span>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
         <template #editor="{ data, field }">
           <input
             type="text"
@@ -358,7 +397,7 @@ function onCellEditComplete(event: { data: BudgetItem; newData: BudgetItem; fiel
         </template>
       </Column>
 
-      <Column columnKey="activity" field="activity" :header="props.idealMode ? 'Ideal' : 'Activity'" style="width: 13rem">
+      <Column columnKey="activity" field="activity" header="Activity" style="width: 13rem">
         <template #body="{ data }">
           <div class="activity-cell">
             <button
