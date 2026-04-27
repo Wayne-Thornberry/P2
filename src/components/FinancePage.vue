@@ -716,6 +716,10 @@ function loanProgressLabel(loan: LoanRecord): string {
           <template v-if="!loan.archived && loanStatsMap.has(loan.id)">
             <div class="fn-stats-row">
               <div class="fn-stat">
+                <span class="fn-stat-label">Principal</span>
+                <span class="fn-stat-value">{{ fmt(loan.principal) }}</span>
+              </div>
+              <div class="fn-stat">
                 <span class="fn-stat-label">Monthly payment</span>
                 <span class="fn-stat-value fn-stat-value--red">{{ fmt(loanStatsMap.get(loan.id)!.monthly) }}</span>
               </div>
