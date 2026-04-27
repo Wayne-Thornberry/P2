@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.13.0] - 2026-04-27
+
+### Changed
+- Merge branch 'main' of https://github.com/Wayne-Thornberry/P2
+- feat(planner): enhance simulation functionality with new actions and types
+- Merge branch 'main' of https://github.com/Wayne-Thornberry/P2
+- feat(transactions): add recurring transaction functionality
+
+---
+
 ## [1.12.0] - 2026-04-25
 
 ### Changed
@@ -176,7 +186,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed-position pagination navigation arrows in Transaction log
 - MIT License
 
-[Unreleased]: https://github.com/Wayne-Thornberry/P2/compare/v1.12.0...HEAD
+[Unreleased]: https://github.com/Wayne-Thornberry/P2/compare/v1.13.0...HEAD
+[1.13.0]: https://github.com/Wayne-Thornberry/P2/compare/v1.11.2...v1.13.0
 [1.12.0]: https://github.com/Wayne-Thornberry/P2/compare/v1.11.2...v1.12.0
 [1.11.2]: https://github.com/Wayne-Thornberry/P2/compare/v1.11.0...v1.11.2
 [1.11.1]: https://github.com/Wayne-Thornberry/P2/compare/v1.11.0...v1.11.1
