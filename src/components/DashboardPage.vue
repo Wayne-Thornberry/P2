@@ -50,11 +50,6 @@ const savingsRate = computed(() =>
   monthIn.value > 0 ? Math.round(((monthIn.value - monthOut.value) / monthIn.value) * 100) : 0
 )
 
-// ── Performance card ──────────────────────────────────────────
-const perfActualTotal = computed(() =>
-  thisMonthTxs.value.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0)
-)
-
 // ── Account balances ──────────────────────────────────────────
 const accountBalances = computed(() => {
   const balMap = new Map<string, number>()
