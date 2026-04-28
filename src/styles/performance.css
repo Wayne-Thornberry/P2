@@ -525,6 +525,85 @@
 .perf-go-btn:hover { background: var(--color-zinc-700); }
 .dark .perf-go-btn:hover { background: var(--color-zinc-300); }
 
+/* ── Score info panel ────────────────────────────────────────── */
+
+.perf-score-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.perf-score-info-intro {
+  font-size: 0.78rem;
+  color: var(--color-zinc-500);
+  margin: 0;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.dark .perf-score-info-intro { color: var(--color-zinc-400); }
+
+.perf-score-info-table {
+  display: flex;
+  flex-direction: column;
+  border: 2px solid var(--color-zinc-200);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+.dark .perf-score-info-table { border-color: var(--color-zinc-700); }
+
+.perf-score-info-row {
+  display: grid;
+  grid-template-columns: 1.3fr 0.5fr 3fr;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.45rem 0.75rem;
+  border-bottom: 1px solid var(--color-zinc-200);
+  font-size: 0.78rem;
+}
+.dark .perf-score-info-row { border-bottom-color: var(--color-zinc-700); }
+.perf-score-info-row:last-child { border-bottom: none; }
+
+.perf-score-info-row--header {
+  background: var(--color-zinc-100);
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-zinc-400);
+  padding: 0.35rem 0.75rem;
+}
+.dark .perf-score-info-row--header { background: var(--color-zinc-800); }
+
+.perf-score-info-name {
+  font-weight: 700;
+  color: var(--color-zinc-700);
+}
+.dark .perf-score-info-name { color: var(--color-zinc-200); }
+
+.perf-score-info-pts {
+  font-weight: 900;
+  font-feature-settings: "tnum";
+  color: var(--color-zinc-500);
+}
+
+.perf-score-info-how {
+  color: var(--color-zinc-500);
+  font-weight: 500;
+  line-height: 1.45;
+}
+.dark .perf-score-info-how { color: var(--color-zinc-400); }
+
+.perf-score-info-grades {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+}
+
+.perf-score-info-grade {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
 /* ── Colour utilities ────────────────────────────────────────── */
 
 .color-ok      { color: var(--color-emerald-600) !important; }

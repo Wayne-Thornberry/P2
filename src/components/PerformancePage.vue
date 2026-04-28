@@ -327,6 +327,9 @@ watch([monthStats, isDark], () => { nextTick(() => { buildTrendChart(); buildSrC
 onMounted(() => nextTick(() => { buildTrendChart(); buildSrChart() }))
 onUnmounted(() => { trendChart?.destroy(); srChart?.destroy() })
 
+// ── Score info toggle ─────────────────────────────────────────
+const showScoreInfo = ref(false)
+
 // ── Budget performance ────────────────────────────────────────
 const budgetRows = computed(() => {
   const items = budgetStore.items
@@ -443,6 +446,51 @@ function barColor(pct: number): string {
           <span class="perf-metric-sub">{{ budgetAdherence ? `${budgetAdherence.onTrack}/${budgetAdherence.total} on track` : 'No budget set' }}</span>
         </div>
       </div>
+    </div>
+
+    <!-- How scoring works -->
+    <div class="perf-section">
+      <button class="perf-collapsible" @click="showScoreInfo = !showScoreInfo">
+        <h2 class="perf-section-title" style="margin:0;border:none;padding:0"><i class="pi pi-info-circle" /> How the score is calculated</h2>
+        <i :class="`pi ${showScoreInfo ? 'pi-chevron-up' : 'pi-chevron-down'} perf-chevron`" />
+      </button>
+      <template v-if="showScoreInfo">
+        <div class="perf-score-info">
+          <p class="perf-score-info-intro">The score is built from four factors that add up to a maximum of 100 points. Letter grades are awarded based on the total.</p>
+          <div class="perf-score-info-table">
+            <div class="perf-score-info-row perf-score-info-row--header">
+              <span>Factor</span><span class="perf-score-info-pts">Max pts</span><span class="perf-score-info-how">How it's measured</span>
+            </div>
+            <div class="perf-score-info-row">
+              <span class="perf-score-info-name">Savings Rate</span>
+              <span class="perf-score-info-pts">35</span>
+              <span class="perf-score-info-how">3-month rolling average. ≥20% = 35 pts, ≥10% = 25, ≥5% = 15, ≥0% = 8, negative = 0</span>
+            </div>
+            <div class="perf-score-info-row">
+              <span class="perf-score-info-name">Emergency Reserve</span>
+              <span class="perf-score-info-pts">30</span>
+              <span class="perf-score-info-how">Balance ÷ avg monthly expenses. ≥6 months = 30 pts, ≥3 = 22, ≥1 = 12, &gt;0 = 4, zero/negative = 0</span>
+            </div>
+            <div class="perf-score-info-row">
+              <span class="perf-score-info-name">Budget Adherence</span>
+              <span class="perf-score-info-pts">20</span>
+              <span class="perf-score-info-how">% of budget categories not overspent this month. 100% = 20 pts, ≥75% = 15, ≥50% = 8, below = 2. No budget set = 10 (neutral)</span>
+            </div>
+            <div class="perf-score-info-row">
+              <span class="perf-score-info-name">Income Consistency</span>
+              <span class="perf-score-info-pts">15</span>
+              <span class="perf-score-info-how">Months with income in the last 3. All 3 = 15 pts, 2 = 9, 1 = 4, none = 0</span>
+            </div>
+          </div>
+          <div class="perf-score-info-grades">
+            <span class="perf-score-info-grade" style="color:#10b981"><strong>A</strong> 85–100 Excellent</span>
+            <span class="perf-score-info-grade" style="color:#22d3ee"><strong>B</strong> 70–84 Good</span>
+            <span class="perf-score-info-grade" style="color:#f59e0b"><strong>C</strong> 55–69 Fair</span>
+            <span class="perf-score-info-grade" style="color:#f97316"><strong>D</strong> 40–54 Needs Work</span>
+            <span class="perf-score-info-grade" style="color:#ef4444"><strong>F</strong> 0–39 Critical</span>
+          </div>
+        </div>
+      </template>
     </div>
 
     <!-- Insights -->
