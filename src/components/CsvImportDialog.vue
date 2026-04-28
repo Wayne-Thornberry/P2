@@ -5,7 +5,7 @@ import { useAccountStore } from '../stores/accountStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useImportHistoryStore } from '../stores/importHistoryStore'
 import { processMultipleCsvFiles, CSV_ADAPTERS } from '../utils/csvAdapters'
-import { roundCents, txNet } from '../utils/math'
+import { roundCents, txNet, sumNet } from '../utils/math'
 import { cleanTxName, txNamesMatch } from '../utils/txNameCleaner'
 
 const props = defineProps<{

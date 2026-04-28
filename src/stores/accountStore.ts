@@ -2,7 +2,6 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { Account } from '../types/transaction'
 import { useTransactionStore } from './transactionStore'
-import { useSettingsStore } from './settingsStore'
 import { useSavingsGoalStore } from './savingsGoalStore'
 import { useLoanStore } from './loanStore'
 import { loadCountryScoped, useCountryScopedPersistence } from './useCountryScopedPersistence'
@@ -10,8 +9,6 @@ import { loadCountryScoped, useCountryScopedPersistence } from './useCountryScop
 let _nextAccId = 10
 
 export const useAccountStore = defineStore('accounts', () => {
-  const settings = useSettingsStore()
-
   const _saved = loadCountryScoped('clearbook_accounts', 'p2_accounts')
 
   // No default accounts — user adds their own (or uses Generate Sample Data)

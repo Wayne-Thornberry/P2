@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { useTransactionStore } from './transactionStore'
-import { useSettingsStore } from './settingsStore'
 import { useAccountStore } from './accountStore'
 import { roundCents, sumNet } from '../utils/math'
 import { loadCountryScoped, useCountryScopedPersistence } from './useCountryScopedPersistence'

@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import type { Transaction } from '../types/transaction'
 import { generateSeedTransactions } from '../data/transactionSeedData'
 import { useSettingsStore } from './settingsStore'
-import { roundCents, sumNet } from '../utils/math'
+import { sumNet } from '../utils/math'
 import { loadCountryScoped, useCountryScopedPersistence } from './useCountryScopedPersistence'
 
 let _nextId = 500

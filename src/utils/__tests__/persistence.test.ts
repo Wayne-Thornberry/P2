@@ -1,10 +1,9 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useAccountStore } from '../../stores/accountStore'
 import { useTransactionStore } from '../../stores/transactionStore'
 import { useTemplateStore } from '../../stores/templateStore'
-import { useBudgetStore } from '../../stores/budgetStore'
 import { exportAllData, importData } from '../persistence'
 
 // Suppress jsdom location.reload warnings — clearAndImport is not exercised here.
@@ -23,7 +22,7 @@ describe('persistence — round trip', () => {
 
     const accId = accStore.addAccount('Checking', 'asset')
     txStore.addTransaction({ name: 'Lunch', date: '2026-04-15', type: 'out', amount: 12.5, itemId: null, accountId: accId })
-    tplStore.$import([{ id: 1, name: 'Groceries', assigned: 100, category: 'Food' }])
+    tplStore.$import([{ id: 1, name: 'Groceries', assigned: 100, category: 'Food', activity: 0 }])
 
     const json = exportAllData()
     const parsed = JSON.parse(json)
