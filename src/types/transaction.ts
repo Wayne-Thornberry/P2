@@ -41,3 +41,15 @@ export interface Transaction {
   locked?: boolean        // prevents editing/deletion when true
   recurring?: boolean     // marks this as a recurring-origin transaction
 }
+
+export interface UpcomingTransaction {
+  id: number
+  title: string
+  amount: number        // always positive
+  type: 'in' | 'out'
+  date: string          // YYYY-MM-DD
+  notes?: string
+  done: boolean
+  linkedTransactionId?: number  // optional link to a real Transaction when marked done
+  createdAt: string             // ISO datetime, auto-recorded
+}

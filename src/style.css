@@ -20,6 +20,7 @@
 @import "./styles/accounts.css";
 @import "./styles/planner.css";
 @import "./styles/performance.css";
+@import "./styles/calendar.css";
 @import "./styles/csv-import.css";
 @import "./styles/theme-midnight.css";
 @import "./styles/theme-forest.css";

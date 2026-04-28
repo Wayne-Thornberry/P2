@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useTransactionStore } from '../stores/transactionStore'
-import { useAccountStore }     from '../stores/accountStore'
-import { useBudgetStore }      from '../stores/budgetStore'
-import { useSettingsStore }    from '../stores/settingsStore'
-import { useLoanStore }        from '../stores/loanStore'
-import { useSavingsGoalStore } from '../stores/savingsGoalStore'
+import { useTransactionStore }         from '../stores/transactionStore'
+import { useAccountStore }             from '../stores/accountStore'
+import { useBudgetStore }              from '../stores/budgetStore'
+import { useSettingsStore }            from '../stores/settingsStore'
+import { useLoanStore }                from '../stores/loanStore'
+import { useSavingsGoalStore }         from '../stores/savingsGoalStore'
+import { useUpcomingTransactionStore } from '../stores/upcomingTransactionStore'
 import { roundCents, txNet } from '../utils/math'
 import { useBudgetFunds } from '../composables/useBudgetFunds'
 
@@ -15,6 +16,7 @@ const budgetStore    = useBudgetStore()
 const settings       = useSettingsStore()
 const loanStore      = useLoanStore()
 const goalStore      = useSavingsGoalStore()
+const upStore        = useUpcomingTransactionStore()
 
 function formatMoney(v: number): string { return settings.formatMoney(v) }
 
@@ -215,6 +217,9 @@ const savDashRows = computed((): SavDashRow[] =>
 )
 
 const hasFinance = computed(() => activeLoans.value.length > 0 || activeSavings.value.length > 0)
+
+// ── Upcoming transactions ─────────────────────────────────────
+const upcomingPending = computed(() => upStore.pending.slice(0, 7))
 
 // ── Savings goals summary ────────────────────────────────────────
 const activeGoals = computed(() => goalStore.goals.filter(g => !g.archived))
@@ -429,6 +434,31 @@ const goalDashRows = computed((): GoalDashRow[] =>
           <div v-if="row.linkedAccountName" class="dash-goal-linked">
             <i class="pi pi-link" style="font-size:0.6rem" /> {{ row.linkedAccountName }}
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Upcoming Transactions -->
+    <section v-if="upcomingPending.length > 0" class="dash-section">
+      <div class="dash-section-header">
+        <h2 class="dash-section-title">Upcoming Transactions</h2>
+        <button class="dash-link" @click="emit('navigate', 'calendar')">View Calendar</button>
+      </div>
+      <div class="dash-upcoming-list">
+        <div v-for="u in upcomingPending" :key="u.id" class="dash-upcoming-row">
+          <span class="dash-upcoming-icon" :class="u.type === 'in' ? 'dash-upcoming-icon--in' : 'dash-upcoming-icon--out'">
+            <i :class="u.type === 'in' ? 'pi pi-arrow-down' : 'pi pi-arrow-up'" />
+          </span>
+          <div class="dash-upcoming-info">
+            <span class="dash-upcoming-name">{{ u.title }}</span>
+            <span class="dash-upcoming-date">{{ u.date }}</span>
+          </div>
+          <span class="dash-upcoming-amount" :class="u.type === 'in' ? 'money-positive' : 'money-negative'">
+            {{ u.type === 'in' ? '+' : '-' }}{{ formatMoney(u.amount) }}
+          </span>
+        </div>
+        <div v-if="upStore.pending.length > 7" class="dash-upcoming-more">
+          <button class="dash-link" @click="emit('navigate', 'calendar')">+ {{ upStore.pending.length - 7 }} more — view calendar</button>
         </div>
       </div>
     </section>

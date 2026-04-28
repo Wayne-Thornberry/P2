@@ -13,6 +13,7 @@ import SavingsGoalsPage from './components/SavingsGoalsPage.vue'
 import FinancePage from './components/FinancePage.vue'
 import PlannerPage from './components/PlannerPage.vue'
 import PerformancePage from './components/PerformancePage.vue'
+import CalendarPage   from './components/CalendarPage.vue'
 import GlobalSearch from './components/GlobalSearch.vue'
 import SetupScreen from './components/SetupScreen.vue'
 import CsvImportDialog from './components/CsvImportDialog.vue'
@@ -206,6 +207,7 @@ interface BreadcrumbSegment {
 
 const PAGE_BREADCRUMBS: Record<string, BreadcrumbSegment[]> = {
   dashboard:    [{ icon: 'pi-home',        label: 'Dashboard'    }],
+  calendar:     [{ icon: 'pi-calendar',    label: 'Calendar'     }],
   budget:       [{ icon: 'pi-wallet',      label: 'Budget'       }, { label: 'Overview'      }],
   template:     [{ icon: 'pi-wallet',      label: 'Budget',       page: 'budget' }, { label: 'Template' }],
   transactions: [{ icon: 'pi-list',        label: 'Transactions' }, { label: 'Log'           }],
@@ -213,7 +215,7 @@ const PAGE_BREADCRUMBS: Record<string, BreadcrumbSegment[]> = {
   reports:      [{ icon: 'pi-chart-bar',   label: 'Reports'      }],
   savings:      [{ icon: 'pi-flag',        label: 'Savings Goals' }],
   finance:      [{ icon: 'pi-percentage',  label: 'Finance'       }, { label: 'Loans & Savings' }],
-  planner:      [{ icon: 'pi-calculator',  label: 'Planner' }],
+  planner:      [{ icon: 'pi-calculator',  label: 'Quick Calculator' }],
   performance:  [{ icon: 'pi-chart-line',   label: 'Performance' }],
   settings:     [{ icon: 'pi-cog',         label: 'Settings'     }],
   about:        [{ icon: 'pi-info-circle', label: 'About'        }],
@@ -381,6 +383,7 @@ const breadcrumbSegments = computed(() =>
           @viewTransactions="onViewTransactions"
           @viewSearchFor="(name) => goToTransactions({ name })"
         />
+        <CalendarPage      v-else-if="currentPage === 'calendar'" />
         <BudgetTabs v-else-if="currentPage === 'budget'" @navigate="navigate($event)" @viewTransactions="onViewTransactions" @viewItemTransactions="onViewItemTransactions" @viewTransaction="onViewTransactionByName" />
         <TemplatePage v-else-if="currentPage === 'template'" />
         <TransactionLog v-else-if="currentPage === 'transactions'" :monthFilter="txMonthFilter" :accountFilter="txAccountFilter" :itemFilter="txItemFilter" :nameFilter="txNameFilter" :typeFilter="txTypeFilter" :focusSearch="txFocusSearch" />

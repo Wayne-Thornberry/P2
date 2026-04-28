@@ -25,6 +25,12 @@ const emit = defineEmits<{ navigate: [page: string] }>()
         Dashboard
       </a>
       <a href="#"
+        :class="['flex items-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-widest transition-colors', props.currentPage === 'calendar' ? 'bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900' : 'text-zinc-500 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700']"
+        @click.prevent="emit('navigate', 'calendar')">
+        <i class="pi pi-calendar text-xs" />
+        Calendar
+      </a>
+      <a href="#"
         :class="['flex items-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-widest transition-colors', props.currentPage === 'template' ? 'bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900' : 'text-zinc-500 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700']"
         @click.prevent="emit('navigate', 'template')">
         <i class="pi pi-table text-xs" />
@@ -70,7 +76,7 @@ const emit = defineEmits<{ navigate: [page: string] }>()
         :class="['flex items-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-widest transition-colors', props.currentPage === 'planner' ? 'bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900' : 'text-zinc-500 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700']"
         @click.prevent="emit('navigate', 'planner')">
         <i class="pi pi-calculator text-xs" />
-        Planner
+        Quick Calculator
       </a>
       <a href="#"
         :class="['flex items-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-widest transition-colors', props.currentPage === 'performance' ? 'bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900' : 'text-zinc-500 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700']"

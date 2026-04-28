@@ -58,7 +58,7 @@ function commitRemainingClass(): string {
 
     <div class="planner-header">
       <div>
-        <h1 class="planner-title">Planner</h1>
+        <h1 class="planner-title">Quick Calculator</h1>
         <p class="planner-subtitle">Plan your income commitments and recurring expenses.</p>
       </div>
     </div>
