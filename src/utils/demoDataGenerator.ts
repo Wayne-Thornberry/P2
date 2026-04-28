@@ -237,6 +237,7 @@ export function generateDemoData(config: DemoConfig): DemoResult {
     name:     item.name,
     category: item.category,
     assigned: item.amounts[persona],
+    activity: 0,
   }))
   templateStore.$import(templateItems)
 
