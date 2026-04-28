@@ -50,7 +50,7 @@ const bottomItems = [
 <template>
   <aside :class="[
     'flex flex-col w-56 shrink-0 border-r-2 border-zinc-300 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-800',
-    'fixed md:static inset-y-0 left-0 z-50 transition-transform duration-300',
+    'fixed md:sticky md:top-0 md:h-screen inset-y-0 left-0 z-50 transition-transform duration-300',
     props.isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
   ]">
 
@@ -90,29 +90,26 @@ const bottomItems = [
         </a>
       </template>
 
-      <!-- Push bottom items to the footer -->
-      <div class="flex-1" />
-
-      <!-- Bottom items: Settings + About -->
-      <div class="border-t-2 border-zinc-300 dark:border-zinc-600 pt-1 mt-1 shrink-0">
-        <a
-          v-for="item in bottomItems"
-          :key="item.page"
-          href="#"
-          :class="[
-            'flex items-center gap-2.5 px-4 py-[0.42rem] text-[0.8rem] font-semibold transition-colors',
-            props.currentPage === item.page
-              ? 'bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900'
-              : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-300 dark:hover:bg-zinc-700 hover:text-zinc-800 dark:hover:text-zinc-100',
-          ]"
-          @click.prevent="emit('navigate', item.page)"
-        >
-          <i :class="['pi', item.icon, 'text-[0.75rem] shrink-0']" />
-          {{ item.label }}
-        </a>
-      </div>
-
     </nav>
+
+    <!-- Bottom items: always pinned, never scrolled away -->
+    <div class="border-t-2 border-zinc-300 dark:border-zinc-600 py-1 shrink-0">
+      <a
+        v-for="item in bottomItems"
+        :key="item.page"
+        href="#"
+        :class="[
+          'flex items-center gap-2.5 px-4 py-[0.42rem] text-[0.8rem] font-semibold transition-colors',
+          props.currentPage === item.page
+            ? 'bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900'
+            : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-300 dark:hover:bg-zinc-700 hover:text-zinc-800 dark:hover:text-zinc-100',
+        ]"
+        @click.prevent="emit('navigate', item.page)"
+      >
+        <i :class="['pi', item.icon, 'text-[0.75rem] shrink-0']" />
+        {{ item.label }}
+      </a>
+    </div>
 
   </aside>
 </template>

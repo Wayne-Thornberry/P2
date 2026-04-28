@@ -649,12 +649,16 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
-  padding: 2.5rem 1.5rem;
+  gap: 1.25rem;
+  padding: 2.75rem 2rem;
   margin-bottom: 1.25rem;
   border: 2px dashed var(--color-zinc-300);
   background: var(--color-zinc-50);
   text-align: center;
+  max-width: 480px;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .dark .budget-empty-prompt {
@@ -663,12 +667,21 @@
 }
 
 .budget-empty-icon {
-  font-size: 2rem;
-  color: var(--color-zinc-400);
+  font-size: 2.25rem;
+  color: var(--color-zinc-300);
+  display: block;
+  margin-bottom: 0.25rem;
 }
 
 .dark .budget-empty-icon {
-  color: var(--color-zinc-500);
+  color: var(--color-zinc-600);
+}
+
+.budget-empty-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .budget-empty-title {
@@ -695,18 +708,19 @@
 .budget-empty-cta {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.4rem;
-  margin-top: 0.5rem;
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   font-weight: 900;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  padding: 0.45rem 1.1rem;
+  padding: 0.5rem 1.25rem;
   background: #7c3aed;
   color: #fff;
-  border: none;
+  border: 2px solid transparent;
   cursor: pointer;
   transition: background-color 0.12s;
+  width: 100%;
 }
 
 .budget-empty-cta:hover {
@@ -1518,16 +1532,30 @@ tr.p-row-odd:hover .item-delete-btn { opacity: 1; color: var(--color-zinc-400); 
 /* ── Empty-month prompt: action row ─────────────────────────── */
 .budget-empty-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: stretch;
   gap: 0.5rem;
-  justify-content: center;
-  margin-top: 0.25rem;
+  width: 100%;
+}
+
+.budget-empty-or {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-zinc-400);
+  text-align: center;
+  padding: 0.1rem 0;
+}
+
+.dark .budget-empty-or {
+  color: var(--color-zinc-500);
 }
 
 .budget-empty-cta--ghost {
   background: none;
   color: #7c3aed;
-  border: 2px solid #7c3aed;
+  border-color: #7c3aed;
 }
 
 .budget-empty-cta--ghost:hover {
@@ -1539,13 +1567,20 @@ tr.p-row-odd:hover .item-delete-btn { opacity: 1; color: var(--color-zinc-400); 
   border-color: #a78bfa;
 }
 
+.dark .budget-empty-cta--ghost:hover {
+  background: #2e1065;
+}
+
 .budget-copy-from {
   display: flex;
   align-items: center;
   gap: 0.35rem;
+  width: 100%;
 }
 
 .budget-copy-from-select {
+  flex: 1;
+  min-width: 0;
   font-size: 0.72rem;
   padding: 0.3rem 0.5rem;
   border: 2px solid var(--color-zinc-300);
@@ -1564,6 +1599,7 @@ tr.p-row-odd:hover .item-delete-btn { opacity: 1; color: var(--color-zinc-400); 
 .budget-copy-from-btn:disabled {
   opacity: 0.4;
   cursor: default;
+  width: auto;
 }
 
 /* ── Budget vs Actual table ───────────────────────────────────── */
@@ -1660,9 +1696,7 @@ tr.p-row-odd:hover .item-delete-btn { opacity: 1; color: var(--color-zinc-400); 
 .bva-total-label { padding: 0.4rem 0.6rem; font-size: 0.65rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.07em; color: var(--color-zinc-500); }
 .bva-total-val   { font-weight: 900; font-size: 0.82rem; }
 
-.dark .budget-empty-cta--ghost:hover {
-  background: #2e1065;
-}
+/* displaced dark ghost hover already consolidated above */
 
 /* ── Quick Funding panel (right panel) ───────────────────────── */
 .quick-funding-panel {

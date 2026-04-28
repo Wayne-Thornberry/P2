@@ -7,6 +7,7 @@ import { useSettingsStore }            from '../stores/settingsStore'
 import { useLoanStore }                from '../stores/loanStore'
 import { useSavingsGoalStore }         from '../stores/savingsGoalStore'
 import { useUpcomingTransactionStore } from '../stores/upcomingTransactionStore'
+import { useHealthScore }              from '../composables/useHealthScore'
 import { roundCents, txNet } from '../utils/math'
 import { toYearMonth, yearMonthKey } from '../utils/date'
 import { useBudgetFunds } from '../composables/useBudgetFunds'
@@ -220,52 +221,7 @@ const savDashRows = computed((): SavDashRow[] =>
 const hasFinance = computed(() => activeLoans.value.length > 0 || activeSavings.value.length > 0)
 
 // ── Performance snapshot ──────────────────────────────────────
-const perfHealthScore = computed(() => {
-  // savings rate (35 pts)
-  const sr = monthIn.value > 0 ? (monthIn.value - monthOut.value) / monthIn.value : 0
-  let score = 0
-  if (sr >= 0.2) score += 35
-  else if (sr >= 0.1) score += 25
-  else if (sr >= 0.05) score += 15
-  else if (sr >= 0) score += 5
-
-  // emergency reserve (30 pts) — 3 months of spending as proxy
-  const monthlySpend = monthOut.value || 1
-  const reserveMonths = totalBalance.value / monthlySpend
-  if (reserveMonths >= 6) score += 30
-  else if (reserveMonths >= 3) score += 22
-  else if (reserveMonths >= 1) score += 12
-  else if (reserveMonths >= 0) score += 4
-
-  // budget adherence (20 pts) — excluded and scaled if no budget set
-  const bs = budgetStatus.value
-  const noBudget = !bs
-  if (bs) {
-    const overPct = bs.onTrack + bs.overCount > 0
-      ? bs.overCount / (bs.onTrack + bs.overCount)
-      : 0
-    if (overPct === 0) score += 20
-    else if (overPct <= 0.1) score += 15
-    else if (overPct <= 0.25) score += 8
-    else if (overPct <= 0.5) score += 3
-  }
-
-  // income consistency (15 pts) — has income this month?
-  if (monthIn.value > 0) score += 15
-
-  // No budget: scored out of 80, scale to 100
-  if (noBudget) return Math.min(100, Math.max(0, Math.round(score / 80 * 100)))
-  return Math.min(100, Math.max(0, score))
-})
-
-const perfHealthGrade = computed(() => {
-  const s = perfHealthScore.value
-  if (s >= 85) return { letter: 'A', label: 'Excellent', color: '#16a34a' }
-  if (s >= 70) return { letter: 'B', label: 'Good', color: '#65a30d' }
-  if (s >= 55) return { letter: 'C', label: 'Fair', color: '#d97706' }
-  if (s >= 40) return { letter: 'D', label: 'Needs Work', color: '#ea580c' }
-  return { letter: 'F', label: 'At Risk', color: '#dc2626' }
-})
+const { score: perfHealthScore, grade: perfHealthGrade } = useHealthScore()
 
 // ── Upcoming transactions ─────────────────────────────────────
 const upcomingPending = computed(() => upStore.pending.slice(0, 7))

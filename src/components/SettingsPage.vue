@@ -10,6 +10,9 @@ import { BUDGET_TEMPLATE } from '../data/budgetTemplate'
 import { downloadExport, importFromFile, downloadAllCountries } from '../utils/persistence'
 import { getCountryById } from '../data/countries'
 import { useConfirm } from '../composables/useConfirm'
+import DemoDataDialog from './DemoDataDialog.vue'
+import { generateDemoData } from '../utils/demoDataGenerator'
+import type { DemoConfig, DemoResult } from '../utils/demoDataGenerator'
 
 const settings       = useSettingsStore()
 const budgetStore    = useBudgetStore()
@@ -87,6 +90,23 @@ const msgTemplate = ref('')
 function _flashMsg(r: ReturnType<typeof ref<string>>, text: string): void {
   r.value = text
   setTimeout(() => { r.value = '' }, 4000)
+}
+
+// ── Demo Data Generator ───────────────────────────────────────
+const showDemoDialog  = ref(false)
+const msgDemoResult   = ref('')
+
+function handleDemoGenerate(config: DemoConfig): void {
+  showDemoDialog.value = false
+  const result: DemoResult = generateDemoData(config)
+  const parts: string[] = []
+  if (result.accountsCreated)       parts.push(`${result.accountsCreated} accounts`)
+  if (result.budgetMonths)          parts.push(`${result.budgetMonths} budget months`)
+  if (result.transactionsAdded)     parts.push(`${result.transactionsAdded} transactions`)
+  if (result.goalsCreated)          parts.push(`${result.goalsCreated} savings goals`)
+  if (result.loansCreated)          parts.push(`${result.loansCreated} loans`)
+  if (result.financeSavingsCreated) parts.push(`${result.financeSavingsCreated} finance savings`)
+  _flashMsg(msgDemoResult, parts.length > 0 ? `Generated: ${parts.join(', ')}.` : 'No data generated.')
 }
 
 // ── 1. Generate Items ─────────────────────────────────────────
@@ -603,6 +623,28 @@ const previewCreated  = computed(() => settings.formatCreatedAt(PREVIEW_ISO))
       </div>
     </div>
 
+    <!-- Demo ───────────────────────────────────────────────────── -->
+    <div class="settings-section settings-section--full">
+      <h2 class="settings-section-title">Demo</h2>
+
+      <div class="settings-row">
+        <div class="settings-label">
+          <span class="settings-label-text">Generate demo data</span>
+          <span class="settings-label-hint">
+            Populate the app with a full realistic dataset — accounts, budgets, transactions, savings goals, loans and a template.
+            Choose from three personas: Saver, Balanced, or In Debt.
+          </span>
+        </div>
+        <div class="settings-control">
+          <button class="debug-btn" @click="showDemoDialog = true">
+            <i class="pi pi-magic text-xs mr-1.5" />
+            Generate Demo Data…
+          </button>
+          <p v-if="msgDemoResult" class="debug-confirm">{{ msgDemoResult }}</p>
+        </div>
+      </div>
+    </div>
+
     <!-- Danger Zone ─────────────────────────────────────────────── -->
     <div class="settings-section settings-section--danger">
       <h2 class="settings-section-title settings-section-title--danger">Danger Zone</h2>
@@ -730,4 +772,11 @@ const previewCreated  = computed(() => settings.formatCreatedAt(PREVIEW_ISO))
     </div>
 
   </div>
+
+  <!-- Demo Data Dialog -->
+  <DemoDataDialog
+    v-if="showDemoDialog"
+    @close="showDemoDialog = false"
+    @generate="handleDemoGenerate"
+  />
 </template>

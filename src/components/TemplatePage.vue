@@ -203,7 +203,46 @@ async function handleReset(): Promise<void> {
   if (!ok) return
   store.resetToDefault()
 }
+// ── Export / Import ──────────────────────────────────────────────
+const importError  = ref('')
+const importFileRef = ref<HTMLInputElement | null>(null)
 
+function handleExport(): void {
+  const json = store.exportTemplate()
+  const blob = new Blob([json], { type: 'application/json' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  a.href     = url
+  a.download = `clearbook-template.json`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+async function handleImport(): Promise<void> {
+  const ok = await confirm({
+    title: 'Import template?',
+    message: 'This will replace your current template with the imported one. Continue?',
+    confirmLabel: 'Import',
+    danger: true,
+  })
+  if (!ok) return
+  importFileRef.value?.click()
+}
+
+function onImportFileChange(e: Event): void {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = (ev) => {
+    const json = ev.target?.result as string
+    const err  = store.importTemplateFile(json)
+    importError.value = err ?? ''
+    if (err) return
+  }
+  reader.readAsText(file)
+  // Reset input so same file can be re-selected
+  ;(e.target as HTMLInputElement).value = ''
+}
 // ── Category total ─────────────────────────────────────────────
 function catTotal(cat: string): number {
   return store.itemsInCategory(cat).reduce((s, i) => s + i.assigned, 0)
@@ -225,10 +264,31 @@ function grandTotal(): number {
         <p class="tpl-subtitle">Define the default categories and amounts applied when you populate a new month.</p>
       </div>
       <div class="tpl-header-actions">
+        <button class="tpl-share-btn" @click="handleExport">
+          <i class="pi pi-upload" /> Export
+        </button>
+        <button class="tpl-share-btn" @click="handleImport">
+          <i class="pi pi-download" /> Import
+        </button>
         <button class="tpl-reset-btn" @click="handleReset">
           <i class="pi pi-undo" /> Reset to defaults
         </button>
+        <!-- Hidden file input for import -->
+        <input
+          ref="importFileRef"
+          type="file"
+          accept=".json,application/json"
+          style="display:none"
+          @change="onImportFileChange"
+        />
       </div>
+    </div>
+
+    <!-- Import error banner -->
+    <div v-if="importError" class="tpl-import-error">
+      <i class="pi pi-exclamation-triangle" />
+      {{ importError }}
+      <button class="tpl-import-error-close" @click="importError = ''"><i class="pi pi-times" /></button>
     </div>
 
     <!-- Two-column body -->

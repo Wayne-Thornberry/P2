@@ -157,6 +157,50 @@ export const useTemplateStore = defineStore('template', () => {
     }
   }
 
+  // ── Template share: export / import ───────────────────────────────────
+
+  /** Returns a portable JSON string suitable for sharing. No internal IDs. */
+  function exportTemplate(): string {
+    const rows = items.value.map(i => ({ name: i.name, category: i.category, assigned: i.assigned }))
+    return JSON.stringify({ clearbook_template: true, version: 1, items: rows }, null, 2)
+  }
+
+  /**
+   * Parse and apply a template JSON string produced by exportTemplate().
+   * Returns an error message string on failure, or null on success.
+   */
+  function importTemplateFile(json: string): string | null {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(json)
+    } catch {
+      return 'Invalid file — could not parse JSON.'
+    }
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      !(parsed as Record<string, unknown>).clearbook_template
+    ) {
+      return 'This does not look like a Clearbook template file.'
+    }
+    const raw = parsed as { version: number; items: unknown }
+    if (!Array.isArray(raw.items) || raw.items.length === 0) {
+      return 'Template file contains no items.'
+    }
+    const asItems: BudgetItem[] = (raw.items as Array<Record<string, unknown>>).map((r, idx) => {
+      if (typeof r.name !== 'string' || !r.name.trim()) throw new Error(`Item ${idx + 1} has no name.`)
+      return {
+        id:       0,
+        name:     String(r.name).trim(),
+        category: typeof r.category === 'string' ? r.category.trim() : 'Imported',
+        assigned: typeof r.assigned === 'number' ? r.assigned : 0,
+        activity: 0,
+      }
+    })
+    $import(asItems)
+    return null
+  }
+
   return {
     entries,
     items,
@@ -174,5 +218,7 @@ export const useTemplateStore = defineStore('template', () => {
     getCopy,
     resetToDefault,
     $import,
+    exportTemplate,
+    importTemplateFile,
   }
 })

@@ -293,8 +293,8 @@ async function rollOverSurplus(): Promise<void> {
       </div>
     </div>
 
-    <!-- Roll over surplus banner -->
-    <div v-if="prevMonthInData && prevMonthSurplus > 0" class="budget-carryover-banner">
+    <!-- Roll over surplus banner (only shown when there's something to roll into) -->
+    <div v-if="!isMonthEmpty && prevMonthInData && prevMonthSurplus > 0" class="budget-carryover-banner">
       <span class="budget-carryover-text">
         <i class="pi pi-arrow-right-arrow-left" />
         {{ formatMoney(prevMonthSurplus) }} unspent last month
@@ -304,28 +304,41 @@ async function rollOverSurplus(): Promise<void> {
 
     <!-- Empty-month prompt -->
     <div v-if="isMonthEmpty" class="budget-empty-prompt">
-      <i class="pi pi-table budget-empty-icon" />
-      <p class="budget-empty-title">No budget set for {{ monthStore.label }}</p>
-      <p class="budget-empty-sub">Start from the default template or add items manually below.</p>
+      <div class="budget-empty-header">
+        <i class="pi pi-inbox budget-empty-icon" />
+        <p class="budget-empty-title">No budget for {{ monthStore.label }}</p>
+        <p class="budget-empty-sub">Apply the default template, copy from a previous month, or start fresh.</p>
+      </div>
+
       <div class="budget-empty-actions">
+
+        <!-- Primary: apply template -->
         <button class="budget-empty-cta" @click="handlePopulateTemplate">
-          <i class="pi pi-table" /> Populate from Template
+          <i class="pi pi-table" /> Apply Template
         </button>
-        <div v-if="store.monthsWithData.length > 0" class="budget-copy-from">
-          <select v-model="copyFromMonthKey" class="budget-copy-from-select">
-            <option value="" disabled>Copy from month…</option>
-            <option v-for="m in store.monthsWithData" :key="`${m.year}-${m.month}`" :value="`${m.year}-${m.month}`">
-              {{ m.label }}
-            </option>
-          </select>
-          <button
-            class="budget-empty-cta budget-copy-from-btn"
-            :disabled="!copyFromMonthKey"
-            @click="handleCopyFromMonth"
-          >
-            <i class="pi pi-copy" /> Copy
-          </button>
-        </div>
+
+        <!-- Copy from a previous month -->
+        <template v-if="store.monthsWithData.length > 0">
+          <span class="budget-empty-or">or copy from a previous month</span>
+          <div class="budget-copy-from">
+            <select v-model="copyFromMonthKey" class="budget-copy-from-select">
+              <option value="" disabled>Select month…</option>
+              <option v-for="m in store.monthsWithData" :key="`${m.year}-${m.month}`" :value="`${m.year}-${m.month}`">
+                {{ m.label }}
+              </option>
+            </select>
+            <button
+              class="budget-empty-cta budget-copy-from-btn"
+              :disabled="!copyFromMonthKey"
+              @click="handleCopyFromMonth"
+            >
+              <i class="pi pi-copy" /> Copy
+            </button>
+          </div>
+        </template>
+
+        <!-- Start fresh: add a category -->
+        <span class="budget-empty-or">or start fresh</span>
         <template v-if="addingCategory">
           <input
             ref="newCatInputRef"
@@ -340,6 +353,7 @@ async function rollOverSurplus(): Promise<void> {
         <button v-else class="budget-empty-cta budget-empty-cta--ghost" @click="startAddCategory">
           <i class="pi pi-plus" /> Add Category
         </button>
+
       </div>
     </div>
 
