@@ -236,8 +236,9 @@ const perfHealthScore = computed(() => {
   else if (reserveMonths >= 1) score += 12
   else if (reserveMonths >= 0) score += 4
 
-  // budget adherence (20 pts)
+  // budget adherence (20 pts) — excluded and scaled if no budget set
   const bs = budgetStatus.value
+  const noBudget = !bs
   if (bs) {
     const overPct = bs.onTrack + bs.overCount > 0
       ? bs.overCount / (bs.onTrack + bs.overCount)
@@ -246,13 +247,13 @@ const perfHealthScore = computed(() => {
     else if (overPct <= 0.1) score += 15
     else if (overPct <= 0.25) score += 8
     else if (overPct <= 0.5) score += 3
-  } else {
-    score += 10 // no budget = neutral
   }
 
   // income consistency (15 pts) — has income this month?
   if (monthIn.value > 0) score += 15
 
+  // No budget: scored out of 80, scale to 100
+  if (noBudget) return Math.min(100, Math.max(0, Math.round(score / 80 * 100)))
   return Math.min(100, Math.max(0, score))
 })
 

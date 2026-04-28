@@ -36,6 +36,14 @@
 
 /* ── Top Row: Score Card + Metrics ───────────────────────────── */
 
+/* Score + breakdown side-by-side row */
+.perf-score-row {
+  display: flex;
+  gap: 1.25rem;
+  align-items: stretch;
+}
+
+/* Metrics-only row */
 .perf-top-row {
   display: flex;
   gap: 1.25rem;
@@ -49,11 +57,11 @@
   flex-direction: column;
   align-items: center;
   gap: 0.5rem;
-  padding: 1.25rem 1.5rem;
+  padding: 1.5rem 1.75rem;
   background: var(--color-zinc-100);
   border: 2px solid var(--color-zinc-200);
   border-radius: 0.5rem;
-  min-width: 190px;
+  min-width: 220px;
   flex-shrink: 0;
 }
 .dark .perf-score-card {
@@ -70,7 +78,7 @@
 }
 
 .perf-gauge-wrap {
-  width: 150px;
+  width: 180px;
 }
 .perf-gauge-svg {
   width: 100%;
@@ -84,8 +92,8 @@
   gap: 0.4rem;
   font-weight: 900;
 }
-.perf-grade-letter { font-size: 2.25rem; line-height: 1; }
-.perf-grade-label  { font-size: 0.82rem; font-weight: 700; }
+.perf-grade-letter { font-size: 2.75rem; line-height: 1; }
+.perf-grade-label  { font-size: 0.9rem; font-weight: 700; }
 
 .perf-score-factors {
   width: 100%;
@@ -111,6 +119,7 @@
   grid-template-columns: repeat(3, 1fr);
   gap: 0.75rem;
   min-width: 0;
+  width: 100%;
 }
 
 .perf-metric-card {
@@ -609,6 +618,46 @@
   font-style: italic;
 }
 
+.perf-breakdown-how {
+  margin: 0.25rem 0 0;
+  font-size: 0.68rem;
+  color: var(--color-zinc-400);
+  line-height: 1.45;
+  padding-top: 0.3rem;
+  border-top: 1px dashed var(--color-zinc-200);
+}
+.dark .perf-breakdown-how {
+  color: var(--color-zinc-500);
+  border-top-color: var(--color-zinc-700);
+}
+
+.perf-breakdown-row--excluded {
+  opacity: 0.55;
+}
+
+.perf-breakdown-excluded-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--color-zinc-400);
+  background: var(--color-zinc-200);
+  border-radius: 0.25rem;
+  padding: 0.1rem 0.35rem;
+}
+.dark .perf-breakdown-excluded-badge {
+  background: var(--color-zinc-700);
+  color: var(--color-zinc-400);
+}
+
+.perf-breakdown-grades {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.9rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
 .perf-breakdown-total {
   display: flex;
   align-items: center;
@@ -630,6 +679,18 @@
   font-size: 1.4rem;
   font-weight: 900;
   font-feature-settings: "tnum";
+}
+
+/* Breakdown inside score row takes remaining width */
+.perf-score-row .perf-breakdown {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+}
+.perf-score-row .perf-breakdown-total {
+  margin-top: auto;
 }
 
 /* ── Score info panel ────────────────────────────────────────── */
@@ -724,9 +785,10 @@
 /* ── Responsive ──────────────────────────────────────────────── */
 
 @media (max-width: 860px) {
+  .perf-score-row  { flex-direction: column; }
   .perf-top-row    { flex-direction: column; }
   .perf-score-card { width: 100%; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; min-width: unset; }
-  .perf-gauge-wrap { width: 120px; }
+  .perf-gauge-wrap { width: 140px; }
   .perf-metrics-grid { grid-template-columns: repeat(2, 1fr); }
 }
 

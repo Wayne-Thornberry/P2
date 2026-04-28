@@ -110,9 +110,9 @@ const healthScore = computed(() => {
   else if (r >= 1) s += 12
   else if (r > 0)  s += 4
 
-  if (budgetAdherence.value === null) { s += 10 }
-  else {
-    const p = budgetAdherence.value.pct
+  const noBudget = budgetAdherence.value === null
+  if (!noBudget) {
+    const p = budgetAdherence.value!.pct
     if      (p === 100) s += 20
     else if (p >= 75)   s += 15
     else if (p >= 50)   s += 8
@@ -124,6 +124,8 @@ const healthScore = computed(() => {
   else if (withIncome === 2) s += 9
   else if (withIncome === 1) s += 4
 
+  // No budget: scored out of 80, scale to 100 so max is still achievable
+  if (noBudget) return Math.min(100, Math.max(0, Math.round(s / 80 * 100)))
   return Math.min(100, Math.max(0, s))
 })
 
@@ -335,8 +337,8 @@ const scoreBreakdown = computed(() => {
   const rPts = r >= 6 ? 30 : r >= 3 ? 22 : r >= 1 ? 12 : r > 0 ? 4 : 0
 
   const ba = budgetAdherence.value
-  let baPts = 10
-  if (ba !== null) baPts = ba.pct === 100 ? 20 : ba.pct >= 75 ? 15 : ba.pct >= 50 ? 8 : 2
+  const noBudget = ba === null
+  const baPts = noBudget ? null : ba!.pct === 100 ? 20 : ba!.pct >= 75 ? 15 : ba!.pct >= 50 ? 8 : 2
 
   const withIncome = monthStats.value.slice(-3).filter(m => m.income > 0).length
   const icPts = withIncome === 3 ? 15 : withIncome === 2 ? 9 : withIncome === 1 ? 4 : 0
@@ -346,35 +348,40 @@ const scoreBreakdown = computed(() => {
       name: 'Savings Rate',
       max: 35,
       pts: srPts,
+      excluded: false,
       value: `${sr}% (3-mo avg)`,
       detail: sr >= 20 ? 'Outstanding rate' : sr >= 10 ? 'Healthy rate' : sr >= 5 ? 'Low but positive' : sr >= 0 ? 'Barely breaking even' : 'Spending more than earning',
+      howItWorks: '3-month rolling average. ≥20% = 35 pts · ≥10% = 25 · ≥5% = 15 · ≥0% = 8 · negative = 0',
     },
     {
       name: 'Emergency Reserve',
       max: 30,
       pts: rPts,
+      excluded: false,
       value: reserveMonths.value !== null ? `${r} months` : 'No data',
       detail: r >= 6 ? 'Excellent buffer' : r >= 3 ? 'Solid cushion' : r >= 1 ? 'Minimal cover' : r > 0 ? 'Very thin' : 'No reserve',
+      howItWorks: 'Balance ÷ avg monthly expenses. ≥6 mo = 30 pts · ≥3 = 22 · ≥1 = 12 · >0 = 4 · zero/negative = 0',
     },
     {
       name: 'Budget Adherence',
       max: 20,
-      pts: baPts,
-      value: ba !== null ? `${ba.onTrack}/${ba.total} categories on track` : 'No budget set',
-      detail: ba === null ? 'Neutral score applied' : ba.pct === 100 ? 'All categories under budget' : ba.pct >= 75 ? 'Mostly on track' : ba.pct >= 50 ? 'Over in several areas' : 'Many categories overspent',
+      pts: baPts ?? 0,
+      excluded: noBudget,
+      value: noBudget ? 'No budget' : `${ba!.onTrack}/${ba!.total} on track`,
+      detail: noBudget ? 'Excluded — other factors scaled to 100' : ba!.pct === 100 ? 'All categories under budget' : ba!.pct >= 75 ? 'Mostly on track' : ba!.pct >= 50 ? 'Over in several areas' : 'Many categories overspent',
+      howItWorks: '% of budget categories not overspent. 100% = 20 pts · ≥75% = 15 · ≥50% = 8 · below = 2. No budget: factor excluded, remaining 80 pts scaled to 100.',
     },
     {
       name: 'Income Consistency',
       max: 15,
       pts: icPts,
+      excluded: false,
       value: `${withIncome}/3 months with income`,
       detail: withIncome === 3 ? 'Consistent income' : withIncome === 2 ? 'Mostly consistent' : withIncome === 1 ? 'Irregular income' : 'No income recorded',
+      howItWorks: 'Months with income recorded in the last 3. All 3 = 15 pts · 2 = 9 · 1 = 4 · none = 0',
     },
   ]
 })
-// ── Score info toggle ─────────────────────────────────────────
-const showScoreInfo = ref(false)
-
 // ── Budget performance ────────────────────────────────────────
 const budgetRows = computed(() => {
   const items = budgetStore.items
@@ -406,10 +413,10 @@ function barColor(pct: number): string {
       </div>
     </div>
 
-    <!-- Health Score + Metrics -->
-    <div class="perf-top-row">
+    <!-- Health Score + Score Breakdown (side by side) -->
+    <div class="perf-score-row">
 
-      <!-- Score gauge -->
+      <!-- Score gauge (left) -->
       <div class="perf-score-card">
         <span class="perf-score-heading">Health Score</span>
         <div class="perf-gauge-wrap">
@@ -443,6 +450,39 @@ function barColor(pct: number): string {
           </div>
         </div>
       </div>
+
+      <!-- Score breakdown (right) -->
+      <div class="perf-breakdown">
+        <div v-for="row in scoreBreakdown" :key="row.name" class="perf-breakdown-row" :class="{ 'perf-breakdown-row--excluded': row.excluded }">
+          <div class="perf-breakdown-top">
+            <span class="perf-breakdown-name">{{ row.name }}</span>
+            <span v-if="row.excluded" class="perf-breakdown-excluded-badge">excluded</span>
+            <span v-else class="perf-breakdown-pts" :class="row.pts === row.max ? 'color-ok' : row.pts >= row.max * 0.5 ? 'color-warn' : 'color-bad'">{{ row.pts }}<span class="perf-breakdown-max">/{{ row.max }} pts</span></span>
+          </div>
+          <div v-if="!row.excluded" class="perf-breakdown-bar-track">
+            <div class="perf-breakdown-bar-fill" :style="{ width: (row.pts / row.max * 100) + '%', background: row.pts === row.max ? '#16a34a' : row.pts >= row.max * 0.5 ? '#d97706' : '#dc2626' }" />
+          </div>
+          <div class="perf-breakdown-meta">
+            <span class="perf-breakdown-value">{{ row.value }}</span>
+            <span class="perf-breakdown-detail">{{ row.detail }}</span>
+          </div>
+          <p class="perf-breakdown-how">{{ row.howItWorks }}</p>
+        </div>
+        <div class="perf-breakdown-total">
+          <div class="perf-breakdown-grades">
+            <span style="color:#10b981"><strong>A</strong> 85–100</span>
+            <span style="color:#22d3ee"><strong>B</strong> 70–84</span>
+            <span style="color:#f59e0b"><strong>C</strong> 55–69</span>
+            <span style="color:#f97316"><strong>D</strong> 40–54</span>
+            <span style="color:#ef4444"><strong>F</strong> 0–39</span>
+          </div>
+          <span :style="{ color: healthGrade.color }" class="perf-breakdown-total-pts">{{ healthScore }}<span style="font-size:0.75rem;font-weight:500;color:inherit"> / 100</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Metrics -->
+    <div class="perf-top-row">
 
       <!-- Metrics grid -->
       <div class="perf-metrics-grid">
@@ -491,75 +531,6 @@ function barColor(pct: number): string {
           <span class="perf-metric-sub">{{ budgetAdherence ? `${budgetAdherence.onTrack}/${budgetAdherence.total} on track` : 'No budget set' }}</span>
         </div>
       </div>
-    </div>
-
-    <!-- Score breakdown -->
-    <div class="perf-section">
-      <h2 class="perf-section-title"><i class="pi pi-chart-bar" /> Score Breakdown</h2>
-      <div class="perf-breakdown">
-        <div v-for="row in scoreBreakdown" :key="row.name" class="perf-breakdown-row">
-          <div class="perf-breakdown-top">
-            <span class="perf-breakdown-name">{{ row.name }}</span>
-            <span class="perf-breakdown-pts" :class="row.pts === row.max ? 'color-ok' : row.pts >= row.max * 0.5 ? 'color-warn' : 'color-bad'">{{ row.pts }}<span class="perf-breakdown-max">/{{ row.max }} pts</span></span>
-          </div>
-          <div class="perf-breakdown-bar-track">
-            <div class="perf-breakdown-bar-fill" :style="{ width: (row.pts / row.max * 100) + '%', background: row.pts === row.max ? '#16a34a' : row.pts >= row.max * 0.5 ? '#d97706' : '#dc2626' }" />
-          </div>
-          <div class="perf-breakdown-meta">
-            <span class="perf-breakdown-value">{{ row.value }}</span>
-            <span class="perf-breakdown-detail">{{ row.detail }}</span>
-          </div>
-        </div>
-        <div class="perf-breakdown-total">
-          <span>Total score</span>
-          <span :style="{ color: healthGrade.color }" class="perf-breakdown-total-pts">{{ healthScore }}<span style="font-size:0.75rem;font-weight:500;color:inherit"> / 100</span></span>
-        </div>
-      </div>
-    </div>
-
-    <!-- How scoring works -->
-    <div class="perf-section">
-      <button class="perf-collapsible" @click="showScoreInfo = !showScoreInfo">
-        <h2 class="perf-section-title" style="margin:0;border:none;padding:0"><i class="pi pi-info-circle" /> How the score is calculated</h2>
-        <i :class="`pi ${showScoreInfo ? 'pi-chevron-up' : 'pi-chevron-down'} perf-chevron`" />
-      </button>
-      <template v-if="showScoreInfo">
-        <div class="perf-score-info">
-          <p class="perf-score-info-intro">The score is built from four factors that add up to a maximum of 100 points. Letter grades are awarded based on the total.</p>
-          <div class="perf-score-info-table">
-            <div class="perf-score-info-row perf-score-info-row--header">
-              <span>Factor</span><span class="perf-score-info-pts">Max pts</span><span class="perf-score-info-how">How it's measured</span>
-            </div>
-            <div class="perf-score-info-row">
-              <span class="perf-score-info-name">Savings Rate</span>
-              <span class="perf-score-info-pts">35</span>
-              <span class="perf-score-info-how">3-month rolling average. ≥20% = 35 pts, ≥10% = 25, ≥5% = 15, ≥0% = 8, negative = 0</span>
-            </div>
-            <div class="perf-score-info-row">
-              <span class="perf-score-info-name">Emergency Reserve</span>
-              <span class="perf-score-info-pts">30</span>
-              <span class="perf-score-info-how">Balance ÷ avg monthly expenses. ≥6 months = 30 pts, ≥3 = 22, ≥1 = 12, &gt;0 = 4, zero/negative = 0</span>
-            </div>
-            <div class="perf-score-info-row">
-              <span class="perf-score-info-name">Budget Adherence</span>
-              <span class="perf-score-info-pts">20</span>
-              <span class="perf-score-info-how">% of budget categories not overspent this month. 100% = 20 pts, ≥75% = 15, ≥50% = 8, below = 2. No budget set = 10 (neutral)</span>
-            </div>
-            <div class="perf-score-info-row">
-              <span class="perf-score-info-name">Income Consistency</span>
-              <span class="perf-score-info-pts">15</span>
-              <span class="perf-score-info-how">Months with income in the last 3. All 3 = 15 pts, 2 = 9, 1 = 4, none = 0</span>
-            </div>
-          </div>
-          <div class="perf-score-info-grades">
-            <span class="perf-score-info-grade" style="color:#10b981"><strong>A</strong> 85–100 Excellent</span>
-            <span class="perf-score-info-grade" style="color:#22d3ee"><strong>B</strong> 70–84 Good</span>
-            <span class="perf-score-info-grade" style="color:#f59e0b"><strong>C</strong> 55–69 Fair</span>
-            <span class="perf-score-info-grade" style="color:#f97316"><strong>D</strong> 40–54 Needs Work</span>
-            <span class="perf-score-info-grade" style="color:#ef4444"><strong>F</strong> 0–39 Critical</span>
-          </div>
-        </div>
-      </template>
     </div>
 
     <!-- Insights -->
