@@ -75,7 +75,7 @@ export function downloadExport(): void {
   const country  = settings.country  || 'unknown'
   const currency = settings.currency || 'XXX'
   const ts = new Date().toISOString().slice(0, 16).replace('T', '_').replace(':', '-')
-  a.download = `clearbook-backup-${country}-${currency}-${ts}.json`
+  a.download = `folio-backup-${country}-${currency}-${ts}.json`
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
@@ -152,7 +152,7 @@ export function downloadAllCountries(): void {
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i)
     if (!key) continue
-    const match = key.match(/^clearbook_accounts_(.+)$/)
+    const match = key.match(/^folio_accounts_(.+)$/)
     if (match) countryIds.add(match[1])
   }
 
@@ -163,14 +163,14 @@ export function downloadAllCountries(): void {
   }
 
   const settingsRaw = (() => {
-    try { return JSON.parse(localStorage.getItem('clearbook_settings') ?? 'null') } catch { return null }
+    try { return JSON.parse(localStorage.getItem('folio_settings') ?? localStorage.getItem('clearbook_settings') ?? 'null') } catch { return null }
   })()
 
   const ts = new Date().toISOString().slice(0, 16).replace('T', '_').replace(':', '-')
 
   for (const countryId of countryIds) {
     const read = (suffix: string) => {
-      try { return JSON.parse(localStorage.getItem(`clearbook_${suffix}_${countryId}`) ?? 'null') } catch { return null }
+      try { return JSON.parse(localStorage.getItem(`folio_${suffix}_${countryId}`) ?? localStorage.getItem(`clearbook_${suffix}_${countryId}`) ?? 'null') } catch { return null }
     }
     const acctData   = read('accounts')
     const txData     = read('transactions')
@@ -204,7 +204,7 @@ export function downloadAllCountries(): void {
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement('a')
     a.href     = url
-    a.download = `clearbook-backup-${countryId}-${currencyForCountry}-${ts}.json`
+    a.download = `folio-backup-${countryId}-${currencyForCountry}-${ts}.json`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -238,8 +238,8 @@ export function clearAndImport(json: string): void {
     'upcoming',
   ]
   for (const suffix of dataSuffixes) {
-    if (targetCountry) localStorage.removeItem(`clearbook_${suffix}_${targetCountry}`)
-    localStorage.removeItem(`clearbook_${suffix}`)
+    if (targetCountry) localStorage.removeItem(`folio_${suffix}_${targetCountry}`)
+    localStorage.removeItem(`folio_${suffix}`)
   }
 
   // Write settings back first so stores load with correct country key

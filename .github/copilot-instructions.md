@@ -1,6 +1,6 @@
-# Copilot Instructions — ClearBook
+# Copilot Instructions — Folio
 
-ClearBook is a **privacy-first, offline personal budget tracker** built with Vue 3 + TypeScript. All data lives in `localStorage` only. There are no backend API calls, no auth, and no external data services.
+Folio is a **privacy-first, offline personal budget tracker** built with Vue 3 + TypeScript. All data lives in `localStorage` only. There are no backend API calls, no auth, and no external data services.
 
 ---
 
@@ -14,7 +14,7 @@ ClearBook is a **privacy-first, offline personal budget tracker** built with Vue
 | UI | PrimeVue 4 + Tailwind CSS 4 |
 | Charts | Chart.js |
 | Build | Vite |
-| Persistence | `localStorage` with `clearbook_` prefixed keys |
+| Persistence | `localStorage` with `folio_` prefixed keys |
 
 ---
 
@@ -29,7 +29,7 @@ ClearBook is a **privacy-first, offline personal budget tracker** built with Vue
 ### Pinia Stores
 - All stores use the **setup-store** pattern (`defineStore('id', () => { ... })`).
 - Store files live in `src/stores/<feature>Store.ts` and export a `useXxxStore` composable.
-- Persist state to `localStorage` inside a `watch` within the store. Use the `clearbook_<feature>` key convention (include country suffix where relevant, e.g. `clearbook_budget_IE`).
+- Persist state to `localStorage` inside a `watch` within the store. Use the `folio_<feature>` key convention (include country suffix where relevant, e.g. `folio_budget_IE`).
 - Keep raw storage reads in a private `_loadXxx()` helper at the top of the store.
 
 ### Composables
@@ -54,7 +54,7 @@ ClearBook is a **privacy-first, offline personal budget tracker** built with Vue
 | Composables | `useXxx` → `useXxx.ts` |
 | Types/Interfaces | `PascalCase` |
 | Private store helpers | `_camelCase` |
-| localStorage keys | `clearbook_<feature>[_<country>]` |
+| localStorage keys | `folio_<feature>[_<country>]` |
 
 ### Code Style
 - Section dividers inside large files use `// ── Section Name ───────────...` (em-dash ruler pattern).
@@ -78,6 +78,6 @@ ClearBook is a **privacy-first, offline personal budget tracker** built with Vue
 
 - Do not add `vue-router` — navigation is handled by a `currentPage` ref in `App.vue`.
 - Do not add any authentication, user accounts, or server-side persistence.
-- Do not use `localStorage` keys that don't start with `clearbook_` (legacy `p2_` keys exist only for one-time migration).
+- Do not use `localStorage` keys that don't start with `folio_` (legacy `clearbook_` and `p2_` keys exist only for one-time migration).
 - Do not use the Options API or `defineComponent` wrapper.
 - Do not add `<style>` blocks to `.vue` files; use the corresponding `src/styles/*.css` file.

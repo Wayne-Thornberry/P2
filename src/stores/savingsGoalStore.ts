@@ -33,13 +33,13 @@ const COLORS = [
 ]
 
 export const useSavingsGoalStore = defineStore('savingsGoals', () => {
-  const _saved = loadCountryScoped('clearbook_savings_goals')
+  const _saved = loadCountryScoped('folio_savings_goals', 'clearbook_savings_goals')
 
   const goals = ref<SavingsGoal[]>(_saved?.goals ?? [])
   if (_saved?.nextGoalId   != null) _nextGoalId    = _saved.nextGoalId
   if (_saved?.nextContribId != null) _nextContribId = _saved.nextContribId
 
-  useCountryScopedPersistence('clearbook_savings_goals', {
+  useCountryScopedPersistence('folio_savings_goals', {
     sources: goals,
     toBlob: () => ({ goals: goals.value, nextGoalId: _nextGoalId, nextContribId: _nextContribId }),
     reload: (s) => {

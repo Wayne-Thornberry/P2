@@ -11,12 +11,12 @@ let _nextId = 500
 export const useTransactionStore = defineStore('transactions', () => {
   const settings = useSettingsStore()
 
-  const _saved = loadCountryScoped('clearbook_transactions', 'p2_transactions')
+  const _saved = loadCountryScoped('folio_transactions', 'clearbook_transactions')
 
   const transactions = ref<Transaction[]>(_saved?.transactions ?? [])
   if (_saved?.nextId != null) _nextId = _saved.nextId
 
-  useCountryScopedPersistence('clearbook_transactions', {
+  useCountryScopedPersistence('folio_transactions', {
     sources: transactions,
     toBlob: () => ({ transactions: transactions.value, nextId: _nextId }),
     reload: (s) => { _nextId = s?.nextId ?? 500; transactions.value = s?.transactions ?? [] },

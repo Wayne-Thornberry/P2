@@ -1,4 +1,4 @@
-# Clearbook
+# Folio
 
 > A privacy-first, offline personal finance tracker that keeps your finances clear.
 
@@ -8,9 +8,9 @@
 
 ---
 
-## What is Clearbook?
+## What is Folio?
 
-Clearbook is a **100% local**, no-account, no-server personal finance app that runs entirely in your browser. Your data lives in `localStorage` and never leaves your device unless you export it yourself.
+Folio is a **100% local**, no-account, no-server personal finance app that runs entirely in your browser. Your data lives in `localStorage` and never leaves your device unless you export it yourself.
 
 It follows the **envelope budgeting** philosophy — define budget categories each month, assign money to them, and track exactly where it goes. On top of that it adds full account management, savings goals, loan and savings-account tracking, multi-tab reports, and global search — all fully offline.
 

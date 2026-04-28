@@ -1,6 +1,6 @@
 ---
 name: Feature Request
-about: Suggest an idea or improvement for Clearbook
+about: Suggest an idea or improvement for Folio
 title: '[Feature] '
 labels: enhancement
 assignees: ''

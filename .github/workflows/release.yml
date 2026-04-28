@@ -96,16 +96,16 @@ jobs:
       - name: Zip dist
         run: |
           cd dist
-          zip -r "../clearbook-v${{ steps.version.outputs.new }}.zip" .
+          zip -r "../folio-v${{ steps.version.outputs.new }}.zip" .
 
       # ── GitHub Release ─────────────────────────────────────────────────────
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.new }}
-          name: Clearbook v${{ steps.version.outputs.new }}
+          name: Folio v${{ steps.version.outputs.new }}
           body_path: .github/release-body.md
-          files: clearbook-v${{ steps.version.outputs.new }}.zip
+          files: folio-v${{ steps.version.outputs.new }}.zip
 
       # ── Deploy to GitHub Pages ─────────────────────────────────────────────
       - name: Deploy to GitHub Pages

@@ -15,12 +15,12 @@ function _nextDate(date: string, period: NonNullable<UpcomingTransaction['recurr
 }
 
 export const useUpcomingTransactionStore = defineStore('upcomingTransactions', () => {
-  const _saved = loadCountryScoped('clearbook_upcoming')
+  const _saved = loadCountryScoped('folio_upcoming', 'clearbook_upcoming')
 
   const items = ref<UpcomingTransaction[]>(_saved?.items ?? [])
   if (_saved?.nextId != null) _nextId = _saved.nextId
 
-  useCountryScopedPersistence('clearbook_upcoming', {
+  useCountryScopedPersistence('folio_upcoming', {
     sources: items,
     toBlob: () => ({ items: items.value, nextId: _nextId }),
     reload: (s) => { _nextId = s?.nextId ?? 1; items.value = s?.items ?? [] },

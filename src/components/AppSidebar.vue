@@ -59,8 +59,8 @@ const bottomItems = [
       class="px-5 py-5 border-b-2 border-zinc-300 dark:border-zinc-600 text-left w-full hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors shrink-0"
       @click="emit('navigate', 'dashboard')"
     >
-      <p class="text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-zinc-100 leading-tight">Clearbook</p>
-      <p class="text-xs font-mono text-zinc-400 dark:text-zinc-500">Budget Tracker</p>
+      <p class="text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-zinc-100 leading-tight">Folio</p>
+      <p class="text-xs font-mono text-zinc-400 dark:text-zinc-500">Personal Finance</p>
     </button>
 
     <!-- Main nav — scrollable if screen is short -->

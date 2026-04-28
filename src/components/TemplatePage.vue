@@ -213,7 +213,7 @@ function handleExport(): void {
   const url  = URL.createObjectURL(blob)
   const a    = document.createElement('a')
   a.href     = url
-  a.download = `clearbook-template.json`
+  a.download = `folio-template.json`
   a.click()
   URL.revokeObjectURL(url)
 }

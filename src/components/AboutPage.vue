@@ -2,13 +2,13 @@
 <template>
     <div class="about-page"> <!-- Hero -->
         <div class="about-hero">
-            <h1 class="about-title">Clearbook</h1>
+            <h1 class="about-title">Folio</h1>
             <p class="about-tagline">A privacy-first, offline personal finance tracker.</p> <span
                 class="about-version">v{{ appVersion }}</span>
         </div> <!-- Purpose -->
         <section class="about-section">
-            <h2 class="about-section-title">What is Clearbook?</h2>
-            <p class="about-body"> Clearbook is a privacy-first, offline personal finance app that lives entirely in
+            <h2 class="about-section-title">What is Folio?</h2>
+            <p class="about-body"> Folio is a privacy-first, offline personal finance app that lives entirely in
                 your browser. No accounts. No servers. No subscriptions. Your data stays in your browser's local storage
                 and never leaves your device unless you choose to export it. </p>
             <p class="about-body"> It follows the <strong>envelope budgeting</strong> philosophy — define budget
@@ -42,7 +42,7 @@
                 </li>
                 <li class="about-step"> <span class="about-step-num">5</span>
                     <div> <strong>Assign &amp; Categorise</strong> — Click <em>Assign</em> on the Budget page to walk
-                        through unassigned transactions one at a time. Clearbook suggests categories based on past
+                        through unassigned transactions one at a time. Folio suggests categories based on past
                         patterns and lets you auto-assign in bulk. </div>
                 </li>
                 <li class="about-step"> <span class="about-step-num">6</span>

@@ -3,7 +3,7 @@ import { storageKey, loadStored } from '../utils/storeStorage'
 import { useSettingsStore } from './settingsStore'
 
 /**
- * Wires up the standard ClearBook country-scoped localStorage persistence
+ * Wires up the standard Folio country-scoped localStorage persistence
  * pattern for a setup-style Pinia store.
  *
  * Each store has the same boilerplate quartet:
@@ -21,11 +21,11 @@ import { useSettingsStore } from './settingsStore'
  *
  * Usage in a setup store:
  *
- *   const _saved = loadCountryScoped('clearbook_foo', 'p2_foo')
+ *   const _saved = loadCountryScoped('folio_foo', 'clearbook_foo')
  *   const items = ref<Foo[]>(_saved?.items ?? [])
  *   if (_saved?.nextId != null) _nextId = _saved.nextId
  *
- *   useCountryScopedPersistence('clearbook_foo', {
+ *   useCountryScopedPersistence('folio_foo', {
  *     sources: items,
  *     toBlob: () => ({ items: items.value, nextId: _nextId }),
  *     reload: (s) => { _nextId = s?.nextId ?? 1; items.value = s?.items ?? [] },

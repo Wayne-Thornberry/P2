@@ -17,7 +17,7 @@ function choose(countryId: string): void {
     <div class="setup-card">
       <div class="setup-logo">
         <i class="pi pi-book" />
-        <span>ClearBook</span>
+        <span>Folio</span>
       </div>
       <h1 class="setup-title">Welcome</h1>
       <p class="setup-subtitle">Choose your country to get started. This sets your currency and available banks.</p>

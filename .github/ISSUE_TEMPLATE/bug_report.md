@@ -26,7 +26,7 @@ If applicable, add screenshots to help explain the problem.
 ## Environment
 - Browser: [e.g. Chrome 124, Firefox 125]
 - OS: [e.g. Windows 11, macOS 14]
-- Clearbook version: [e.g. 1.0.0]
+- Folio version: [e.g. 1.0.0]
 
 ## Additional Context
 Any other context about the problem.

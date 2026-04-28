@@ -1,4 +1,4 @@
-# Contributing to Clearbook
+# Contributing to Folio
 
 Thanks for your interest in contributing! Here's how to get involved.
 

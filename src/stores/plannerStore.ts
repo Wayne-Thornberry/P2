@@ -32,7 +32,7 @@ let _nextSimItemId = 1
 
 // ── Store ──────────────────────────────────────────────────────
 export const usePlannerStore = defineStore('planner', () => {
-  const _saved = loadCountryScoped('clearbook_planner')
+  const _saved = loadCountryScoped('folio_planner', 'clearbook_planner')
 
   const income              = ref<number>(_saved?.income ?? 0)
   const items               = ref<PlannerItem[]>(_saved?.items ?? [])
@@ -42,7 +42,7 @@ export const usePlannerStore = defineStore('planner', () => {
   if (_saved?.nextSimId    != null) _nextSimId    = _saved.nextSimId
   if (_saved?.nextSimItemId != null) _nextSimItemId = _saved.nextSimItemId
 
-  useCountryScopedPersistence('clearbook_planner', {
+  useCountryScopedPersistence('folio_planner', {
     sources: [income, items, simulations, idealSimulationId],
     toBlob: () => ({
       income:            income.value,

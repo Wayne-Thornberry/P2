@@ -74,7 +74,7 @@ console.log(`CHANGELOG.md updated for v${newVersion}`)
 
 // ── Write release body for GitHub Release ────────────────────────────────────
 const bodyLines = [
-  `## Clearbook v${newVersion}`,
+  `## Folio v${newVersion}`,
   '',
   '### Changes',
   commits,

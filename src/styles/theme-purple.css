@@ -1,9 +1,9 @@
 /*
- * -- Clearbook "Purple" Theme ------------------------------------
+ * -- Folio "Purple" Theme ------------------------------------
  *
  * Overrides Tailwind's --color-zinc-* vars ? deep amethyst/plum colours.
  * All base CSS files use var(--color-zinc-*), so this is all that's needed.
- * Accent: fuchsia #e879f9 — vibrant pink-purple.
+ * Accent: fuchsia #e879f9 ï¿½ vibrant pink-purple.
  */
 
 /* -- 1. Tailwind CSS variable override (zinc ? purple) -------- */

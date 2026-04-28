@@ -39,16 +39,16 @@ jobs:
       - name: Zip dist
         run: |
           cd dist
-          zip -r ../clearbook-${{ steps.tag_version.outputs.new_tag }}.zip .
+          zip -r ../folio-${{ steps.tag_version.outputs.new_tag }}.zip .
           cd ..
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag_version.outputs.new_tag }}
-          name: Clearbook ${{ steps.tag_version.outputs.new_tag }}
+          name: Folio ${{ steps.tag_version.outputs.new_tag }}
           body: |
             Automated release for ${{ steps.tag_version.outputs.new_tag }}
             See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
-          files: clearbook-${{ steps.tag_version.outputs.new_tag }}.zip
+          files: folio-${{ steps.tag_version.outputs.new_tag }}.zip
           generate_release_notes: true

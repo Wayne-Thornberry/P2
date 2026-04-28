@@ -52,7 +52,11 @@ export const useSettingsStore = defineStore('settings', () => {
 
   const _saved = (() => {
     try {
-      let raw = localStorage.getItem('clearbook_settings')
+      let raw = localStorage.getItem('folio_settings')
+      if (raw === null) {
+        raw = localStorage.getItem('clearbook_settings')
+        if (raw !== null) localStorage.removeItem('clearbook_settings')
+      }
       if (raw === null) {
         raw = localStorage.getItem('p2_settings')
         if (raw !== null) localStorage.removeItem('p2_settings')
@@ -79,7 +83,7 @@ export const useSettingsStore = defineStore('settings', () => {
     currency.value = def.currency
     locale.value   = def.locale
     // Immediately persist so a subsequent page reload reads the correct country
-    localStorage.setItem('clearbook_settings', JSON.stringify({
+    localStorage.setItem('folio_settings', JSON.stringify({
       theme:              theme.value,
       locale:             def.locale,
       currency:           def.currency,
@@ -111,7 +115,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   // Persist settings to localStorage whenever any setting changes
   watchEffect(() => {
-    localStorage.setItem('clearbook_settings', JSON.stringify({
+    localStorage.setItem('folio_settings', JSON.stringify({
       theme:             theme.value,
       locale:            locale.value,
       currency:          currency.value,

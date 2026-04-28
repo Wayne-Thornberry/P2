@@ -1,7 +1,7 @@
 /**
  * Shared localStorage helpers for country-scoped store persistence.
  *
- * All ClearBook store data lives under `clearbook_<feature>[_<country>]` keys.
+ * All Folio store data lives under `folio_<feature>[_<country>]` keys.
  * When a user first sets a country, data is migrated from the bare key into the
  * country-scoped key. Optionally, a legacy `p2_` key is also migrated on first load.
  */

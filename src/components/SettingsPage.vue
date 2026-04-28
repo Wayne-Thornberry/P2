@@ -63,8 +63,8 @@ async function clearAllData(): Promise<void> {
   const country = settings.country
   const dataSuffixes = ['accounts', 'transactions', 'budget', 'template', 'savings_goals', 'import_history', 'finance']
   for (const suffix of dataSuffixes) {
-    if (country) localStorage.removeItem(`clearbook_${suffix}_${country}`)
-    localStorage.removeItem(`clearbook_${suffix}`)
+    if (country) localStorage.removeItem(`folio_${suffix}_${country}`)
+    localStorage.removeItem(`folio_${suffix}`)
   }
   window.location.reload()
 }

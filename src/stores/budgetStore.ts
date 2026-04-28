@@ -14,7 +14,7 @@ let _nextItemId = 2000
 export const useBudgetStore = defineStore('budget', () => {
   const monthStore = useMonthStore()
 
-  const _saved = loadCountryScoped('clearbook_budget', 'p2_budget')
+  const _saved = loadCountryScoped('folio_budget', 'clearbook_budget')
 
   // ── Storage ───────────────────────────────────────────────────────────
   const globalItems    = ref<BudgetItemDef[]>([])
@@ -43,7 +43,7 @@ export const useBudgetStore = defineStore('budget', () => {
     globalItems.value    = [...defMap.values()]
     monthlyEntries.value = newEntries
     // Also register old template items into globalItems
-    const savedTpl = (() => { try { return JSON.parse(localStorage.getItem('clearbook_template') ?? localStorage.getItem('p2_template') ?? 'null') } catch { return null } })()
+    const savedTpl = (() => { try { return JSON.parse(localStorage.getItem('folio_template') ?? localStorage.getItem('clearbook_template') ?? localStorage.getItem('p2_template') ?? 'null') } catch { return null } })()
     if (savedTpl?.items) {
       for (const item of savedTpl.items as BudgetItem[]) {
         if (!globalItems.value.some(i => i.name === item.name)) {
@@ -78,7 +78,7 @@ export const useBudgetStore = defineStore('budget', () => {
     _nextItemId = Math.max(...globalItems.value.map(i => i.id)) + 1
   }
 
-  useCountryScopedPersistence('clearbook_budget', {
+  useCountryScopedPersistence('folio_budget', {
     sources: [globalItems, monthlyEntries],
     toBlob: () => ({
       globalItems:    globalItems.value,

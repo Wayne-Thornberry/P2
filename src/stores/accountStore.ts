@@ -9,13 +9,13 @@ import { loadCountryScoped, useCountryScopedPersistence } from './useCountryScop
 let _nextAccId = 10
 
 export const useAccountStore = defineStore('accounts', () => {
-  const _saved = loadCountryScoped('clearbook_accounts', 'p2_accounts')
+  const _saved = loadCountryScoped('folio_accounts', 'clearbook_accounts')
 
   // No default accounts — user adds their own (or uses Generate Sample Data)
   const accounts = ref<Account[]>(_saved?.accounts ?? [])
   if (_saved?.nextId != null) _nextAccId = _saved.nextId
 
-  useCountryScopedPersistence('clearbook_accounts', {
+  useCountryScopedPersistence('folio_accounts', {
     sources: accounts,
     toBlob: () => ({ accounts: accounts.value, nextId: _nextAccId }),
     reload: (s) => { _nextAccId = s?.nextId ?? 10; accounts.value = s?.accounts ?? [] },

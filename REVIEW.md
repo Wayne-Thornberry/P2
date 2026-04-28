@@ -1,4 +1,4 @@
-# ClearBook — Codebase Review
+# Folio — Codebase Review
 
 A complete review of the project. Findings are grouped by severity. Items marked **[fixed in this pass]** were addressed alongside this document; the remainder are recommendations.
 
@@ -6,11 +6,11 @@ A complete review of the project. Findings are grouped by severity. Items marked
 
 ## What the project is trying to do
 
-ClearBook is a **privacy-first, offline, browser-only personal finance app**:
+Folio is a **privacy-first, offline, browser-only personal finance app**:
 
 - 100 % `localStorage`, no network, no auth, no server.
 - Envelope budgeting (monthly items + assigned amounts + activity).
-- Multi-country data isolation (`clearbook_<feature>_<country>` keys).
+- Multi-country data isolation (`folio_<feature>_<country>` keys).
 - Versioned JSON export/import is the only data exit point.
 - UI is page-based (a `currentPage` ref in `App.vue`), no router.
 
@@ -70,7 +70,7 @@ Found in `loanStore`, `DashboardPage`, `ReportsPage`, `FinancePage`, `AccountsPa
 **Recommendation**: a `useNavigation()` composable holding `{ page, focus }` where `focus` is a tagged union (`{ kind: 'reports', accountId, breakdownMonth }` | `{ kind: 'savings', goalId }` | …). Single setter `goTo(focus)`. Removes ~80 lines from `App.vue` and centralises the rule "switching pages clears focus state".
 
 ### 9. `BudgetStore` carries v1→v2 migration indefinitely
-The migration code (`if (_saved?.monthlyItems && !_saved?.globalItems)`) runs on every store init forever. After 1.x ships and users have migrated, this should be guarded behind a one-time flag (`clearbook_migrated_v2: true`) or removed in a major version with a clear note in CHANGELOG.
+The migration code (`if (_saved?.monthlyItems && !_saved?.globalItems)`) runs on every store init forever. After 1.x ships and users have migrated, this should be guarded behind a one-time flag (`folio_migrated_v2: true`) or removed in a major version with a clear note in CHANGELOG.
 
 ### 10. `useConfirmDialog` / `useConfirm` split is awkward
 Two exports for one tiny module. The split is "consumer side vs. dialog side" but it's not obvious from the names. Either:
@@ -88,7 +88,7 @@ Not imported anywhere. The active planner is `PlannerPage.vue`.
 These are runtime libs for emscripten/wasm; they're transitive deps of `@rolldown/binding-wasm32-wasi` (a Vite/Rolldown internal). They were declared in `dependencies` but never imported anywhere in `src/`.
 
 ### 13. README has the entire bottom half duplicated **[fixed]**
-Lines 144–170 were a partial copy of the top of the document (older version of "What is Clearbook?", "Features", "Tech Stack", etc.).
+Lines 144–170 were a partial copy of the top of the document (older version of "What is Folio?", "Features", "Tech Stack", etc.).
 
 ### 14. `date.ts` was almost empty
 One helper (`getTodayStr`). Now extended with `toYearMonth(d)` and `dateToYmd(d)` to absorb the inline duplication noted in #7.

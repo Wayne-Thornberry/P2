@@ -9,7 +9,7 @@ import { cloneDeep } from '../utils/math'
 export const useTemplateStore = defineStore('template', () => {
   const budgetStore = useBudgetStore()
 
-  const _saved = loadCountryScoped('clearbook_template', 'p2_template')
+  const _saved = loadCountryScoped('folio_template', 'clearbook_template')
 
   // ── Initialize / Migrate ─────────────────────────────────────────────
   let _initEntries: TemplateEntry[]
@@ -42,7 +42,7 @@ export const useTemplateStore = defineStore('template', () => {
 
   const entries = ref<TemplateEntry[]>(_initEntries)
 
-  useCountryScopedPersistence('clearbook_template', {
+  useCountryScopedPersistence('folio_template', {
     sources: entries,
     toBlob: () => ({ entries: entries.value }),
     reload: (saved) => {
@@ -162,7 +162,7 @@ export const useTemplateStore = defineStore('template', () => {
   /** Returns a portable JSON string suitable for sharing. No internal IDs. */
   function exportTemplate(): string {
     const rows = items.value.map(i => ({ name: i.name, category: i.category, assigned: i.assigned }))
-    return JSON.stringify({ clearbook_template: true, version: 1, items: rows }, null, 2)
+    return JSON.stringify({ folio_template: true, version: 1, items: rows }, null, 2)
   }
 
   /**
@@ -179,9 +179,10 @@ export const useTemplateStore = defineStore('template', () => {
     if (
       typeof parsed !== 'object' ||
       parsed === null ||
-      !(parsed as Record<string, unknown>).clearbook_template
+      (!(parsed as Record<string, unknown>).folio_template &&
+       !(parsed as Record<string, unknown>).clearbook_template)
     ) {
-      return 'This does not look like a Clearbook template file.'
+      return 'This does not look like a Folio template file.'
     }
     const raw = parsed as { version: number; items: unknown }
     if (!Array.isArray(raw.items) || raw.items.length === 0) {

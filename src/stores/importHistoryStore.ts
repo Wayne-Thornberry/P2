@@ -14,11 +14,11 @@ export interface ImportRecord {
 let _nextId = 1
 
 export const useImportHistoryStore = defineStore('importHistory', () => {
-  const _saved = loadCountryScoped('clearbook_import_history')
+  const _saved = loadCountryScoped('folio_import_history', 'clearbook_import_history')
   const imports = ref<ImportRecord[]>(_saved?.imports ?? [])
   if (_saved?.nextId != null) _nextId = _saved.nextId
 
-  useCountryScopedPersistence('clearbook_import_history', {
+  useCountryScopedPersistence('folio_import_history', {
     sources: imports,
     toBlob: () => ({ imports: imports.value, nextId: _nextId }),
     reload: (s) => { _nextId = s?.nextId ?? 1; imports.value = s?.imports ?? [] },

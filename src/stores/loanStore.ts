@@ -48,13 +48,13 @@ let _nextLoanId = 1
 let _nextSavId  = 1
 
 export const useLoanStore = defineStore('loans', () => {
-  const _saved = loadCountryScoped('clearbook_finance')
+  const _saved = loadCountryScoped('folio_finance', 'clearbook_finance')
   const loans   = ref<LoanRecord[]>(_saved?.loans ?? [])
   const savings = ref<SavingsAccountRecord[]>(_saved?.savings ?? [])
   if (_saved?.nextLoanId != null) _nextLoanId = _saved.nextLoanId
   if (_saved?.nextSavId  != null) _nextSavId  = _saved.nextSavId
 
-  useCountryScopedPersistence('clearbook_finance', {
+  useCountryScopedPersistence('folio_finance', {
     sources: [loans, savings],
     toBlob: () => ({
       loans: loans.value, savings: savings.value,
