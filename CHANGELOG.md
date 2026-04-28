@@ -11,6 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.0] - 2026-04-28
+
+### Changed
+- Merge branch 'main' of https://github.com/Wayne-Thornberry/P2
+- feat: refactor AppSidebar to use dynamic sections and improve navigation structure
+- feat: implement carry-over surplus functionality and recurring transactions support
+
+---
+
 ## [1.19.0] - 2026-04-28
 
 ### Changed
@@ -236,7 +245,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed-position pagination navigation arrows in Transaction log
 - MIT License
 
-[Unreleased]: https://github.com/Wayne-Thornberry/P2/compare/v1.19.0...HEAD
+[Unreleased]: https://github.com/Wayne-Thornberry/P2/compare/v1.20.0...HEAD
+[1.20.0]: https://github.com/Wayne-Thornberry/P2/compare/v1.19.0...v1.20.0
 [1.19.0]: https://github.com/Wayne-Thornberry/P2/compare/v1.18.0...v1.19.0
 [1.18.0]: https://github.com/Wayne-Thornberry/P2/compare/v1.17.0...v1.18.0
 [1.17.0]: https://github.com/Wayne-Thornberry/P2/compare/v1.16.0...v1.17.0
