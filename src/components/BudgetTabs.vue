@@ -12,6 +12,7 @@ import AssignPanel from './AssignPanel.vue'
 import { useConfirm } from '../composables/useConfirm'
 import { useBudgetFunds } from '../composables/useBudgetFunds'
 import { roundCents, txNet } from '../utils/math'
+import { yearMonthKey } from '../utils/date'
 const store        = useBudgetStore()
 const txStore      = useTransactionStore()
 const monthStore   = useMonthStore()
@@ -346,7 +347,7 @@ async function rollOverSurplus(): Promise<void> {
     <div v-if="!isMonthEmpty" class="budget-view-toggle-row">
       <button
         class="budget-view-tx-btn"
-        @click="emit('viewTransactions', `${monthStore.activeYear}-${String(monthStore.activeMonth).padStart(2, '0')}`)"
+        @click="emit('viewTransactions', yearMonthKey(monthStore.activeYear, monthStore.activeMonth))"
       >
         <i class="pi pi-list" />
         View Transactions for {{ monthStore.label }}

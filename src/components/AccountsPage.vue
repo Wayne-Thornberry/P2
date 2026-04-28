@@ -7,8 +7,8 @@ import { useSavingsGoalStore } from '../stores/savingsGoalStore'
 import { useLoanStore } from '../stores/loanStore'
 import { useMoneyInput } from '../composables/useMoneyInput'
 import { useConfirm } from '../composables/useConfirm'
-import { getTodayStr } from '../utils/date'
-import { roundCents, txNet } from '../utils/math'
+import { getTodayStr, toYearMonth } from '../utils/date'
+import { roundCents, sumNet } from '../utils/math'
 import { SUPPORTED_COUNTRIES, getCountryById } from '../data/countries'
 import { UNASSIGNED_ACCOUNT_ID } from '../types/transaction'
 import { CSV_ADAPTERS } from '../utils/csvAdapters'
@@ -187,9 +187,7 @@ const reconcilingId      = ref<string | null>(null)
 const reconcileTargetStr = ref('')
 
 function accountBalance(id: string): number {
-  return txStore.transactions
-    .filter(t => t.accountId === id)
-    .reduce((sum, transaction) => sum + txNet(transaction), 0)
+  return sumNet(txStore.transactions.filter(t => t.accountId === id))
 }
 
 function startReconcile(id: string): void {
@@ -209,17 +207,13 @@ function commitReconcile(id: string): void {
 
 // â”€â”€ Per-account detail stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const _now = new Date()
-const _nowKey  = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}`
-const _lastKey = (() => {
-  const d = new Date(_now.getFullYear(), _now.getMonth() - 1, 1)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-})()
+const _nowKey  = toYearMonth(_now)
+const _lastKey = toYearMonth(new Date(_now.getFullYear(), _now.getMonth() - 1, 1))
 
 const sixMonthKeys = (() => {
   const keys: string[] = []
   for (let i = 5; i >= 0; i--) {
-    const d = new Date(_now.getFullYear(), _now.getMonth() - i, 1)
-    keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+    keys.push(toYearMonth(new Date(_now.getFullYear(), _now.getMonth() - i, 1)))
   }
   return keys
 })()
@@ -232,7 +226,7 @@ function shortMonth(key: string): string {
 const _allAccountDetails = computed(() =>
   accountStore.accounts.map(acc => {
     const txs      = txStore.transactions.filter(t => t.accountId === acc.id)
-    const balance  = txs.reduce((sum, transaction) => sum + txNet(transaction), 0)
+    const balance  = sumNet(txs)
     const txCount  = txs.length
     const recent   = txs.slice().sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)).slice(0, 4)
 
@@ -300,7 +294,7 @@ const filteredAccountDetails = computed(() =>
 const unassignedDetails = computed(() => {
   const txs = txStore.transactions.filter(t => t.accountId === null)
   if (txs.length === 0) return null
-  const balance      = txs.reduce((sum, transaction) => sum + txNet(transaction), 0)
+  const balance      = sumNet(txs)
   const txCount      = txs.length
   const recent       = txs.slice().sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)).slice(0, 4)
   const nowTxs       = txs.filter(t => t.date.startsWith(_nowKey))

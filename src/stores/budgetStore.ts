@@ -1,24 +1,20 @@
 ﻿import { defineStore } from 'pinia'
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import type { BudgetItem, BudgetItemDef, BudgetMonthEntry } from '../types/budget'
 import { generateBudgetItems } from '../data/budgetSeedData'
 import { BUDGET_TEMPLATE } from '../data/budgetTemplate'
 import { useMonthStore } from './monthStore'
 import { useTemplateStore } from './templateStore'
 import { useTransactionStore } from './transactionStore'
-import { useSettingsStore } from './settingsStore'
-import { storageKey, loadStored } from '../utils/storeStorage'
+import { loadCountryScoped, useCountryScopedPersistence } from './useCountryScopedPersistence'
+import { cloneDeep } from '../utils/math'
 
 let _nextItemId = 2000
 
 export const useBudgetStore = defineStore('budget', () => {
   const monthStore = useMonthStore()
-  const settings   = useSettingsStore()
 
-  function _key(): string { return storageKey('clearbook_budget', settings.country) }
-  function _loadBudget() { return loadStored('clearbook_budget', settings.country, 'p2_budget') }
-
-  const _saved = _loadBudget()
+  const _saved = loadCountryScoped('clearbook_budget', 'p2_budget')
 
   // ── Storage ───────────────────────────────────────────────────────────
   const globalItems    = ref<BudgetItemDef[]>([])
@@ -82,33 +78,30 @@ export const useBudgetStore = defineStore('budget', () => {
     _nextItemId = Math.max(...globalItems.value.map(i => i.id)) + 1
   }
 
-  watch([globalItems, monthlyEntries], () => {
-    localStorage.setItem(_key(), JSON.stringify({
+  useCountryScopedPersistence('clearbook_budget', {
+    sources: [globalItems, monthlyEntries],
+    toBlob: () => ({
       globalItems:    globalItems.value,
       monthlyEntries: monthlyEntries.value,
       nextId:         _nextItemId,
-    }))
-  }, { deep: true })
-
-  // Reload when country changes
-  watch(() => settings.country, (newCountry) => {
-    if (!newCountry) return
-    const saved = _loadBudget()
-    if (saved?.globalItems && saved?.monthlyEntries) {
-      // v2 format — load directly
-      const savedDefs: Array<{ id: number; name: string }> = saved.globalItems
-      globalItems.value    = savedDefs.map(i => ({ id: i.id, name: i.name }))
-      monthlyEntries.value = saved.monthlyEntries
-      _nextItemId          = saved.nextId ?? 2000
-    } else {
-      // Fresh country — seed from template
-      _nextItemId       = 2000
-      globalItems.value = BUDGET_TEMPLATE.map(i => ({ id: i.id, name: i.name }))
-      _nextItemId       = Math.max(...globalItems.value.map(i => i.id), _nextItemId - 1) + 1
-      monthlyEntries.value = {}
-      const now = new Date()
-      _seedMonth(now.getFullYear(), now.getMonth() + 1)
-    }
+    }),
+    reload: (saved) => {
+      if (saved?.globalItems && saved?.monthlyEntries) {
+        // v2 format — load directly
+        const savedDefs: Array<{ id: number; name: string }> = saved.globalItems
+        globalItems.value    = savedDefs.map(i => ({ id: i.id, name: i.name }))
+        monthlyEntries.value = saved.monthlyEntries
+        _nextItemId          = saved.nextId ?? 2000
+      } else {
+        // Fresh country — seed from template
+        _nextItemId       = 2000
+        globalItems.value = BUDGET_TEMPLATE.map(i => ({ id: i.id, name: i.name }))
+        _nextItemId       = Math.max(...globalItems.value.map(i => i.id), _nextItemId - 1) + 1
+        monthlyEntries.value = {}
+        const now = new Date()
+        _seedMonth(now.getFullYear(), now.getMonth() + 1)
+      }
+    },
   })
 
   // ── Internal helpers ──────────────────────────────────────────────────
@@ -118,7 +111,7 @@ export const useBudgetStore = defineStore('budget', () => {
     const prevYear  = month === 1 ? year - 1 : year
     const prevMonth = month === 1 ? 12 : month - 1
     const source = monthlyEntries.value[prevYear]?.[prevMonth]
-    yearMap[month] = source ? JSON.parse(JSON.stringify(source)) as BudgetMonthEntry[] : []
+    yearMap[month] = source ? cloneDeep(source) : []
   }
 
   const _now = new Date()
@@ -281,7 +274,26 @@ export const useBudgetStore = defineStore('budget', () => {
     const y = monthStore.activeYear
     const m = monthStore.activeMonth
     monthlyEntries.value[y] ??= {}
-    monthlyEntries.value[y]![m] = JSON.parse(JSON.stringify(templateStore.entries))
+    monthlyEntries.value[y]![m] = cloneDeep(templateStore.entries)
+  }
+
+  /**
+   * Replace the entries for an arbitrary (year, month) with a deep copy of
+   * the current template. Use for batch "generate budgets" actions.
+   */
+  function setMonthFromTemplate(year: number, month: number): void {
+    const templateStore = useTemplateStore()
+    monthlyEntries.value[year] ??= {}
+    monthlyEntries.value[year]![month] = cloneDeep(templateStore.entries)
+  }
+
+  /**
+   * Replace the entries for an arbitrary (year, month) with the supplied entries.
+   * The caller owns the array; it is deep-copied before assignment.
+   */
+  function setMonthEntries(year: number, month: number, entries: BudgetMonthEntry[]): void {
+    monthlyEntries.value[year] ??= {}
+    monthlyEntries.value[year]![month] = cloneDeep(entries)
   }
 
   /**
@@ -295,7 +307,7 @@ export const useBudgetStore = defineStore('budget', () => {
     const y = monthStore.activeYear
     const m = monthStore.activeMonth
     monthlyEntries.value[y] ??= {}
-    monthlyEntries.value[y]![m] = JSON.parse(JSON.stringify(source))
+    monthlyEntries.value[y]![m] = cloneDeep(source)
   }
 
   /**
@@ -413,6 +425,8 @@ export const useBudgetStore = defineStore('budget', () => {
     loadSeedData,
     populateFromTemplate,
     populateFromMonth,
+    setMonthFromTemplate,
+    setMonthEntries,
     carryOverSurplus,
     monthsWithData,
     $import,

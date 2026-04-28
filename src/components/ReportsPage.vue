@@ -7,6 +7,7 @@ import { useBudgetStore } from '../stores/budgetStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useLoanStore } from '../stores/loanStore'
 import { UNASSIGNED_ACCOUNT_ID, UNASSIGNED_ACCOUNT } from '../types/transaction'
+import { dateToYmd, toYearMonth, yearMonthKey } from '../utils/date'
 
 Chart.register(...registerables)
 
@@ -58,7 +59,7 @@ const tabs: { id: Tab; label: string }[] = [
 
 // ── Shared month selector ──────────────────────────────────────
 const _now    = new Date()
-const _nowKey = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}`
+const _nowKey = toYearMonth(_now)
 
 const selectedMonthKey = ref(_nowKey)
 
@@ -200,7 +201,7 @@ const yearViewMonthlyFlow = computed(() => {
   const y    = yearViewYear.value
   const base = withAccFilter(txStore.transactions)
   return Array.from({ length: 12 }, (_, i) => {
-    const key  = `${y}-${String(i + 1).padStart(2, '0')}`
+    const key  = yearMonthKey(y, i + 1)
     const txs  = base.filter(t => t.date.startsWith(key))
     const mIn  = txs.filter(t => t.type === 'in').reduce((s, t) => s + t.amount, 0)
     const mOut = txs.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0)
@@ -391,7 +392,7 @@ const accountStats = computed(() => {
 const trendMonths = computed(() => {
   const y = yearViewYear.value
   return Array.from({ length: 12 }, (_, i) => ({
-    key:   `${y}-${String(i + 1).padStart(2, '0')}`,
+    key:   yearMonthKey(y, i + 1),
     label: new Date(y, i, 1).toLocaleDateString(settings.locale, { month: 'short' }),
   }))
 })
@@ -481,9 +482,9 @@ const itemsMaxAbsActivity   = computed(() => itemsData.value.reduce((m, i) => Ma
 const itemsUnassigned       = computed(() => txStore.getUnassignedActivity())
 
 // ── Date range filter ─────────────────────────────────────────
-const _todayStr    = _now.toISOString().slice(0, 10)
-const _thirtyAgo   = new Date(_now); _thirtyAgo.setDate(_thirtyAgo.getDate() - 30)
-const _thirtyAgoStr = _thirtyAgo.toISOString().slice(0, 10)
+const _todayStr     = dateToYmd(_now)
+const _thirtyAgo    = new Date(_now); _thirtyAgo.setDate(_thirtyAgo.getDate() - 30)
+const _thirtyAgoStr = dateToYmd(_thirtyAgo)
 const rangeFrom = ref(_thirtyAgoStr)
 const rangeTo   = ref(_todayStr)
 
@@ -1108,7 +1109,7 @@ watch(yearViewYear, y => {
   const keys = availableMonthKeys.value.filter(k => k.startsWith(String(y)))
   selectedMonthKey.value = keys.length > 0
     ? keys[0]
-    : `${y}-${String(_now.getMonth() + 1).padStart(2, '0')}`
+    : yearMonthKey(y, _now.getMonth() + 1)
 })
 </script>
 

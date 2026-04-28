@@ -56,6 +56,16 @@
                         Items (budget category analysis), and Finance (loan &amp; savings projections). </div>
                 </li>
                 <li class="about-step"> <span class="about-step-num">8</span>
+                    <div> <strong>Check Performance</strong> — The <em>Performance</em> page scores your financial
+                        health from A to F, shows a 6-month savings-rate trend, budget-adherence breakdown, and
+                        actionable insight cards so you can see exactly where to improve. </div>
+                </li>
+                <li class="about-step"> <span class="about-step-num">9</span>
+                    <div> <strong>Plan with the Quick Calculator</strong> — Set a monthly income and add spending
+                        commitments in <em>Quick Calculator</em> to see a live running balance. Create named
+                        simulations to compare different budget scenarios side by side. </div>
+                </li>
+                <li class="about-step"> <span class="about-step-num">10</span>
                     <div> <strong>Backup your data</strong> — Use <em>Settings › Data › Export Backup</em> to download a
                         single JSON file containing everything. Restore it at any time with Import Backup, or drop the
                         file anywhere on the page. </div>
@@ -107,6 +117,21 @@
                 <div class="about-feature"> <i class="pi pi-search about-feature-icon" />
                     <div> <strong>Global search</strong>
                         <p>Instantly find any transaction by name from the header bar.</p>
+                    </div>
+                </div>
+                <div class="about-feature"> <i class="pi pi-calendar about-feature-icon" />
+                    <div> <strong>Calendar</strong>
+                        <p>Monthly view of actual transactions and upcoming planned transactions per day.</p>
+                    </div>
+                </div>
+                <div class="about-feature"> <i class="pi pi-chart-line about-feature-icon" />
+                    <div> <strong>Financial health score</strong>
+                        <p>A–F grade with savings-rate trend, budget-adherence breakdown, and actionable insight cards across the last 6 months.</p>
+                    </div>
+                </div>
+                <div class="about-feature"> <i class="pi pi-calculator about-feature-icon" />
+                    <div> <strong>Quick Calculator</strong>
+                        <p>Set income, add spending commitments, and compare named budget simulations to plan ahead.</p>
                     </div>
                 </div>
                 <div class="about-feature"> <i class="pi pi-palette about-feature-icon" />

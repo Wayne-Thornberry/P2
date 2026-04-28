@@ -1,10 +1,9 @@
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 import { useTransactionStore } from './transactionStore'
-import { useSettingsStore } from './settingsStore'
 import { useAccountStore } from './accountStore'
-import { roundCents, txNet } from '../utils/math'
-import { storageKey, loadStored } from '../utils/storeStorage'
+import { roundCents, sumNet } from '../utils/math'
+import { loadCountryScoped, useCountryScopedPersistence } from './useCountryScopedPersistence'
 
 export interface SavingsGoal {
   id:               number
@@ -34,30 +33,20 @@ const COLORS = [
 ]
 
 export const useSavingsGoalStore = defineStore('savingsGoals', () => {
-  const settings = useSettingsStore()
-
-  function _key(): string { return storageKey('clearbook_savings_goals', settings.country) }
-  function _load() { return loadStored('clearbook_savings_goals', settings.country) }
-
-  const _saved = _load()
+  const _saved = loadCountryScoped('clearbook_savings_goals')
 
   const goals = ref<SavingsGoal[]>(_saved?.goals ?? [])
   if (_saved?.nextGoalId   != null) _nextGoalId    = _saved.nextGoalId
   if (_saved?.nextContribId != null) _nextContribId = _saved.nextContribId
 
-  watch(goals, () => {
-    localStorage.setItem(_key(), JSON.stringify({
-      goals: goals.value, nextGoalId: _nextGoalId, nextContribId: _nextContribId,
-    }))
-  }, { deep: true })
-
-  // Reload when country changes
-  watch(() => settings.country, (newCountry) => {
-    if (!newCountry) return
-    const saved = _load()
-    _nextGoalId    = saved?.nextGoalId    ?? 1
-    _nextContribId = saved?.nextContribId ?? 1
-    goals.value    = saved?.goals         ?? []
+  useCountryScopedPersistence('clearbook_savings_goals', {
+    sources: goals,
+    toBlob: () => ({ goals: goals.value, nextGoalId: _nextGoalId, nextContribId: _nextContribId }),
+    reload: (s) => {
+      _nextGoalId    = s?.nextGoalId    ?? 1
+      _nextContribId = s?.nextContribId ?? 1
+      goals.value    = s?.goals         ?? []
+    },
   })
 
   function addGoal(name: string, targetAmount: number, deadline?: string, linkedAccountId?: string): SavingsGoal {
@@ -116,10 +105,7 @@ export const useSavingsGoalStore = defineStore('savingsGoals', () => {
   function totalSaved(goal: SavingsGoal): number {
     if (goal.linkedAccountId) {
       const txStore = useTransactionStore()
-      const net = txStore.transactions
-        .filter(t => t.accountId === goal.linkedAccountId)
-        .reduce((sum, transaction) => sum + txNet(transaction), 0)
-      return roundCents(net)
+      return sumNet(txStore.transactions.filter(t => t.accountId === goal.linkedAccountId))
     }
     return roundCents(goal.contributions.reduce((sum, contribution) => sum + contribution.amount, 0))
   }

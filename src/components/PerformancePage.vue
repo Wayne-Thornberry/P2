@@ -5,6 +5,7 @@ import { useTransactionStore }         from '../stores/transactionStore'
 import { useBudgetStore }              from '../stores/budgetStore'
 import { useSettingsStore }            from '../stores/settingsStore'
 import { useUpcomingTransactionStore } from '../stores/upcomingTransactionStore'
+import { toYearMonth } from '../utils/date'
 
 Chart.register(...registerables)
 
@@ -24,7 +25,7 @@ function monthStr(offset: number): string {
   const d = new Date()
   d.setDate(1)
   d.setMonth(d.getMonth() + offset)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  return toYearMonth(d)
 }
 
 function monthLabel(ym: string): string {

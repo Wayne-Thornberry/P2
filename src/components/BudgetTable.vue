@@ -7,6 +7,7 @@ import { useTransactionStore } from '../stores/transactionStore'
 import { useMonthStore } from '../stores/monthStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { roundCents } from '../utils/math'
+import { yearMonthKey } from '../utils/date'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import InputText from 'primevue/inputtext'
@@ -234,7 +235,7 @@ function onAvailableClick(row: BudgetRow): void {
     fundingModal.value = { item: row, mode: 'overspend' }
   } else {
     // Under budget — navigate to transactions for this item
-    const ym = `${monthStore.activeYear}-${String(monthStore.activeMonth).padStart(2, '0')}`
+    const ym = yearMonthKey(monthStore.activeYear, monthStore.activeMonth)
     emit('viewItemTransactions', row.id, ym)
   }
 }
@@ -403,7 +404,7 @@ function onCellEditComplete(event: { data: BudgetItem; newData: BudgetItem; fiel
             <button
               v-if="data.activity !== 0"
               class="activity-link"
-              @click.stop="emit('viewItemTransactions', data.id, `${monthStore.activeYear}-${String(monthStore.activeMonth).padStart(2, '0')}`)"
+              @click.stop="emit('viewItemTransactions', data.id, yearMonthKey(monthStore.activeYear, monthStore.activeMonth))"
             >{{ formatMoney(data.activity) }}</button>
             <span v-else>{{ formatMoney(data.activity) }}</span>
             <button
