@@ -326,7 +326,52 @@ function buildSrChart(): void {
 watch([monthStats, isDark], () => { nextTick(() => { buildTrendChart(); buildSrChart() }) }, { deep: true })
 onMounted(() => nextTick(() => { buildTrendChart(); buildSrChart() }))
 onUnmounted(() => { trendChart?.destroy(); srChart?.destroy() })
+// ── Score breakdown ──────────────────────────────────────────────
+const scoreBreakdown = computed(() => {
+  const sr = rolling3.value.savingsRate
+  const srPts = sr >= 20 ? 35 : sr >= 10 ? 25 : sr >= 5 ? 15 : sr >= 0 ? 8 : 0
 
+  const r = reserveMonths.value ?? 0
+  const rPts = r >= 6 ? 30 : r >= 3 ? 22 : r >= 1 ? 12 : r > 0 ? 4 : 0
+
+  const ba = budgetAdherence.value
+  let baPts = 10
+  if (ba !== null) baPts = ba.pct === 100 ? 20 : ba.pct >= 75 ? 15 : ba.pct >= 50 ? 8 : 2
+
+  const withIncome = monthStats.value.slice(-3).filter(m => m.income > 0).length
+  const icPts = withIncome === 3 ? 15 : withIncome === 2 ? 9 : withIncome === 1 ? 4 : 0
+
+  return [
+    {
+      name: 'Savings Rate',
+      max: 35,
+      pts: srPts,
+      value: `${sr}% (3-mo avg)`,
+      detail: sr >= 20 ? 'Outstanding rate' : sr >= 10 ? 'Healthy rate' : sr >= 5 ? 'Low but positive' : sr >= 0 ? 'Barely breaking even' : 'Spending more than earning',
+    },
+    {
+      name: 'Emergency Reserve',
+      max: 30,
+      pts: rPts,
+      value: reserveMonths.value !== null ? `${r} months` : 'No data',
+      detail: r >= 6 ? 'Excellent buffer' : r >= 3 ? 'Solid cushion' : r >= 1 ? 'Minimal cover' : r > 0 ? 'Very thin' : 'No reserve',
+    },
+    {
+      name: 'Budget Adherence',
+      max: 20,
+      pts: baPts,
+      value: ba !== null ? `${ba.onTrack}/${ba.total} categories on track` : 'No budget set',
+      detail: ba === null ? 'Neutral score applied' : ba.pct === 100 ? 'All categories under budget' : ba.pct >= 75 ? 'Mostly on track' : ba.pct >= 50 ? 'Over in several areas' : 'Many categories overspent',
+    },
+    {
+      name: 'Income Consistency',
+      max: 15,
+      pts: icPts,
+      value: `${withIncome}/3 months with income`,
+      detail: withIncome === 3 ? 'Consistent income' : withIncome === 2 ? 'Mostly consistent' : withIncome === 1 ? 'Irregular income' : 'No income recorded',
+    },
+  ]
+})
 // ── Score info toggle ─────────────────────────────────────────
 const showScoreInfo = ref(false)
 
@@ -444,6 +489,30 @@ function barColor(pct: number): string {
             {{ budgetAdherence ? budgetAdherence.pct + '%' : '—' }}
           </span>
           <span class="perf-metric-sub">{{ budgetAdherence ? `${budgetAdherence.onTrack}/${budgetAdherence.total} on track` : 'No budget set' }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Score breakdown -->
+    <div class="perf-section">
+      <h2 class="perf-section-title"><i class="pi pi-chart-bar" /> Score Breakdown</h2>
+      <div class="perf-breakdown">
+        <div v-for="row in scoreBreakdown" :key="row.name" class="perf-breakdown-row">
+          <div class="perf-breakdown-top">
+            <span class="perf-breakdown-name">{{ row.name }}</span>
+            <span class="perf-breakdown-pts" :class="row.pts === row.max ? 'color-ok' : row.pts >= row.max * 0.5 ? 'color-warn' : 'color-bad'">{{ row.pts }}<span class="perf-breakdown-max">/{{ row.max }} pts</span></span>
+          </div>
+          <div class="perf-breakdown-bar-track">
+            <div class="perf-breakdown-bar-fill" :style="{ width: (row.pts / row.max * 100) + '%', background: row.pts === row.max ? '#16a34a' : row.pts >= row.max * 0.5 ? '#d97706' : '#dc2626' }" />
+          </div>
+          <div class="perf-breakdown-meta">
+            <span class="perf-breakdown-value">{{ row.value }}</span>
+            <span class="perf-breakdown-detail">{{ row.detail }}</span>
+          </div>
+        </div>
+        <div class="perf-breakdown-total">
+          <span>Total score</span>
+          <span :style="{ color: healthGrade.color }" class="perf-breakdown-total-pts">{{ healthScore }}<span style="font-size:0.75rem;font-weight:500;color:inherit"> / 100</span></span>
         </div>
       </div>
     </div>

@@ -525,6 +525,113 @@
 .perf-go-btn:hover { background: var(--color-zinc-700); }
 .dark .perf-go-btn:hover { background: var(--color-zinc-300); }
 
+/* ── Score breakdown ─────────────────────────────────────────── */
+
+.perf-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 2px solid var(--color-zinc-200);
+  border-radius: 0.6rem;
+  overflow: hidden;
+}
+.dark .perf-breakdown { border-color: var(--color-zinc-700); }
+
+.perf-breakdown-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--color-zinc-200);
+}
+.dark .perf-breakdown-row { border-bottom-color: var(--color-zinc-700); }
+.perf-breakdown-row:last-of-type { border-bottom: none; }
+
+.perf-breakdown-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.perf-breakdown-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--color-zinc-700);
+}
+.dark .perf-breakdown-name { color: var(--color-zinc-200); }
+
+.perf-breakdown-pts {
+  font-size: 1rem;
+  font-weight: 900;
+  font-feature-settings: "tnum";
+  white-space: nowrap;
+}
+
+.perf-breakdown-max {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--color-zinc-400);
+}
+
+.perf-breakdown-bar-track {
+  height: 5px;
+  background: var(--color-zinc-200);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.dark .perf-breakdown-bar-track { background: var(--color-zinc-700); }
+
+.perf-breakdown-bar-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.4s ease;
+}
+
+.perf-breakdown-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.perf-breakdown-value {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-zinc-600);
+}
+.dark .perf-breakdown-value { color: var(--color-zinc-300); }
+
+.perf-breakdown-detail {
+  font-size: 0.68rem;
+  color: var(--color-zinc-400);
+  font-style: italic;
+}
+
+.perf-breakdown-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1rem;
+  background: var(--color-zinc-100);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-zinc-600);
+  border-top: 2px solid var(--color-zinc-200);
+}
+.dark .perf-breakdown-total {
+  background: var(--color-zinc-800);
+  border-top-color: var(--color-zinc-700);
+  color: var(--color-zinc-300);
+}
+
+.perf-breakdown-total-pts {
+  font-size: 1.4rem;
+  font-weight: 900;
+  font-feature-settings: "tnum";
+}
+
 /* ── Score info panel ────────────────────────────────────────── */
 
 .perf-score-info {
