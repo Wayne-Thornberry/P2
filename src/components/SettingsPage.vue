@@ -134,17 +134,17 @@ function generateBudgets(): void {
   const seedItems   = generateBudgetItems() // used when no template
 
   for (const m of months) {
-    budgetStore.monthlyEntries[year] ??= {}
     if (hasTemplate) {
-      // Deep-copy template entries into this month
-      budgetStore.monthlyEntries[year]![m] = JSON.parse(JSON.stringify(templateStore.entries))
+      // Use store API rather than mutating monthlyEntries directly
+      budgetStore.setMonthFromTemplate(year, m)
     } else {
       // Seed from the default budget items — register global items if needed
-      budgetStore.monthlyEntries[year]![m] = seedItems.map(item => ({
+      const seeded = seedItems.map(item => ({
         itemId:   budgetStore.getOrCreateGlobalItem(item.name),
         assigned: item.assigned,
         category: item.category,
       }))
+      budgetStore.setMonthEntries(year, m, seeded)
     }
   }
 

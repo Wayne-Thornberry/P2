@@ -1,36 +1,27 @@
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 import type { Account } from '../types/transaction'
 import { useTransactionStore } from './transactionStore'
 import { useSettingsStore } from './settingsStore'
 import { useSavingsGoalStore } from './savingsGoalStore'
 import { useLoanStore } from './loanStore'
-import { storageKey, loadStored } from '../utils/storeStorage'
+import { loadCountryScoped, useCountryScopedPersistence } from './useCountryScopedPersistence'
 
 let _nextAccId = 10
 
 export const useAccountStore = defineStore('accounts', () => {
   const settings = useSettingsStore()
 
-  function _key(): string { return storageKey('clearbook_accounts', settings.country) }
-  function _load() { return loadStored('clearbook_accounts', settings.country, 'p2_accounts') }
-
-  const _saved = _load()
+  const _saved = loadCountryScoped('clearbook_accounts', 'p2_accounts')
 
   // No default accounts — user adds their own (or uses Generate Sample Data)
   const accounts = ref<Account[]>(_saved?.accounts ?? [])
   if (_saved?.nextId != null) _nextAccId = _saved.nextId
 
-  watch(accounts, (val) => {
-    localStorage.setItem(_key(), JSON.stringify({ accounts: val, nextId: _nextAccId }))
-  }, { deep: true })
-
-  // Reload when country changes
-  watch(() => settings.country, (newCountry) => {
-    if (!newCountry) return
-    const saved = _load()
-    _nextAccId = saved?.nextId ?? 10
-    accounts.value = saved?.accounts ?? []
+  useCountryScopedPersistence('clearbook_accounts', {
+    sources: accounts,
+    toBlob: () => ({ accounts: accounts.value, nextId: _nextAccId }),
+    reload: (s) => { _nextAccId = s?.nextId ?? 10; accounts.value = s?.accounts ?? [] },
   })
 
   function addAccount(name: string, type: Account['type'] = 'asset', bankId?: string): string {
@@ -56,12 +47,13 @@ export const useAccountStore = defineStore('accounts', () => {
     if (idx === -1) return
     accounts.value.splice(idx, 1)
 
-    // Delete all transactions linked to this account.
+    // Delete all transactions linked to this account in a single reactive update
+    // (avoids O(n²) cost and one localStorage write per row).
     const txStore = useTransactionStore()
-    const linkedIds = txStore.transactions
-      .filter(t => t.accountId === id)
-      .map(t => t.id)
-    for (const txId of linkedIds) txStore.deleteTransaction(txId)
+    const linkedIds = new Set(
+      txStore.transactions.filter(t => t.accountId === id).map(t => t.id),
+    )
+    txStore.bulkDeleteTransactions(linkedIds)
 
     // Archive savings goals linked to this account.
     const goalStore = useSavingsGoalStore()

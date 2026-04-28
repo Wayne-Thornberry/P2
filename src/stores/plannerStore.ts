@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
-import { ref, computed, watch } from 'vue'
-import { useSettingsStore } from './settingsStore'
-import { storageKey, loadStored } from '../utils/storeStorage'
+import { ref, computed } from 'vue'
+import { loadCountryScoped, useCountryScopedPersistence } from './useCountryScopedPersistence'
 
 // ── Types ──────────────────────────────────────────────────────
 export interface PlannerItem {
@@ -33,12 +32,7 @@ let _nextSimItemId = 1
 
 // ── Store ──────────────────────────────────────────────────────
 export const usePlannerStore = defineStore('planner', () => {
-  const settings = useSettingsStore()
-
-  function _key(): string { return storageKey('clearbook_planner', settings.country) }
-  function _load() { return loadStored('clearbook_planner', settings.country) }
-
-  const _saved = _load()
+  const _saved = loadCountryScoped('clearbook_planner')
 
   const income              = ref<number>(_saved?.income ?? 0)
   const items               = ref<PlannerItem[]>(_saved?.items ?? [])
@@ -48,8 +42,9 @@ export const usePlannerStore = defineStore('planner', () => {
   if (_saved?.nextSimId    != null) _nextSimId    = _saved.nextSimId
   if (_saved?.nextSimItemId != null) _nextSimItemId = _saved.nextSimItemId
 
-  function _persist(): void {
-    localStorage.setItem(_key(), JSON.stringify({
+  useCountryScopedPersistence('clearbook_planner', {
+    sources: [income, items, simulations, idealSimulationId],
+    toBlob: () => ({
       income:            income.value,
       items:             items.value,
       simulations:       simulations.value,
@@ -57,21 +52,16 @@ export const usePlannerStore = defineStore('planner', () => {
       nextId:            _nextId,
       nextSimId:         _nextSimId,
       nextSimItemId:     _nextSimItemId,
-    }))
-  }
-
-  watch([income, items, simulations, idealSimulationId], _persist, { deep: true })
-
-  // Reload when country changes
-  watch(() => settings.country, () => {
-    const saved = _load()
-    _nextId            = saved?.nextId       ?? 1
-    _nextSimId         = saved?.nextSimId    ?? 1
-    _nextSimItemId     = saved?.nextSimItemId ?? 1
-    income.value       = saved?.income       ?? 0
-    items.value        = saved?.items        ?? []
-    simulations.value  = saved?.simulations  ?? []
-    idealSimulationId.value = saved?.idealSimulationId ?? null
+    }),
+    reload: (saved) => {
+      _nextId                 = saved?.nextId            ?? 1
+      _nextSimId              = saved?.nextSimId         ?? 1
+      _nextSimItemId          = saved?.nextSimItemId     ?? 1
+      income.value            = saved?.income            ?? 0
+      items.value             = saved?.items             ?? []
+      simulations.value       = saved?.simulations       ?? []
+      idealSimulationId.value = saved?.idealSimulationId ?? null
+    },
   })
 
   // ── Actions ────────────────────────────────────────────────

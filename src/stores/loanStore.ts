@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 import { useTransactionStore } from './transactionStore'
-import { useSettingsStore } from './settingsStore'
-import { roundCents, txNet } from '../utils/math'
-import { storageKey, loadStored } from '../utils/storeStorage'
+import { roundCents, txNet, sumNet } from '../utils/math'
+import { loadCountryScoped, useCountryScopedPersistence } from './useCountryScopedPersistence'
+import { toYearMonth } from '../utils/date'
 
 export interface LoanRecord {
   id:               number
@@ -48,31 +48,24 @@ let _nextLoanId = 1
 let _nextSavId  = 1
 
 export const useLoanStore = defineStore('loans', () => {
-  const settings = useSettingsStore()
-
-  function _key(): string { return storageKey('clearbook_finance', settings.country) }
-  function _load() { return loadStored('clearbook_finance', settings.country) }
-
-  const _saved = _load()
+  const _saved = loadCountryScoped('clearbook_finance')
   const loans   = ref<LoanRecord[]>(_saved?.loans ?? [])
   const savings = ref<SavingsAccountRecord[]>(_saved?.savings ?? [])
   if (_saved?.nextLoanId != null) _nextLoanId = _saved.nextLoanId
   if (_saved?.nextSavId  != null) _nextSavId  = _saved.nextSavId
 
-  watch([loans, savings], () => {
-    localStorage.setItem(_key(), JSON.stringify({
+  useCountryScopedPersistence('clearbook_finance', {
+    sources: [loans, savings],
+    toBlob: () => ({
       loans: loans.value, savings: savings.value,
       nextLoanId: _nextLoanId, nextSavId: _nextSavId,
-    }))
-  }, { deep: true })
-
-  watch(() => settings.country, (c) => {
-    if (!c) return
-    const s = _load()
-    _nextLoanId   = s?.nextLoanId ?? 1
-    _nextSavId    = s?.nextSavId  ?? 1
-    loans.value   = s?.loans   ?? []
-    savings.value = s?.savings ?? []
+    }),
+    reload: (s) => {
+      _nextLoanId   = s?.nextLoanId ?? 1
+      _nextSavId    = s?.nextSavId  ?? 1
+      loans.value   = s?.loans   ?? []
+      savings.value = s?.savings ?? []
+    },
   })
 
   // ── Loans ─────────────────────────────────────────────────────
@@ -143,7 +136,7 @@ export const useLoanStore = defineStore('loans', () => {
     for (let i = 0; i < n; i++) {
       const d = new Date(start)
       d.setMonth(d.getMonth() + i + 1)
-      const label     = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      const label     = toYearMonth(d)
       const opening   = balance
       const interest  = balance * r
       const principal = Math.min(M - interest, balance)
@@ -182,7 +175,7 @@ export const useLoanStore = defineStore('loans', () => {
     return Array.from({ length: months + 1 }, (_, i) => {
       const d = new Date(start)
       d.setMonth(d.getMonth() + i)
-      const label   = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      const label   = toYearMonth(d)
       const balance = sav.startBalance * Math.pow(1 + rPerPeriod, i * periodsPerMonth)
       return { date: label, balance: roundCents(balance) }
     })
@@ -205,10 +198,7 @@ export const useLoanStore = defineStore('loans', () => {
 
   function accountNetBalance(accountId: string): number {
     const txStore = useTransactionStore()
-    const net = txStore.transactions
-      .filter(t => t.accountId === accountId)
-      .reduce((sum, transaction) => sum + txNet(transaction), 0)
-    return roundCents(net)
+    return sumNet(txStore.transactions.filter(t => t.accountId === accountId))
   }
 
   return {

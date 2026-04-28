@@ -8,6 +8,7 @@ import { useLoanStore }                from '../stores/loanStore'
 import { useSavingsGoalStore }         from '../stores/savingsGoalStore'
 import { useUpcomingTransactionStore } from '../stores/upcomingTransactionStore'
 import { roundCents, txNet } from '../utils/math'
+import { toYearMonth, yearMonthKey } from '../utils/date'
 import { useBudgetFunds } from '../composables/useBudgetFunds'
 
 const txStore        = useTransactionStore()
@@ -30,7 +31,7 @@ const emit = defineEmits<{
 const _now       = new Date()
 const _thisYear  = _now.getFullYear()
 const _thisMonth = _now.getMonth() + 1
-const _monthKey  = `${_thisYear}-${String(_thisMonth).padStart(2, '0')}`
+const _monthKey  = yearMonthKey(_thisYear, _thisMonth)
 const _monthLabel = _now.toLocaleDateString(settings.locale, { month: 'long', year: 'numeric' })
 
 const thisMonthTxs = computed(() =>
@@ -142,7 +143,7 @@ const totalMonthlyPayments = computed(() =>
 const totalLoanRemaining = computed(() => {
   return roundCents(activeLoans.value.reduce((remaining, loan) => {
     const rows = loanStore.calcAmortization(loan)
-    const nowYM = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}`
+    const nowYM = toYearMonth(_now)
     const row = rows.find(r => r.date >= nowYM)
     return remaining + (row?.openingBalance ?? loan.principal)
   }, 0))
@@ -173,7 +174,7 @@ interface LoanDashRow {
 const loanDashRows = computed((): LoanDashRow[] =>
   activeLoans.value.map(loan => {
     const rows = loanStore.calcAmortization(loan)
-    const nowYM = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}`
+    const nowYM = toYearMonth(_now)
     const row = rows.find(r => r.date >= nowYM)
     const remaining = row?.openingBalance ?? 0
     const pctPaid = loan.principal > 0

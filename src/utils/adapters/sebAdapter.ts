@@ -77,9 +77,6 @@ const sebAdapter: CsvAdapter = {
       const rawAmount = parseAmount(rawAmountStr);
       if (isNaN(rawAmount) || rawAmount === 0) continue;
 
-      // Debug: log the raw CSV value and parsed value
-      console.log('[SEB parse] rawAmountStr:', rawAmountStr, 'parsed:', rawAmount);
-
       const amount = Math.abs(rawAmount);
       const type: 'in' | 'out' = rawAmount > 0 ? 'in' : 'out';
 
@@ -106,7 +103,6 @@ const sebAdapter: CsvAdapter = {
   getOpeningBalance(rows: ParsedRow[]): number | null {
     if (rows.length === 0) return null;
     const oldest = rows[0];
-    console.log('[SEB getOpeningBalance] Oldest record:', oldest);
     if (oldest.balance === null || typeof oldest.amount !== 'number') return null;
     const opening = oldest.type === 'in'
       ? oldest.balance - oldest.amount

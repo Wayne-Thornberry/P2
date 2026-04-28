@@ -5,8 +5,16 @@ import { useBudgetStore } from '../stores/budgetStore'
 import { useTransactionStore } from '../stores/transactionStore'
 import { useTemplateStore } from '../stores/templateStore'
 import { useSettingsStore } from '../stores/settingsStore'
+import { cloneDeep } from './math'
 
-const EXPORT_VERSION = '1'
+const EXPORT_VERSION = '2'
+
+/**
+ * Versions this code knows how to import.
+ *  - '1' — legacy `budgetMonthlyItems` shape (auto-migrated by budgetStore).
+ *  - '2' — current `budgetGlobalItems` + `budgetMonthlyEntries` split.
+ */
+const SUPPORTED_VERSIONS = new Set(['1', '2'])
 
 interface AppExport {
   version: string
@@ -47,14 +55,14 @@ export function exportAllData(): string {
       timeStyle: settings.timeStyle,
       country:   settings.country,
     },
-    accounts:             JSON.parse(JSON.stringify(accountStore.accounts)),
-    transactions:         JSON.parse(JSON.stringify(txnStore.transactions)),
-    budgetGlobalItems:    JSON.parse(JSON.stringify(budgetStore.globalItems)),
-    budgetMonthlyEntries: JSON.parse(JSON.stringify(budgetStore.monthlyEntries)),
-    templateItems:        JSON.parse(JSON.stringify(templateStore.items)),
+    accounts:             cloneDeep(accountStore.accounts),
+    transactions:         cloneDeep(txnStore.transactions),
+    budgetGlobalItems:    cloneDeep(budgetStore.globalItems),
+    budgetMonthlyEntries: cloneDeep(budgetStore.monthlyEntries),
+    templateItems:        cloneDeep(templateStore.items),
   }
 
-  return JSON.stringify(data, null, 2)
+  return JSON.stringify(data)
 }
 
 export function downloadExport(): void {
@@ -86,6 +94,12 @@ export function importData(json: string): void {
     throw new Error('Invalid backup file: missing version or exportedAt fields.')
   }
 
+  if (!SUPPORTED_VERSIONS.has(data.version)) {
+    throw new Error(
+      `Unsupported backup version "${data.version}". This build understands: ${[...SUPPORTED_VERSIONS].join(', ')}.`
+    )
+  }
+
   const accountStore  = useAccountStore()
   const budgetStore   = useBudgetStore()
   const txnStore      = useTransactionStore()
@@ -93,7 +107,7 @@ export function importData(json: string): void {
   const settings      = useSettingsStore()
 
   if (data.settings) {
-    if (data.settings.theme)     settings.theme     = data.settings.theme as 'dark' | 'light' | 'midnight' | 'forest' | 'purple'
+    if (data.settings.theme)     settings.theme     = data.settings.theme as 'dark' | 'light' | 'midnight' | 'forest' | 'purple' | 'slate' | 'rose' | 'teal'
     if (data.settings.locale)    settings.locale    = data.settings.locale
     if (data.settings.currency)  settings.currency  = data.settings.currency
     if (data.settings.dateStyle) settings.dateStyle = data.settings.dateStyle as 'short' | 'medium' | 'long' | 'iso'
@@ -210,7 +224,19 @@ export function clearAndImport(json: string): void {
   const settings     = useSettingsStore()
   const targetCountry = data.settings?.country ?? settings.country
 
-  const dataSuffixes = ['accounts', 'transactions', 'budget', 'template', 'savings_goals', 'import_history']
+  // Must include every per-country store key. Missing one here will leave
+  // orphan data in place after a restore.
+  const dataSuffixes = [
+    'accounts',
+    'transactions',
+    'budget',
+    'template',
+    'savings_goals',
+    'import_history',
+    'finance',
+    'planner',
+    'upcoming',
+  ]
   for (const suffix of dataSuffixes) {
     if (targetCountry) localStorage.removeItem(`clearbook_${suffix}_${targetCountry}`)
     localStorage.removeItem(`clearbook_${suffix}`)

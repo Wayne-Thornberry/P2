@@ -8,6 +8,7 @@ import { useBudgetStore } from '../stores/budgetStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { suggestTopItems } from '../utils/autoCategory'
 import { cleanTxName, hasFriendlyName, txNamesMatch } from '../utils/txNameCleaner'
+import { yearMonthKey } from '../utils/date'
 
 const props = defineProps<{
   year: number
@@ -47,7 +48,7 @@ const currentHasFriendly = computed<boolean>(() =>
 function navigateToTransaction(): void {
   const tx = current.value
   if (!tx) return
-  const ym = `${props.year}-${String(props.month).padStart(2, '0')}`
+  const ym = yearMonthKey(props.year, props.month)
   emit('viewTransaction', tx.name, ym)
 }
 

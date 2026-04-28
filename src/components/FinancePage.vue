@@ -6,7 +6,7 @@ import type { LoanRecord, SavingsAccountRecord } from '../stores/loanStore'
 import { useAccountStore } from '../stores/accountStore'
 import { useTransactionStore } from '../stores/transactionStore'
 import { useSettingsStore } from '../stores/settingsStore'
-import { getTodayStr } from '../utils/date'
+import { getTodayStr, toYearMonth } from '../utils/date'
 
 Chart.register(...registerables)
 
@@ -321,12 +321,12 @@ function loanStats(loan: LoanRecord): LoanStats {
       const r      = loan.apr / 100 / 12
       let balance  = loan.principal
       let intAcc   = 0
-      const nowYM  = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+      const nowYM  = toYearMonth(now)
       const cursor = new Date(start)
 
       // Walk every month from loan start through today, apply actual payments
       for (let i = 0; i <= loan.termMonths && balance > 0.005; i++) {
-        const ym = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`
+        const ym = toYearMonth(cursor)
         if (ym > nowYM) break
         const payment = payByMonth.get(ym) ?? 0
         if (payment > 0) {

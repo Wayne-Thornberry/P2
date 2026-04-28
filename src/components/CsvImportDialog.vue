@@ -167,7 +167,7 @@ async function handleImport(): Promise<void> {
   let forwardGapAmount = 0
   let forwardGapType: 'in' | 'out' = 'in'
   if (hasForwardGap && result.openingBalance !== null && result.openingDate) {
-    const currentBalance = roundCents(preTxs.reduce((sum, transaction) => sum + txNet(transaction), 0))
+    const currentBalance = sumNet(preTxs)
     const diff = roundCents(result.openingBalance - currentBalance)
     forwardGapAmount = Math.abs(diff)
     forwardGapType   = diff > 0 ? 'in' : 'out'
