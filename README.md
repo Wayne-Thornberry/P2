@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/Wayne-Thornberry/P2/actions/workflows/ci.yml/badge.svg)](https://github.com/Wayne-Thornberry/P2/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.18.0-blue.svg)](CHANGELOG.md)
 
 ---
 
@@ -49,6 +49,9 @@ It follows the **envelope budgeting** philosophy — define budget categories ea
 
 ### UX
 - **Global search** — find any transaction instantly from the header bar
+- **Calendar** — monthly calendar view showing actual transactions and upcoming planned transactions per day
+- **Performance** — financial health score (A–F) with a savings-rate trend chart, budget-adherence score, and actionable insight cards across the last 6 months
+- **Quick Calculator** — set a monthly income and add spending commitments to see a running balance; create named "what-if" simulations to compare scenarios
 - **8 themes** — Light, Dark, Midnight, Forest, Purple, Rose, Slate, Teal
 - **Multi-country** — separate data per country, full locale/currency/date format support
 - **FX conversion** — display amounts in a second currency at a custom rate (display-only)
