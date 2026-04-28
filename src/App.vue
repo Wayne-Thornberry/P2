@@ -21,30 +21,51 @@ import ConfirmDialog from './components/ConfirmDialog.vue'
 import { useSettingsStore } from './stores/settingsStore'
 import { SUPPORTED_COUNTRIES, getCountryById } from './data/countries'
 import { useCsvDrop } from './composables/useCsvDrop'
+import { useNavigation } from './composables/useNavigation'
 import { clearAndImport } from './utils/persistence'
 import { useConfirm } from './composables/useConfirm'
-import type { Transaction } from './types/transaction'
 
-const currentPage      = ref('dashboard')
-const activeNavItem    = ref('dashboard')
-const sidebarOpen      = ref(false)
-const txMonthFilter    = ref('')
-const countryMenuOpen  = ref(false)
-const txAccountFilter  = ref<string | undefined>(undefined)
-const txItemFilter     = ref<number | undefined>(undefined)
-const txNameFilter     = ref('')
-const txTypeFilter     = ref<'all' | 'in' | 'out'>('all')
-const txFocusSearch    = ref(false)
-const convCurrStr      = ref('')
-const convRateStr      = ref('')
-// ── Cross-page navigation state ───────────────────────────────
-const reportsInitAccountId      = ref<string | undefined>(undefined)
-const reportsInitBreakdownMonth = ref<string | undefined>(undefined)
-const savingsGoalFocusId        = ref<number | undefined>(undefined)
-const financeFocusKind          = ref<'loan' | 'savings' | undefined>(undefined)
-const financeFocusId            = ref<number | undefined>(undefined)
 const settings         = useSettingsStore()
 const currentCountry   = computed(() => getCountryById(settings.country))
+
+const sidebarOpen      = ref(false)
+const countryMenuOpen  = ref(false)
+const convCurrStr      = ref('')
+const convRateStr      = ref('')
+
+const nav = useNavigation()
+const {
+  currentPage,
+  activeNavItem,
+  txMonthFilter,
+  txAccountFilter,
+  txItemFilter,
+  txNameFilter,
+  txTypeFilter,
+  txFocusSearch,
+  reportsInitAccountId,
+  reportsInitBreakdownMonth,
+  savingsGoalFocusId,
+  financeFocusKind,
+  financeFocusId,
+  goToTransactions,
+  onGlobalSearchSelect,
+  onViewTransactions,
+  onViewTransactionByName,
+  onViewAccountTransactions,
+  onViewItemTransactions,
+  onReportViewTransactions,
+  onViewAccountInReports,
+  onViewBreakdown,
+  onViewSavingsGoal,
+  onViewFinance,
+} = nav
+
+// Wrap nav.navigate so the mobile sidebar closes on every page change.
+function navigate(page: string): void {
+  sidebarOpen.value = false
+  nav.navigate(page)
+}
 
 function applyConversion(): void {
   const rate = parseFloat(convRateStr.value)
@@ -103,99 +124,6 @@ function confirmBackupRestore(): void {
   backupDropVisible.value = false
   pendingBackupJson.value = ''
   clearAndImport(json)
-}
-
-function navigate(page: string): void {
-  sidebarOpen.value = false
-  settings.deactivateConversion()
-  if (page === 'transactions') {
-    txMonthFilter.value   = ''
-    txAccountFilter.value = undefined
-    txItemFilter.value    = undefined
-    txNameFilter.value    = ''
-    txTypeFilter.value    = 'all'
-    txFocusSearch.value   = false
-  }
-  reportsInitAccountId.value      = undefined
-  reportsInitBreakdownMonth.value = undefined
-  savingsGoalFocusId.value        = undefined
-  financeFocusKind.value          = undefined
-  financeFocusId.value            = undefined
-  activeNavItem.value = page
-  currentPage.value = page
-}
-
-function onGlobalSearchSelect(tx: Transaction): void {
-  goToTransactions({ name: tx.name })
-}
-
-function goToTransactions(opts: {
-  month?: string
-  accountId?: string
-  itemId?: number
-  name?: string
-  type?: 'all' | 'in' | 'out'
-}): void {
-  settings.deactivateConversion()
-  txMonthFilter.value   = opts.month ?? ''
-  txAccountFilter.value = opts.accountId
-  txItemFilter.value    = opts.itemId
-  txNameFilter.value    = opts.name ?? ''
-  txTypeFilter.value    = opts.type ?? 'all'
-  txFocusSearch.value   = false
-  activeNavItem.value   = 'transactions'
-  currentPage.value     = 'transactions'
-}
-
-function onViewTransactions(yearMonth: string): void {
-  goToTransactions({ month: yearMonth })
-}
-
-function onViewTransactionByName(txName: string, yearMonth: string): void {
-  goToTransactions({ month: yearMonth, name: txName })
-}
-
-function onViewAccountTransactions(accountId: string): void {
-  goToTransactions({ accountId })
-}
-
-function onViewItemTransactions(itemId: number, yearMonth: string): void {
-  goToTransactions({ month: yearMonth, itemId })
-}
-
-function onReportViewTransactions(opts: { month?: string; accountId?: string; name?: string; type?: 'in' | 'out' }): void {
-  goToTransactions({ month: opts.month, accountId: opts.accountId, name: opts.name, type: opts.type })
-}
-
-function onViewAccountInReports(accountId: string): void {
-  settings.deactivateConversion()
-  reportsInitAccountId.value      = accountId
-  reportsInitBreakdownMonth.value = undefined
-  activeNavItem.value = 'reports'
-  currentPage.value   = 'reports'
-}
-
-function onViewBreakdown(month: string, accountId: string): void {
-  settings.deactivateConversion()
-  reportsInitAccountId.value      = accountId
-  reportsInitBreakdownMonth.value = month
-  activeNavItem.value = 'reports'
-  currentPage.value   = 'reports'
-}
-
-function onViewSavingsGoal(goalId: number): void {
-  settings.deactivateConversion()
-  savingsGoalFocusId.value = goalId
-  activeNavItem.value = 'savings'
-  currentPage.value   = 'savings'
-}
-
-function onViewFinance(kind: 'loan' | 'savings', id: number): void {
-  settings.deactivateConversion()
-  financeFocusKind.value = kind
-  financeFocusId.value   = id
-  activeNavItem.value = 'finance'
-  currentPage.value   = 'finance'
 }
 
 // ── Breadcrumb ─────────────────────────────────────────────────

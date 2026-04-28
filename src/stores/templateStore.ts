@@ -1,19 +1,15 @@
 ﻿import { defineStore } from 'pinia'
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import type { BudgetItem, BudgetItemDef, TemplateEntry } from '../types/budget'
 import { BUDGET_TEMPLATE } from '../data/budgetTemplate'
 import { useBudgetStore } from './budgetStore'
-import { useSettingsStore } from './settingsStore'
-import { storageKey, loadStored } from '../utils/storeStorage'
+import { loadCountryScoped, useCountryScopedPersistence } from './useCountryScopedPersistence'
+import { cloneDeep } from '../utils/math'
 
 export const useTemplateStore = defineStore('template', () => {
   const budgetStore = useBudgetStore()
-  const settings    = useSettingsStore()
 
-  function _key(): string { return storageKey('clearbook_template', settings.country) }
-  function _loadTemplate() { return loadStored('clearbook_template', settings.country, 'p2_template') }
-
-  const _saved = _loadTemplate()
+  const _saved = loadCountryScoped('clearbook_template', 'p2_template')
 
   // ── Initialize / Migrate ─────────────────────────────────────────────
   let _initEntries: TemplateEntry[]
@@ -46,25 +42,22 @@ export const useTemplateStore = defineStore('template', () => {
 
   const entries = ref<TemplateEntry[]>(_initEntries)
 
-  watch(entries, (val) => {
-    localStorage.setItem(_key(), JSON.stringify({ entries: val }))
-  }, { deep: true })
-
-  // Reload when country changes
-  watch(() => settings.country, (newCountry) => {
-    if (!newCountry) return
-    const saved = _loadTemplate()
-    if (saved?.entries) {
-      // Load saved entries directly (v2 format — itemIds reference budgetStore globalItems)
-      entries.value = saved.entries
-    } else {
-      // Fresh country — seed from BUDGET_TEMPLATE using fixed IDs (matches budgetStore fresh seed)
-      entries.value = BUDGET_TEMPLATE.map(item => ({
-        itemId:   item.id,
-        assigned: item.assigned,
-        category: item.category,
-      }))
-    }
+  useCountryScopedPersistence('clearbook_template', {
+    sources: entries,
+    toBlob: () => ({ entries: entries.value }),
+    reload: (saved) => {
+      if (saved?.entries) {
+        // v2 format — itemIds reference budgetStore globalItems
+        entries.value = saved.entries
+      } else {
+        // Fresh country — seed from BUDGET_TEMPLATE using fixed IDs
+        entries.value = BUDGET_TEMPLATE.map(item => ({
+          itemId:   item.id,
+          assigned: item.assigned,
+          category: item.category,
+        }))
+      }
+    },
   })
 
   // ── Computed ──────────────────────────────────────────────────────────
@@ -145,7 +138,7 @@ export const useTemplateStore = defineStore('template', () => {
   }
 
   function getCopy(): BudgetItem[] {
-    return JSON.parse(JSON.stringify(items.value)) as BudgetItem[]
+    return cloneDeep(items.value) as BudgetItem[]
   }
 
   function resetToDefault(): void {

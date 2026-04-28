@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
-import { useSettingsStore } from './settingsStore'
-import { storageKey, loadStored } from '../utils/storeStorage'
+import { ref } from 'vue'
+import { loadCountryScoped, useCountryScopedPersistence } from './useCountryScopedPersistence'
 
 export interface ImportRecord {
   id: number
@@ -15,26 +14,14 @@ export interface ImportRecord {
 let _nextId = 1
 
 export const useImportHistoryStore = defineStore('importHistory', () => {
-  const settings = useSettingsStore()
-
-  function _key(): string { return storageKey('clearbook_import_history', settings.country) }
-  function _load() { return loadStored('clearbook_import_history', settings.country) }
-
-  const _saved = _load()
-
+  const _saved = loadCountryScoped('clearbook_import_history')
   const imports = ref<ImportRecord[]>(_saved?.imports ?? [])
   if (_saved?.nextId != null) _nextId = _saved.nextId
 
-  watch(imports, (val) => {
-    localStorage.setItem(_key(), JSON.stringify({ imports: val, nextId: _nextId }))
-  }, { deep: true })
-
-  // Reload when country changes
-  watch(() => settings.country, (newCountry) => {
-    if (!newCountry) return
-    const saved = _load()
-    _nextId       = saved?.nextId  ?? 1
-    imports.value = saved?.imports ?? []
+  useCountryScopedPersistence('clearbook_import_history', {
+    sources: imports,
+    toBlob: () => ({ imports: imports.value, nextId: _nextId }),
+    reload: (s) => { _nextId = s?.nextId ?? 1; imports.value = s?.imports ?? [] },
   })
 
   function addRecord(r: Omit<ImportRecord, 'id' | 'date'>): void {

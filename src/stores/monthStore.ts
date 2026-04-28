@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useSettingsStore } from './settingsStore'
+import { yearMonthKey } from '../utils/date'
 
 export const useMonthStore = defineStore('month', () => {
   const _now = new Date()
@@ -43,11 +44,9 @@ export const useMonthStore = defineStore('month', () => {
   }
 
   /** First day of the active month as a YYYY-MM-DD string */
-  const activeMonthStart = computed(() => {
-    const y = activeYear.value
-    const m = String(activeMonth.value).padStart(2, '0')
-    return `${y}-${m}-01`
-  })
+  const activeMonthStart = computed(() =>
+    `${yearMonthKey(activeYear.value, activeMonth.value)}-01`
+  )
 
   return { activeYear, activeMonth, label, isCurrentMonth, prevMonth, nextMonth, matchesActive, activeMonthStart }
 })

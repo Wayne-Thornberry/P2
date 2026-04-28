@@ -5,7 +5,7 @@ import { useAccountStore } from '../stores/accountStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useImportHistoryStore } from '../stores/importHistoryStore'
 import { processMultipleCsvFiles, CSV_ADAPTERS } from '../utils/csvAdapters'
-import { roundCents, txNet } from '../utils/math'
+import { roundCents, txNet, sumNet } from '../utils/math'
 import { cleanTxName, txNamesMatch } from '../utils/txNameCleaner'
 
 const props = defineProps<{
@@ -167,7 +167,7 @@ async function handleImport(): Promise<void> {
   let forwardGapAmount = 0
   let forwardGapType: 'in' | 'out' = 'in'
   if (hasForwardGap && result.openingBalance !== null && result.openingDate) {
-    const currentBalance = roundCents(preTxs.reduce((sum, transaction) => sum + txNet(transaction), 0))
+    const currentBalance = sumNet(preTxs)
     const diff = roundCents(result.openingBalance - currentBalance)
     forwardGapAmount = Math.abs(diff)
     forwardGapType   = diff > 0 ? 'in' : 'out'
