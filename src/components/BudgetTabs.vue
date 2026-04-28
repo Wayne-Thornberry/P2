@@ -173,6 +173,49 @@ function absorbOverspend(): void {
   }
   toast.add({ severity: 'success', summary: 'Budget adjusted', detail: `${rows.length} item${rows.length !== 1 ? 's' : ''} budget increased to match spending.`, life: 3000 })
 }
+
+// ── Budget carry-over ─────────────────────────────────────────
+/** Prior month relative to the active month. */
+const prevMonthMeta = computed(() => {
+  let y = monthStore.activeYear
+  let m = monthStore.activeMonth - 1
+  if (m < 1) { m = 12; y-- }
+  return { year: y, month: m }
+})
+
+const prevMonthSurplus = computed(() => {
+  const { year, month } = prevMonthMeta.value
+  const entries = store.monthlyEntries[year]?.[month]
+  if (!entries) return 0
+  const actMap = txStore.getMonthlyActivityMap(year, month)
+  let total = 0
+  for (const e of entries) {
+    const act = actMap.get(e.itemId) ?? 0
+    const surplus = Math.round((e.assigned - act) * 100) / 100
+    if (surplus > 0) total += surplus
+  }
+  return Math.round(total * 100) / 100
+})
+
+const prevMonthInData = computed(() =>
+  store.monthsWithData.some(x => x.year === prevMonthMeta.value.year && x.month === prevMonthMeta.value.month)
+)
+
+async function rollOverSurplus(): Promise<void> {
+  const surplus = prevMonthSurplus.value
+  if (surplus <= 0) return
+  const { year, month } = prevMonthMeta.value
+  const srcLabel = store.monthsWithData.find(x => x.year === year && x.month === month)?.label ?? `${year}-${month}`
+  const ok = await confirm({
+    title: 'Roll over surplus?',
+    message: `Add the ${formatMoney(surplus)} unspent surplus from ${srcLabel} into this month's assigned amounts?`,
+    confirmLabel: 'Roll over',
+  })
+  if (!ok) return
+  const actMap = txStore.getMonthlyActivityMap(year, month)
+  const applied = store.carryOverSurplus(year, month, monthStore.activeYear, monthStore.activeMonth, actMap)
+  toast.add({ severity: 'success', summary: 'Surplus rolled over', detail: `${formatMoney(applied)} carried from ${srcLabel}.`, life: 3000 })
+}
 </script>
 
 <template>
@@ -247,6 +290,15 @@ function absorbOverspend(): void {
           >{{ name }}</button>
         </div>
       </div>
+    </div>
+
+    <!-- Roll over surplus banner -->
+    <div v-if="prevMonthInData && prevMonthSurplus > 0" class="budget-carryover-banner">
+      <span class="budget-carryover-text">
+        <i class="pi pi-arrow-right-arrow-left" />
+        {{ formatMoney(prevMonthSurplus) }} unspent last month
+      </span>
+      <button class="budget-carryover-btn" @click="rollOverSurplus">Roll over surplus</button>
     </div>
 
     <!-- Empty-month prompt -->

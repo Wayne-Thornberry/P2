@@ -298,6 +298,41 @@ export const useBudgetStore = defineStore('budget', () => {
     monthlyEntries.value[y]![m] = JSON.parse(JSON.stringify(source))
   }
 
+  /**
+   * Roll unspent surplus from sourceYear/sourceMonth forward into targetYear/targetMonth.
+   *
+   * For each item whose (assigned - activity) > 0 in the source month, the surplus
+   * is added to the item's assigned amount in the target month. Items that are
+   * overspent or not present in the target month are skipped.
+   *
+   * @param activityMap  Pre-computed { itemId → actual spend } for the source month.
+   *                     Caller provides this because the store has no direct access to
+   *                     the transaction store from here without a circular dep.
+   */
+  function carryOverSurplus(
+    sourceYear:  number,
+    sourceMonth: number,
+    targetYear:  number,
+    targetMonth: number,
+    activityMap: Map<number, number>,
+  ): number {
+    const source = monthlyEntries.value[sourceYear]?.[sourceMonth]
+    if (!source) return 0
+    _seedMonth(targetYear, targetMonth)
+    const target = monthlyEntries.value[targetYear]![targetMonth]!
+    let total = 0
+    for (const se of source) {
+      const activity = activityMap.get(se.itemId) ?? 0
+      const surplus  = Math.round((se.assigned - activity) * 100) / 100
+      if (surplus <= 0) continue
+      const te = target.find(e => e.itemId === se.itemId)
+      if (!te) continue  // item not in target month — skip
+      te.assigned = Math.round((te.assigned + surplus) * 100) / 100
+      total += surplus
+    }
+    return total
+  }
+
   /** All year+month combinations that have at least one entry, sorted newest first. */
   const monthsWithData = computed<Array<{ year: number; month: number; label: string }>>(() => {
     const result: Array<{ year: number; month: number; label: string }> = []
@@ -378,6 +413,7 @@ export const useBudgetStore = defineStore('budget', () => {
     loadSeedData,
     populateFromTemplate,
     populateFromMonth,
+    carryOverSurplus,
     monthsWithData,
     $import,
   }

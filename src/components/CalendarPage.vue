@@ -148,15 +148,16 @@ function formatSelectedDate(date: string): string {
 // ── Add upcoming form ─────────────────────────────────────────
 const showAddForm = ref(false)
 const newForm = ref({
-  title:  '',
-  amount: '0.00',
-  type:   'out' as 'in' | 'out',
-  date:   TODAY,
-  notes:  '',
+  title:     '',
+  amount:    '0.00',
+  type:      'out' as 'in' | 'out',
+  date:      TODAY,
+  notes:     '',
+  recurring: '' as '' | 'weekly' | 'monthly' | 'yearly',
 })
 
 function openAddForm(): void {
-  newForm.value = { title: '', amount: '0.00', type: 'out', date: selectedDate.value ?? TODAY, notes: '' }
+  newForm.value = { title: '', amount: '0.00', type: 'out', date: selectedDate.value ?? TODAY, notes: '', recurring: '' }
   showAddForm.value = true
 }
 
@@ -168,23 +169,24 @@ function submitAdd(): void {
   const amount = parseFloat(newForm.value.amount)
   if (!newForm.value.title.trim() || isNaN(amount) || amount <= 0) return
   upStore.addItem({
-    title:  newForm.value.title.trim(),
-    amount: Math.round(amount * 100) / 100,
-    type:   newForm.value.type,
-    date:   newForm.value.date,
-    notes:  newForm.value.notes.trim() || undefined,
-    done:   false,
+    title:     newForm.value.title.trim(),
+    amount:    Math.round(amount * 100) / 100,
+    type:      newForm.value.type,
+    date:      newForm.value.date,
+    notes:     newForm.value.notes.trim() || undefined,
+    done:      false,
+    recurring: newForm.value.recurring || undefined,
   })
   showAddForm.value = false
 }
 
 // ── Edit upcoming ─────────────────────────────────────────────
 const editingId = ref<number | null>(null)
-const editForm  = ref({ title: '', amount: '0.00', type: 'out' as 'in' | 'out', date: '', notes: '' })
+const editForm  = ref({ title: '', amount: '0.00', type: 'out' as 'in' | 'out', date: '', notes: '', recurring: '' as '' | 'weekly' | 'monthly' | 'yearly' })
 
 function startEdit(u: UpcomingTransaction): void {
   editingId.value = u.id
-  editForm.value  = { title: u.title, amount: u.amount.toFixed(2), type: u.type, date: u.date, notes: u.notes ?? '' }
+  editForm.value  = { title: u.title, amount: u.amount.toFixed(2), type: u.type, date: u.date, notes: u.notes ?? '', recurring: u.recurring ?? '' }
   linkingId.value = null
 }
 
@@ -195,11 +197,12 @@ function submitEdit(): void {
   const amount = parseFloat(editForm.value.amount)
   if (!editForm.value.title.trim() || isNaN(amount) || amount <= 0) return
   upStore.updateItem(editingId.value, {
-    title:  editForm.value.title.trim(),
-    amount: Math.round(amount * 100) / 100,
-    type:   editForm.value.type,
-    date:   editForm.value.date,
-    notes:  editForm.value.notes.trim() || undefined,
+    title:     editForm.value.title.trim(),
+    amount:    Math.round(amount * 100) / 100,
+    type:      editForm.value.type,
+    date:      editForm.value.date,
+    notes:     editForm.value.notes.trim() || undefined,
+    recurring: editForm.value.recurring || undefined,
   })
   editingId.value = null
 }
@@ -418,6 +421,12 @@ function deleteUpcoming(id: number): void {
                   </div>
                   <input v-model="editForm.date" type="date" class="cal-form-input" />
                   <input v-model="editForm.notes" placeholder="Notes (optional)" class="cal-form-input" />
+                  <select v-model="editForm.recurring" class="cal-form-input">
+                    <option value="">One-time (no repeat)</option>
+                    <option value="weekly">Repeats weekly</option>
+                    <option value="monthly">Repeats monthly</option>
+                    <option value="yearly">Repeats yearly</option>
+                  </select>
                   <div class="cal-form-actions">
                     <button class="cal-btn cal-btn--primary" @click="submitEdit">Save</button>
                     <button class="cal-btn cal-btn--ghost" @click="cancelEdit">Cancel</button>
@@ -470,6 +479,9 @@ function deleteUpcoming(id: number): void {
                     <span v-else-if="u.done" class="cal-up-done-label">
                       <i class="pi pi-check-circle" style="font-size:0.6rem" /> Done
                     </span>
+                    <span v-if="u.recurring && !u.done" class="cal-up-recurring-badge">
+                      <i class="pi pi-refresh" style="font-size:0.55rem" /> {{ u.recurring }}
+                    </span>
                   </div>
                   <span class="cal-up-amount" :class="u.type === 'in' ? 'money-positive' : 'money-negative'">
                     {{ u.type === 'in' ? '+' : '-' }}{{ formatMoney(u.amount) }}
@@ -521,6 +533,12 @@ function deleteUpcoming(id: number): void {
                 <input v-model="newForm.date" type="date" class="cal-form-input cal-form-input--date" />
               </div>
               <input v-model="newForm.notes" placeholder="Notes (optional)" class="cal-form-input" />
+              <select v-model="newForm.recurring" class="cal-form-input">
+                <option value="">One-time (no repeat)</option>
+                <option value="weekly">Repeats weekly</option>
+                <option value="monthly">Repeats monthly</option>
+                <option value="yearly">Repeats yearly</option>
+              </select>
               <div class="cal-form-actions">
                 <button class="cal-btn cal-btn--primary" @click="submitAdd">Add</button>
                 <button class="cal-btn cal-btn--ghost" @click="cancelAdd">Cancel</button>

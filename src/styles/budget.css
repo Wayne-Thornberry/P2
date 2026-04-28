@@ -337,6 +337,45 @@
   background-color: var(--color-zinc-700);
 }
 
+/* ── Carry-over surplus banner ─────────────────────────────── */
+.budget-carryover-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 25%, transparent);
+  margin-bottom: 0.5rem;
+}
+
+.budget-carryover-text {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.budget-carryover-btn {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
+  border-radius: 6px;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.budget-carryover-btn:hover {
+  background: color-mix(in srgb, var(--color-primary) 25%, transparent);
+}
+
 /* ── Month/year picker popover ──────────────────────────────── */
 .month-picker-overlay {
   position: fixed;

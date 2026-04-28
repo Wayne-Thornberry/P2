@@ -52,4 +52,6 @@ export interface UpcomingTransaction {
   done: boolean
   linkedTransactionId?: number  // optional link to a real Transaction when marked done
   createdAt: string             // ISO datetime, auto-recorded
+  /** When set, marking done auto-spawns the next occurrence. */
+  recurring?: 'weekly' | 'monthly' | 'yearly'
 }

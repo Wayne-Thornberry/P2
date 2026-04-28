@@ -6,6 +6,15 @@ import type { UpcomingTransaction } from '../types/transaction'
 
 let _nextId = 1
 
+/** Advance a YYYY-MM-DD date by one recurrence period. */
+function _nextDate(date: string, period: NonNullable<UpcomingTransaction['recurring']>): string {
+  const d = new Date(date + 'T00:00:00')
+  if (period === 'weekly')  d.setDate(d.getDate() + 7)
+  if (period === 'monthly') d.setMonth(d.getMonth() + 1)
+  if (period === 'yearly')  d.setFullYear(d.getFullYear() + 1)
+  return d.toISOString().slice(0, 10)
+}
+
 export const useUpcomingTransactionStore = defineStore('upcomingTransactions', () => {
   const settings = useSettingsStore()
 
@@ -48,8 +57,24 @@ export const useUpcomingTransactionStore = defineStore('upcomingTransactions', (
     items.value = items.value.filter(i => i.id !== id)
   }
 
+  /**
+   * Mark an upcoming transaction as done. If it is recurring, a new occurrence
+   * is automatically created at the next date in the series.
+   */
   function markDone(id: number, linkedTransactionId?: number): void {
     updateItem(id, { done: true, linkedTransactionId })
+    const item = items.value.find(i => i.id === id)
+    if (item?.recurring) {
+      addItem({
+        title:     item.title,
+        amount:    item.amount,
+        type:      item.type,
+        date:      _nextDate(item.date, item.recurring),
+        notes:     item.notes,
+        done:      false,
+        recurring: item.recurring,
+      })
+    }
   }
 
   /** Pending (not done) upcoming transactions sorted by date ascending. */

@@ -517,6 +517,21 @@
   gap: 0.25rem;
 }
 
+.cal-up-recurring-badge {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: capitalize;
+  color: #6366f1;
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  opacity: 0.85;
+}
+
+.dark .cal-up-recurring-badge {
+  color: #818cf8;
+}
+
 .cal-up-amount {
   font-size: 0.78rem;
   font-weight: 700;
