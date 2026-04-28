@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.19.0] - 2026-04-28
+
+### Changed
+- Merge pull request #6 from Wayne-Thornberry/develop
+- feat: integrate sumNet utility in transaction and savings goal stores; remove unused settings store import
+- feat: update README and AboutPage with new features including Calendar, Performance scoring, and Quick Calculator
+- feat: add sumNet and cloneDeep utilities for transaction handling and deep cloning
+
+---
+
 ## [1.18.0] - 2026-04-28
 
 ### Changed
@@ -226,7 +236,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed-position pagination navigation arrows in Transaction log
 - MIT License
 
-[Unreleased]: https://github.com/Wayne-Thornberry/P2/compare/v1.18.0...HEAD
+[Unreleased]: https://github.com/Wayne-Thornberry/P2/compare/v1.19.0...HEAD
+[1.19.0]: https://github.com/Wayne-Thornberry/P2/compare/v1.18.0...v1.19.0
 [1.18.0]: https://github.com/Wayne-Thornberry/P2/compare/v1.17.0...v1.18.0
 [1.17.0]: https://github.com/Wayne-Thornberry/P2/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/Wayne-Thornberry/P2/compare/v1.15.0...v1.16.0
