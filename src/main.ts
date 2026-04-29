@@ -6,6 +6,10 @@ import ToastService from 'primevue/toastservice'
 import 'primeicons/primeicons.css'
 import './style.css'
 import App from './App.vue'
+import { runLegacyMigration } from './utils/storeStorage'
+
+// Migrate any clearbook_ keys to folio_ before stores initialise.
+runLegacyMigration()
 
 const app = createApp(App)
 
