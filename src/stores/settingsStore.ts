@@ -55,11 +55,17 @@ export const useSettingsStore = defineStore('settings', () => {
       let raw = localStorage.getItem('folio_settings')
       if (raw === null) {
         raw = localStorage.getItem('clearbook_settings')
-        if (raw !== null) localStorage.removeItem('clearbook_settings')
+        if (raw !== null) {
+          localStorage.setItem('folio_settings', raw)
+          localStorage.removeItem('clearbook_settings')
+        }
       }
       if (raw === null) {
         raw = localStorage.getItem('p2_settings')
-        if (raw !== null) localStorage.removeItem('p2_settings')
+        if (raw !== null) {
+          localStorage.setItem('folio_settings', raw)
+          localStorage.removeItem('p2_settings')
+        }
       }
       return JSON.parse(raw ?? 'null')
     } catch { return null }

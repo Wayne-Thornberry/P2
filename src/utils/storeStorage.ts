@@ -31,10 +31,13 @@ export function loadStored(base: string, country: string, legacyKey?: string): a
       }
     }
 
-    // One-time migration: legacy p2_ key
+    // One-time migration: legacy p2_ / clearbook_ key
     if (raw === null && legacyKey) {
       raw = localStorage.getItem(legacyKey)
-      if (raw !== null) localStorage.removeItem(legacyKey)
+      if (raw !== null) {
+        localStorage.setItem(key, raw)
+        localStorage.removeItem(legacyKey)
+      }
     }
 
     return JSON.parse(raw ?? 'null')
