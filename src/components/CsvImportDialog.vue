@@ -7,6 +7,7 @@ import { useImportHistoryStore } from '../stores/importHistoryStore'
 import { processMultipleCsvFiles, CSV_ADAPTERS } from '../utils/csvAdapters'
 import { roundCents, txNet, sumNet } from '../utils/math'
 import { cleanTxName, txNamesMatch } from '../utils/txNameCleaner'
+import { dayBefore, dayAfter } from '../utils/date'
 
 const props = defineProps<{
   visible: boolean
@@ -86,12 +87,12 @@ const importPlan = computed<ImportPlan | null>(() => {
       earliestExisting,
       gapBridgeAmount: Math.abs(gapDiff),
       gapBridgeType:   gapDiff > 0 ? 'in' : 'out',
-      gapBridgeDate:   _dayBefore(earliestExisting),
+      gapBridgeDate:   dayBefore(earliestExisting),
     }
   }
 
   // Check for a forward date gap
-  const dayAfterLatest = _dayAfter(latestExisting)
+  const dayAfterLatest = dayAfter(latestExisting)
   if (newOldest > dayAfterLatest) {
     // New data starts after a gap from the latest existing transaction
     const currentBalance = roundCents(accountTxs.reduce<number>((sum, transaction) => sum + txNet(transaction), 0))
@@ -112,13 +113,6 @@ const importPlan = computed<ImportPlan | null>(() => {
 })
 
 // ── Helpers ───────────────────────────────────────────────────
-function _dayBefore(iso: string): string {
-  const d = new Date(iso); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10)
-}
-function _dayAfter(iso: string): string {
-  const d = new Date(iso); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10)
-}
-
 function formatMoney(v: number): string { return settings.formatMoney(v) }
 
 // ── Can we proceed? ───────────────────────────────────────────
@@ -161,7 +155,7 @@ async function handleImport(): Promise<void> {
 
   const isBackfill          = hasExisting && newNewest < earliestExisting
   const isExtendingBackward = hasExisting && !isBackfill && newOldest < earliestExisting
-  const hasForwardGap       = hasExisting && newOldest > _dayAfter(latestExisting)
+  const hasForwardGap       = hasExisting && newOldest > dayAfter(latestExisting)
 
   // 3. Pre-compute forward gap amount using PRE-IMPORT balance
   let forwardGapAmount = 0
@@ -244,7 +238,8 @@ async function handleImport(): Promise<void> {
   txStore.bulkAddTransactions(batch)
   const count = batch.length
 
-  // 7. Inter-CSV gap adjustments
+  // 7. Inter-CSV gap adjustments — bulk insert
+  const gapBatch: Array<{ name: string; date: string; type: 'in' | 'out'; amount: number; itemId: null; accountId: string }> = []
   for (const gap of result.gapAdjustments) {
     const key      = `${gap.date}|Balance Adjustment|${gap.amount}|${gap.type}`
     const existing = existingKeyCounts.get(key) ?? 0
@@ -252,20 +247,26 @@ async function handleImport(): Promise<void> {
     if (consumed < existing) {
       consumedCounts.set(key, consumed + 1)
     } else {
-      txStore.addTransaction({ name: 'Balance Adjustment', date: gap.date, type: gap.type, amount: gap.amount, itemId: null, accountId })
+      gapBatch.push({ name: 'Balance Adjustment', date: gap.date, type: gap.type, amount: gap.amount, itemId: null, accountId })
     }
   }
+  if (gapBatch.length > 0) txStore.bulkAddTransactions(gapBatch)
 
-  // 8. Backfill gap bridge
+  // 8. Backfill gap bridge (dedup-checked against existing)
   if (isBackfill && earliestExisting) {
     const oldOBSigned = existingOBTx ? txNet(existingOBTx) : 0
     const newOBSigned = result.openingBalance ?? 0
     const gapDiff = roundCents(oldOBSigned - newOBSigned - actualNet)
     if (Math.abs(gapDiff) > 0.005) {
-      txStore.addTransaction({
-        name: 'Balance Adjustment', date: _dayBefore(earliestExisting),
-        type: gapDiff > 0 ? 'in' : 'out', amount: Math.abs(gapDiff), itemId: null, accountId,
-      })
+      const gapKey = `${dayBefore(earliestExisting)}|Balance Adjustment|${Math.abs(gapDiff)}|${gapDiff > 0 ? 'in' : 'out'}`
+      const existingGap = existingKeyCounts.get(gapKey) ?? 0
+      const consumedGap = consumedCounts.get(gapKey) ?? 0
+      if (consumedGap >= existingGap) {
+        txStore.addTransaction({
+          name: 'Balance Adjustment', date: dayBefore(earliestExisting),
+          type: gapDiff > 0 ? 'in' : 'out', amount: Math.abs(gapDiff), itemId: null, accountId,
+        })
+      }
     }
   }
 

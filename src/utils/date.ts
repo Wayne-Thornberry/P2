@@ -80,3 +80,25 @@ export function currentBillableMonth(startDay: number): { year: number; month: n
   const [y, m] = billableMonthKey(today, startDay).split('-').map(Number)
   return { year: y, month: m }
 }
+
+// ── Date arithmetic (timezone-safe, pure string math) ──────────
+
+/** Day before a YYYY-MM-DD date string. Uses pure string math — safe in all timezones. */
+export function dayBefore(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  if (d > 1) return `${y}-${String(m).padStart(2, '0')}-${String(d - 1).padStart(2, '0')}`
+  if (m > 1) {
+    const lastDay = new Date(y, m - 1, 0).getDate()
+    return `${y}-${String(m - 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+  }
+  return `${y - 1}-12-31`
+}
+
+/** Day after a YYYY-MM-DD date string. Uses pure string math — safe in all timezones. */
+export function dayAfter(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  const lastDay = new Date(y, m, 0).getDate()
+  if (d < lastDay) return `${y}-${String(m).padStart(2, '0')}-${String(d + 1).padStart(2, '0')}`
+  if (m < 12) return `${y}-${String(m + 1).padStart(2, '0')}-01`
+  return `${y + 1}-01-01`
+}

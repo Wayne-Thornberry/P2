@@ -86,6 +86,7 @@ import sebAdapter from './adapters/sebAdapter';
 import kandusBankinAdapter from './adapters/kandusBankinAdapter';
 import genericAdapter from './adapters/genericAdapter.ts';
 import { detectDelimiter, splitCsvLine } from './csvUtils';
+import { dayBefore } from './date';
 
 export const CSV_ADAPTERS: readonly CsvAdapter[] = [
   boiAdapter,
@@ -251,13 +252,9 @@ export function processMultipleCsvFiles(
 
   const openingDate = adapter.getOpeningDate
     ? adapter.getOpeningDate(sortedFiles[0].rows)
-    : (() => {
-        const oldest = sortedFiles[0].oldestDate;
-        if (!oldest) return '';
-        const d = new Date(oldest);
-        d.setDate(d.getDate() - 1);
-        return d.toISOString().slice(0, 10);
-      })();
+    : sortedFiles[0].oldestDate
+      ? dayBefore(sortedFiles[0].oldestDate)
+      : '';
 
   // ── Step 6: closing balance — from the chronologically last file ──────────
   const closingBalance = sortedFiles[sortedFiles.length - 1].closingBalance;
