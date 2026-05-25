@@ -125,13 +125,19 @@ const canImport = computed(() => {
 const importing = ref(false)
 
 // ── Run the import ────────────────────────────────────────────
+
+/** Dedup key for a transaction row. */
+function _txKey(date: string, name: string, amount: number, type: string): string {
+  return `${date}|${name}|${amount}|${type}`
+}
+
 async function handleImport(): Promise<void> {
   if (!canImport.value || importing.value) return
   const result = processedResult.value
   if (!result || result.allRows.length === 0) return
 
   importing.value = true
-  await nextTick() // let the spinner render before blocking the main thread
+  await nextTick()
 
   // 1. Resolve or create account
   let accountId: string
@@ -143,9 +149,98 @@ async function handleImport(): Promise<void> {
     accountId = selectedAccountId.value
   }
 
-  // 2. Snapshot existing state BEFORE any modifications
+  // 2. Build auto-assignment map BEFORE any deletions (preserves existing assignments)
+  const importBankId = selectedAdapterId.value || null
+  const accBankIdMap = new Map(accountStore.accounts.map(a => [a.id, a.bankId ?? null]))
+  const autoAssignMap = new Map<string, number>() // cleanedName → itemId
+  for (const t of txStore.transactions) {
+    if (t.itemId === null) continue
+    const txBankId = t.accountId ? (accBankIdMap.get(t.accountId) ?? null) : null
+    const cleaned = cleanTxName(t.name, txBankId)
+    if (!autoAssignMap.has(cleaned)) autoAssignMap.set(cleaned, t.itemId)
+  }
+
+  function _buildBatch(rows: typeof result.allRows): Array<{ name: string; date: string; type: 'in' | 'out'; amount: number; itemId: number | null; accountId: string }> {
+    return rows.map(row => {
+      const rowClean = cleanTxName(row.details, importBankId)
+      let autoItemId: number | null = null
+      for (const [existingClean, existingItemId] of autoAssignMap) {
+        if (txNamesMatch(rowClean, existingClean)) { autoItemId = existingItemId; break }
+      }
+      return { name: row.details, date: row.isoDate, type: row.type, amount: row.amount, itemId: autoItemId, accountId }
+    })
+  }
+
+  // 3. Snapshot existing state for this account
   const preTxs = txStore.transactions.filter(t => t.accountId === accountId)
-  const hasExisting      = preTxs.length > 0
+  const hasExisting = preTxs.length > 0
+
+  // ── Range-replace: CSV is gospel for the date range it covers ──
+  // If both the first and last rows from the CSV can be found in existing
+  // data, delete everything between them (inclusive) and replace with the
+  // CSV rows. This handles re-imports, corrections, and data drift.
+  const firstCsvRow = result.allRows[0]
+  const lastCsvRow  = result.allRows[result.allRows.length - 1]
+  const firstKey = _txKey(firstCsvRow.isoDate, firstCsvRow.details, firstCsvRow.amount, firstCsvRow.type)
+  const lastKey  = _txKey(lastCsvRow.isoDate, lastCsvRow.details, lastCsvRow.amount, lastCsvRow.type)
+
+  const firstMatch = preTxs.find(t => _txKey(t.date, t.name, t.amount, t.type) === firstKey)
+  const lastMatch  = preTxs.find(t => _txKey(t.date, t.name, t.amount, t.type) === lastKey)
+
+  if (hasExisting && firstMatch && lastMatch) {
+    // Both boundaries found — delete the range and insert CSV data fresh.
+    // The dates are compared because firstMatch could be newer than lastMatch
+    // if only one row exists in the import (first == last).
+    const delStart = firstMatch.date <= lastMatch.date ? firstMatch.date : lastMatch.date
+    const delEnd   = firstMatch.date <= lastMatch.date ? lastMatch.date  : firstMatch.date
+
+    const idsToDelete = new Set(
+      preTxs.filter(t => t.date >= delStart && t.date <= delEnd).map(t => t.id)
+    )
+    txStore.bulkDeleteTransactions(idsToDelete)
+
+    // Insert CSV rows (with auto-assignment)
+    const batch = _buildBatch(result.allRows)
+    txStore.bulkAddTransactions(batch)
+    const count = batch.length
+
+    // Insert inter-CSV gap adjustments (deduped against what remains)
+    if (result.gapAdjustments.length > 0) {
+      const gapKeys = new Map<string, number>()
+      for (const t of txStore.transactions.filter(t => t.accountId === accountId)) {
+        const k = _txKey(t.date, t.name, t.amount, t.type)
+        gapKeys.set(k, (gapKeys.get(k) ?? 0) + 1)
+      }
+      const gapBatch: Array<{ name: string; date: string; type: 'in' | 'out'; amount: number; itemId: null; accountId: string }> = []
+      for (const gap of result.gapAdjustments) {
+        const k = _txKey(gap.date, 'Balance Adjustment', gap.amount, gap.type)
+        if ((gapKeys.get(k) ?? 0) === 0) {
+          gapBatch.push({ name: 'Balance Adjustment', date: gap.date, type: gap.type, amount: gap.amount, itemId: null, accountId })
+          gapKeys.set(k, 1)
+        }
+      }
+      if (gapBatch.length > 0) txStore.bulkAddTransactions(gapBatch)
+    }
+
+    importing.value = false
+    emit('done', count)
+    if (count > 0) {
+      historyStore.addRecord({
+        bankName:  result.adapter.name,
+        adapterId: result.adapter.id,
+        fileName:  props.csvFiles.map(f => f.fileName).join(', '),
+        rowCount:  count,
+      })
+    }
+    emit('close')
+    return
+  }
+
+  // ── Append / gap mode: boundaries not both found ─────────────
+  // CSV covers wholly new data (or only partially overlaps).
+  // Use count-based dedup to skip exact duplicates, and insert
+  // gap bridges / opening balances as needed.
+
   const existingOBTx     = preTxs.find(t => t.name === 'Opening Balance') ?? null
   const earliestExisting = hasExisting ? preTxs.reduce((min, t) => t.date < min ? t.date : min, '9999-99-99') : ''
   const latestExisting   = hasExisting ? preTxs.reduce((max, t) => t.date > max ? t.date : max, '') : ''
@@ -157,7 +252,7 @@ async function handleImport(): Promise<void> {
   const isExtendingBackward = hasExisting && !isBackfill && newOldest < earliestExisting
   const hasForwardGap       = hasExisting && newOldest > dayAfter(latestExisting)
 
-  // 3. Pre-compute forward gap amount using PRE-IMPORT balance
+  // Pre-compute forward gap amount using PRE-IMPORT balance
   let forwardGapAmount = 0
   let forwardGapType: 'in' | 'out' = 'in'
   if (hasForwardGap && result.openingBalance !== null && result.openingDate) {
@@ -167,13 +262,8 @@ async function handleImport(): Promise<void> {
     forwardGapType   = diff > 0 ? 'in' : 'out'
   }
 
-  // 4. Handle Opening Balance transaction
-  if (isBackfill) {
-    if (existingOBTx) txStore.deleteTransaction(existingOBTx.id)
-    if (result.openingBalance !== null && result.openingDate) {
-      txStore.addOpeningBalance(accountId, result.openingBalance, result.openingDate)
-    }
-  } else if (isExtendingBackward) {
+  // Handle Opening Balance
+  if (isBackfill || isExtendingBackward) {
     if (existingOBTx) txStore.deleteTransaction(existingOBTx.id)
     if (result.openingBalance !== null && result.openingDate) {
       txStore.addOpeningBalance(accountId, result.openingBalance, result.openingDate)
@@ -184,7 +274,7 @@ async function handleImport(): Promise<void> {
     }
   }
 
-  // 5. Insert forward gap bridge BEFORE importing rows
+  // Insert forward gap bridge
   if (hasForwardGap && forwardGapAmount > 0 && result.openingDate) {
     txStore.addTransaction({
       name: 'Balance Adjustment', date: result.openingDate,
@@ -192,24 +282,11 @@ async function handleImport(): Promise<void> {
     })
   }
 
-  // 6. Deduplicate rows against existing transactions, then bulk-insert new ones.
-  // Count-based: allows legitimately repeated transactions while skipping already-imported rows.
+  // Count-based dedup against existing transactions
   const existingKeyCounts = new Map<string, number>()
   for (const t of txStore.transactions.filter(t => t.accountId === accountId)) {
-    const key = `${t.date}|${t.name}|${t.amount}|${t.type}`
+    const key = _txKey(t.date, t.name, t.amount, t.type)
     existingKeyCounts.set(key, (existingKeyCounts.get(key) ?? 0) + 1)
-  }
-
-  // Build a cleaned-name → itemId lookup from all previously assigned transactions,
-  // so imported rows can be auto-assigned to a matching budget item.
-  const importBankId = selectedAdapterId.value || null
-  const accBankIdMap = new Map(accountStore.accounts.map(a => [a.id, a.bankId ?? null]))
-  const autoAssignMap = new Map<string, number>() // cleanedName → itemId
-  for (const t of txStore.transactions) {
-    if (t.itemId === null) continue
-    const txBankId = t.accountId ? (accBankIdMap.get(t.accountId) ?? null) : null
-    const cleaned = cleanTxName(t.name, txBankId)
-    if (!autoAssignMap.has(cleaned)) autoAssignMap.set(cleaned, t.itemId)
   }
 
   const consumedCounts = new Map<string, number>()
@@ -217,13 +294,12 @@ async function handleImport(): Promise<void> {
   const batch: Array<{ name: string; date: string; type: 'in' | 'out'; amount: number; itemId: number | null; accountId: string }> = []
 
   for (const row of result.allRows) {
-    const key      = `${row.isoDate}|${row.details}|${row.amount}|${row.type}`
+    const key      = _txKey(row.isoDate, row.details, row.amount, row.type)
     const existing = existingKeyCounts.get(key) ?? 0
     const consumed = consumedCounts.get(key) ?? 0
     if (consumed < existing) {
       consumedCounts.set(key, consumed + 1)
     } else {
-      // Auto-assign: check if any existing assigned transaction matches this merchant
       const rowClean = cleanTxName(row.details, importBankId)
       let autoItemId: number | null = null
       for (const [existingClean, existingItemId] of autoAssignMap) {
@@ -234,14 +310,13 @@ async function handleImport(): Promise<void> {
     }
   }
 
-  // Single bulk insert — O(n) instead of O(n²), one localStorage write instead of n
   txStore.bulkAddTransactions(batch)
   const count = batch.length
 
-  // 7. Inter-CSV gap adjustments — bulk insert
+  // Inter-CSV gap adjustments — bulk insert
   const gapBatch: Array<{ name: string; date: string; type: 'in' | 'out'; amount: number; itemId: null; accountId: string }> = []
   for (const gap of result.gapAdjustments) {
-    const key      = `${gap.date}|Balance Adjustment|${gap.amount}|${gap.type}`
+    const key      = _txKey(gap.date, 'Balance Adjustment', gap.amount, gap.type)
     const existing = existingKeyCounts.get(key) ?? 0
     const consumed = consumedCounts.get(key) ?? 0
     if (consumed < existing) {
@@ -252,13 +327,13 @@ async function handleImport(): Promise<void> {
   }
   if (gapBatch.length > 0) txStore.bulkAddTransactions(gapBatch)
 
-  // 8. Backfill gap bridge (dedup-checked against existing)
+  // Backfill gap bridge (dedup-checked)
   if (isBackfill && earliestExisting) {
     const oldOBSigned = existingOBTx ? txNet(existingOBTx) : 0
     const newOBSigned = result.openingBalance ?? 0
     const gapDiff = roundCents(oldOBSigned - newOBSigned - actualNet)
     if (Math.abs(gapDiff) > 0.005) {
-      const gapKey = `${dayBefore(earliestExisting)}|Balance Adjustment|${Math.abs(gapDiff)}|${gapDiff > 0 ? 'in' : 'out'}`
+      const gapKey = _txKey(dayBefore(earliestExisting), 'Balance Adjustment', Math.abs(gapDiff), gapDiff > 0 ? 'in' : 'out')
       const existingGap = existingKeyCounts.get(gapKey) ?? 0
       const consumedGap = consumedCounts.get(gapKey) ?? 0
       if (consumedGap >= existingGap) {
@@ -270,7 +345,7 @@ async function handleImport(): Promise<void> {
     }
   }
 
-  // 9. Record import history and close
+  // Record import history and close
   importing.value = false
   emit('done', count)
   if (count > 0) {
