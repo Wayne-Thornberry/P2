@@ -552,6 +552,25 @@ const previewCreated  = computed(() => settings.formatCreatedAt(PREVIEW_ISO))
           </div>
         </div>
       </div>
+
+      <div class="settings-row">
+        <div class="settings-label">
+          <span class="settings-label-text">Billable month start</span>
+          <span class="settings-label-hint">Day of month each billable period begins (1–28). Budget, reports, and performance metrics are grouped by this boundary.</span>
+        </div>
+        <div class="settings-control">
+          <input
+            type="number"
+            :value="settings.billableMonthStart"
+            @input="settings.billableMonthStart = Math.max(1, Math.min(28, parseInt(($event.target as HTMLInputElement).value) || 1))"
+            min="1"
+            max="28"
+            class="settings-billable-input"
+            title="Billable month start day (1–28)"
+          />
+          <span class="settings-billable-suffix">th</span>
+        </div>
+      </div>
     </div>
 
     <!-- Live preview ─────────────────────────────────────────── -->

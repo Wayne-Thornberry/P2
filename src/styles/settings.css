@@ -309,6 +309,43 @@
   border-top-color: var(--color-zinc-200);
 }
 
+/* ── Billable month start input ──────────────────────────────── */
+
+.settings-billable-input {
+  width: 3rem;
+  height: 2rem;
+  text-align: center;
+  font-size: 0.875rem;
+  font-weight: 700;
+  font-family: ui-monospace, monospace;
+  border: 2px solid var(--color-zinc-400);
+  background: #ffffff;
+  color: var(--color-zinc-900);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.dark .settings-billable-input {
+  border-color: var(--color-zinc-500);
+  background: var(--color-zinc-800);
+  color: var(--color-zinc-100);
+}
+
+.settings-billable-input:focus {
+  border-color: var(--color-zinc-900);
+}
+
+.dark .settings-billable-input:focus {
+  border-color: var(--color-zinc-100);
+}
+
+.settings-billable-suffix {
+  font-size: 0.75rem;
+  color: var(--color-zinc-500);
+  margin-left: 0.25rem;
+  font-weight: 600;
+}
+
 /* Radio group */
 .radio-group {
   display: flex;

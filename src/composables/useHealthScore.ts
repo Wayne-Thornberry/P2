@@ -1,18 +1,26 @@
 // ── useHealthScore ─────────────────────────────────────────────
 // Single source of truth for the financial health score shown on
 // both the Performance page and the Dashboard widget.
-// Uses a 3-month rolling window for all metrics.
+// Uses a 3-month rolling window of completed months only — the
+// current (incomplete) month is excluded from all metrics.
 
 import { computed } from 'vue'
 import { useTransactionStore } from '../stores/transactionStore'
 import { useBudgetStore }      from '../stores/budgetStore'
-import { toYearMonth }         from '../utils/date'
+import { useSettingsStore }    from '../stores/settingsStore'
+import { billableMonthKey, currentBillableMonth, yearMonthKey } from '../utils/date'
 
-function monthStr(offset: number): string {
-  const d = new Date()
-  d.setDate(1)
-  d.setMonth(d.getMonth() + offset)
-  return toYearMonth(d)
+/**
+ * Generate the YYYY-MM key for a billable month at a given offset from the current one.
+ * offset=0 → current billable month (excluded), offset=-1 → previous billable month, etc.
+ */
+function billableMonthStr(offset: number, startDay: number): string {
+  const cur = currentBillableMonth(startDay)
+  let y = cur.year
+  let m = cur.month + offset
+  while (m <= 0) { y--; m += 12 }
+  while (m > 12)  { y++; m -= 12 }
+  return yearMonthKey(y, m)
 }
 
 export interface HealthGrade {
@@ -31,13 +39,16 @@ export interface BudgetAdherence {
 export function useHealthScore() {
   const txStore     = useTransactionStore()
   const budgetStore = useBudgetStore()
+  const settings    = useSettingsStore()
+  const startDay    = () => settings.billableMonthStart
 
-  // ── Last 6 months of stats ────────────────────────────────────
-  const MONTHS = computed(() => Array.from({ length: 6 }, (_, i) => monthStr(i - 5)))
+  // ── Last 6 completed months (excludes current incomplete month) ──
+  const MONTHS = computed(() => Array.from({ length: 6 }, (_, i) => billableMonthStr(i - 6, startDay())))
 
   const monthStats = computed(() =>
     MONTHS.value.map(ym => {
-      const txs      = txStore.transactions.filter(t => t.date.startsWith(ym))
+      const sd = startDay()
+      const txs      = txStore.transactions.filter(t => billableMonthKey(t.date, sd) === ym)
       const income   = txs.filter(t => t.type === 'in').reduce((s, t)  => s + t.amount, 0)
       const expenses = txs.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0)
       return { ym, income, expenses }
@@ -64,12 +75,15 @@ export function useHealthScore() {
     return Math.round((balance / avgExp) * 10) / 10
   })
 
-  // Budget adherence — % of active items NOT overspent this month
+  // Budget adherence — % of active items NOT overspent last completed billable month
   const budgetAdherence = computed((): BudgetAdherence | null => {
     const items = budgetStore.items
     if (items.length === 0) return null
-    const now  = new Date()
-    const map  = txStore.getMonthlyActivityMap(now.getFullYear(), now.getMonth() + 1)
+    const cur = currentBillableMonth(startDay())
+    let y = cur.year
+    let m = cur.month - 1
+    if (m <= 0) { y--; m += 12 }
+    const map  = txStore.getMonthlyActivityMap(y, m)
     const over = items.filter(item => (map.get(item.id) ?? 0) > (item.assigned ?? 0)).length
     const total = items.length
     return { total, over, onTrack: total - over, pct: Math.round(((total - over) / total) * 100) }

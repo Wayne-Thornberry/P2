@@ -7,14 +7,15 @@ import { useTemplateStore } from '../stores/templateStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { cloneDeep } from './math'
 
-const EXPORT_VERSION = '2'
+const EXPORT_VERSION = '3'
 
 /**
  * Versions this code knows how to import.
  *  - '1' — legacy `budgetMonthlyItems` shape (auto-migrated by budgetStore).
  *  - '2' — current `budgetGlobalItems` + `budgetMonthlyEntries` split.
+ *  - '3' — added `billableMonthStart` to settings export.
  */
-const SUPPORTED_VERSIONS = new Set(['1', '2'])
+const SUPPORTED_VERSIONS = new Set(['1', '2', '3'])
 
 interface AppExport {
   version: string
@@ -26,6 +27,7 @@ interface AppExport {
     dateStyle: string
     timeStyle: string
     country?: string
+    billableMonthStart?: number
   }
   accounts: Account[]
   transactions: Transaction[]
@@ -48,12 +50,13 @@ export function exportAllData(): string {
     version: EXPORT_VERSION,
     exportedAt: new Date().toISOString(),
     settings: {
-      theme:     settings.theme,
-      locale:    settings.locale,
-      currency:  settings.currency,
-      dateStyle: settings.dateStyle,
-      timeStyle: settings.timeStyle,
-      country:   settings.country,
+      theme:               settings.theme,
+      locale:              settings.locale,
+      currency:            settings.currency,
+      dateStyle:           settings.dateStyle,
+      timeStyle:           settings.timeStyle,
+      country:             settings.country,
+      billableMonthStart:  settings.billableMonthStart,
     },
     accounts:             cloneDeep(accountStore.accounts),
     transactions:         cloneDeep(txnStore.transactions),
@@ -111,8 +114,9 @@ export function importData(json: string): void {
     if (data.settings.locale)    settings.locale    = data.settings.locale
     if (data.settings.currency)  settings.currency  = data.settings.currency
     if (data.settings.dateStyle) settings.dateStyle = data.settings.dateStyle as 'short' | 'medium' | 'long' | 'iso'
-    if (data.settings.timeStyle) settings.timeStyle = data.settings.timeStyle as '12h' | '24h'
-    if (data.settings.country)   settings.setCountry(data.settings.country)
+    if (data.settings.timeStyle)        settings.timeStyle         = data.settings.timeStyle as '12h' | '24h'
+    if (data.settings.country)          settings.setCountry(data.settings.country)
+    if (data.settings.billableMonthStart) settings.billableMonthStart = data.settings.billableMonthStart
   }
 
   if (Array.isArray(data.accounts)) {

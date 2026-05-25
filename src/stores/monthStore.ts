@@ -1,22 +1,25 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useSettingsStore } from './settingsStore'
-import { yearMonthKey } from '../utils/date'
+import { yearMonthKey, billableMonthKey, billableMonthStart, currentBillableMonth } from '../utils/date'
 
 export const useMonthStore = defineStore('month', () => {
-  const _now = new Date()
-  const activeYear  = ref(_now.getFullYear())
-  const activeMonth = ref(_now.getMonth() + 1) // 1–12
+  const settings = useSettingsStore()
+
+  const _now = currentBillableMonth(settings.billableMonthStart)
+  const activeYear  = ref(_now.year)
+  const activeMonth = ref(_now.month) // 1–12
 
   const label = computed(() => {
-    const { locale } = useSettingsStore()
-    return new Date(activeYear.value, activeMonth.value - 1, 1)
-      .toLocaleDateString(locale, { month: 'long', year: 'numeric' })
+    const { locale } = settings
+    const startDay = settings.billableMonthStart
+    const d = new Date(activeYear.value, activeMonth.value - 1, startDay)
+    return d.toLocaleDateString(locale, { month: 'long', year: 'numeric' })
   })
 
   const isCurrentMonth = computed(() => {
-    const n = new Date()
-    return activeYear.value === n.getFullYear() && activeMonth.value === n.getMonth() + 1
+    const cur = currentBillableMonth(settings.billableMonthStart)
+    return activeYear.value === cur.year && activeMonth.value === cur.month
   })
 
   function prevMonth(): void {
@@ -37,15 +40,14 @@ export const useMonthStore = defineStore('month', () => {
     }
   }
 
-  /** Returns true when a YYYY-MM-DD date string falls in the active month */
+  /** Returns true when a YYYY-MM-DD date string falls in the active billable month */
   function matchesActive(dateStr: string): boolean {
-    const [y, m] = dateStr.split('-').map(Number)
-    return y === activeYear.value && m === activeMonth.value
+    return billableMonthKey(dateStr, settings.billableMonthStart) === yearMonthKey(activeYear.value, activeMonth.value)
   }
 
-  /** First day of the active month as a YYYY-MM-DD string */
+  /** First day of the active billable month as a YYYY-MM-DD string */
   const activeMonthStart = computed(() =>
-    `${yearMonthKey(activeYear.value, activeMonth.value)}-01`
+    billableMonthStart(activeYear.value, activeMonth.value, settings.billableMonthStart)
   )
 
   return { activeYear, activeMonth, label, isCurrentMonth, prevMonth, nextMonth, matchesActive, activeMonthStart }

@@ -83,15 +83,10 @@ export function parseCsvText(
 const DATE_FORMATS: Array<(s: string) => string | null> = [
   // ISO: 2025-12-30
   s => /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null,
-  // DD/MM/YYYY
+  // DD/MM/YYYY (European order — takes priority over ambiguous MM/DD)
   s => {
     const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
     return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
-  },
-  // MM/DD/YYYY
-  s => {
-    const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-    return m ? `${m[3]}-${m[1]}-${m[2]}` : null;
   },
   // DD-MM-YYYY
   s => {

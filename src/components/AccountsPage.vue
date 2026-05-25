@@ -7,7 +7,7 @@ import { useSavingsGoalStore } from '../stores/savingsGoalStore'
 import { useLoanStore } from '../stores/loanStore'
 import { useMoneyInput } from '../composables/useMoneyInput'
 import { useConfirm } from '../composables/useConfirm'
-import { getTodayStr, toYearMonth } from '../utils/date'
+import { getTodayStr, billableMonthKey, currentBillableMonth, yearMonthKey } from '../utils/date'
 import { roundCents, sumNet } from '../utils/math'
 import { SUPPORTED_COUNTRIES, getCountryById } from '../data/countries'
 import { UNASSIGNED_ACCOUNT_ID } from '../types/transaction'
@@ -206,14 +206,20 @@ function commitReconcile(id: string): void {
 }
 
 // â”€â”€ Per-account detail stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const _now = new Date()
-const _nowKey  = toYearMonth(_now)
-const _lastKey = toYearMonth(new Date(_now.getFullYear(), _now.getMonth() - 1, 1))
+const startDay = () => settings.billableMonthStart
+
+const _curBM  = currentBillableMonth(startDay())
+const _nowKey  = yearMonthKey(_curBM.year, _curBM.month)
+const _prevBM = (() => { let y = _curBM.year; let m = _curBM.month - 1; if (m <= 0) { y--; m += 12 }; return { year: y, month: m } })()
+const _lastKey = yearMonthKey(_prevBM.year, _prevBM.month)
 
 const sixMonthKeys = (() => {
   const keys: string[] = []
   for (let i = 5; i >= 0; i--) {
-    keys.push(toYearMonth(new Date(_now.getFullYear(), _now.getMonth() - i, 1)))
+    let y = _curBM.year
+    let m = _curBM.month - i
+    while (m <= 0) { y--; m += 12 }
+    keys.push(yearMonthKey(y, m))
   }
   return keys
 })()
@@ -230,8 +236,8 @@ const _allAccountDetails = computed(() =>
     const txCount  = txs.length
     const recent   = txs.slice().sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)).slice(0, 4)
 
-    const nowTxs      = txs.filter(t => t.date.startsWith(_nowKey))
-    const lastTxs     = txs.filter(t => t.date.startsWith(_lastKey))
+    const nowTxs      = txs.filter(t => billableMonthKey(t.date, startDay()) === _nowKey)
+    const lastTxs     = txs.filter(t => billableMonthKey(t.date, startDay()) === _lastKey)
     const thisMonthIn  = nowTxs.filter(t => t.type === 'in').reduce((s, t) => s + t.amount, 0)
     const thisMonthOut = nowTxs.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0)
     const lastMonthOut = lastTxs.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0)
@@ -239,7 +245,7 @@ const _allAccountDetails = computed(() =>
     const spendTrend = sixMonthKeys.map(key => ({
       key,
       label: shortMonth(key),
-      out: txs.filter(t => t.date.startsWith(key) && t.type === 'out').reduce((s, t) => s + t.amount, 0),
+      out: txs.filter(t => billableMonthKey(t.date, startDay()) === key && t.type === 'out').reduce((s, t) => s + t.amount, 0),
     }))
     const maxOut = Math.max(1, ...spendTrend.map(m => m.out))
 
@@ -297,14 +303,14 @@ const unassignedDetails = computed(() => {
   const balance      = sumNet(txs)
   const txCount      = txs.length
   const recent       = txs.slice().sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)).slice(0, 4)
-  const nowTxs       = txs.filter(t => t.date.startsWith(_nowKey))
-  const lastTxs      = txs.filter(t => t.date.startsWith(_lastKey))
+  const nowTxs       = txs.filter(t => billableMonthKey(t.date, startDay()) === _nowKey)
+  const lastTxs      = txs.filter(t => billableMonthKey(t.date, startDay()) === _lastKey)
   const thisMonthIn  = nowTxs.filter(t => t.type === 'in').reduce((s, t) => s + t.amount, 0)
   const thisMonthOut = nowTxs.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0)
   const lastMonthOut = lastTxs.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0)
   const spendTrend   = sixMonthKeys.map(key => ({
     key, label: shortMonth(key),
-    out: txs.filter(t => t.date.startsWith(key) && t.type === 'out').reduce((s, t) => s + t.amount, 0),
+    out: txs.filter(t => billableMonthKey(t.date, startDay()) === key && t.type === 'out').reduce((s, t) => s + t.amount, 0),
   }))
   const maxOut       = Math.max(1, ...spendTrend.map(m => m.out))
   const vsLastMonth  = lastMonthOut > 0 ? Math.round(((thisMonthOut - lastMonthOut) / lastMonthOut) * 100) : null

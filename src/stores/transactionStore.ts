@@ -4,6 +4,7 @@ import type { Transaction } from '../types/transaction'
 import { generateSeedTransactions } from '../data/transactionSeedData'
 import { useSettingsStore } from './settingsStore'
 import { sumNet } from '../utils/math'
+import { billableMonthKey } from '../utils/date'
 import { loadCountryScoped, useCountryScopedPersistence } from './useCountryScopedPersistence'
 
 let _nextId = 500
@@ -52,12 +53,12 @@ export const useTransactionStore = defineStore('transactions', () => {
   }
 
   function getItemActivity(itemId: number, year?: number, month?: number): number {
+    const startDay = settings.billableMonthStart
     return transactions.value
       .filter(t => {
         if (t.itemId !== itemId) return false
         if (year !== undefined && month !== undefined) {
-          const [y, m] = t.date.split('-').map(Number)
-          return y === year && m === month
+          return billableMonthKey(t.date, startDay) === `${year}-${String(month).padStart(2, '0')}`
         }
         return true
       })
@@ -66,12 +67,12 @@ export const useTransactionStore = defineStore('transactions', () => {
   }
 
   function getUnassignedActivity(year?: number, month?: number): number {
+    const startDay = settings.billableMonthStart
     return transactions.value
       .filter(t => {
         if (t.itemId !== null) return false
         if (year !== undefined && month !== undefined) {
-          const [y, m] = t.date.split('-').map(Number)
-          return y === year && m === month
+          return billableMonthKey(t.date, startDay) === `${year}-${String(month).padStart(2, '0')}`
         }
         return true
       })
@@ -79,15 +80,16 @@ export const useTransactionStore = defineStore('transactions', () => {
   }
 
   /**
-   * Build a Map<itemId → activity> for a given month in a single pass.
+   * Build a Map<itemId → activity> for a given billable month in a single pass.
    * Use this instead of calling getItemActivity per item to avoid O(items × transactions) cost.
    */
   function getMonthlyActivityMap(year: number, month: number): Map<number, number> {
     const map = new Map<number, number>()
+    const startDay = settings.billableMonthStart
+    const targetKey = `${year}-${String(month).padStart(2, '0')}`
     for (const t of transactions.value) {
       if (t.itemId === null) continue
-      const [y, m] = t.date.split('-').map(Number)
-      if (y !== year || m !== month) continue
+      if (billableMonthKey(t.date, startDay) !== targetKey) continue
       map.set(t.itemId, (map.get(t.itemId) ?? 0) + (t.type === 'out' ? t.amount : -t.amount))
     }
     return map

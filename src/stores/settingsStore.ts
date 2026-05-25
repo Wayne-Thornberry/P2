@@ -42,7 +42,7 @@ function detect12h(locale: string): boolean {
 }
 
 // ── Store ──────────────────────────────────────────────────────
-const DARK_THEMES = new Set(['dark', 'midnight', 'forest', 'purple'])
+const DARK_THEMES = new Set(['dark', 'midnight', 'forest', 'purple', 'slate'])
 const ALL_THEMES  = ['dark', 'light', 'midnight', 'forest', 'purple', 'slate', 'rose', 'teal'] as const
 export const useSettingsStore = defineStore('settings', () => {
   const _locale      = Intl.DateTimeFormat().resolvedOptions().locale
@@ -88,17 +88,10 @@ export const useSettingsStore = defineStore('settings', () => {
     country.value  = countryId
     currency.value = def.currency
     locale.value   = def.locale
-    // Immediately persist so a subsequent page reload reads the correct country
-    localStorage.setItem('folio_settings', JSON.stringify({
-      theme:              theme.value,
-      locale:             def.locale,
-      currency:           def.currency,
-      dateStyle:          dateStyle.value,
-      timeStyle:          timeStyle.value,
-      balanceCutoffTxId:  balanceCutoffTxId.value,
-      country:            countryId,
-    }))
   }
+
+  /** Day of month the billable period starts (1–28). Default 1 = calendar month. */
+  const billableMonthStart = ref<number>(_saved?.billableMonthStart ?? 1)
 
   /**
    * When set, the running balance in TransactionLog and totalFunds calculation
@@ -127,8 +120,7 @@ export const useSettingsStore = defineStore('settings', () => {
       currency:          currency.value,
       dateStyle:         dateStyle.value,
       timeStyle:         timeStyle.value,
-      balanceCutoffTxId: balanceCutoffTxId.value,
-      country:           country.value,
+      balanceCutoffTxId: balanceCutoffTxId.value,      billableMonthStart: billableMonthStart.value,      country:           country.value,
     }))
   })
 
@@ -201,5 +193,5 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
-  return { theme, locale, currency, country, setupComplete, isDark, setCountry, dateStyle, timeStyle, balanceCutoffTxId, formatMoney, formatDate, formatCreatedAt, isConverting, conversionRate, conversionCurrency, activateConversion, deactivateConversion }
+  return { theme, locale, currency, country, setupComplete, isDark, setCountry, dateStyle, timeStyle, billableMonthStart, balanceCutoffTxId, formatMoney, formatDate, formatCreatedAt, isConverting, conversionRate, conversionCurrency, activateConversion, deactivateConversion }
 })

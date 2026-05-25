@@ -6,13 +6,16 @@ import { BUDGET_TEMPLATE } from '../data/budgetTemplate'
 import { useMonthStore } from './monthStore'
 import { useTemplateStore } from './templateStore'
 import { useTransactionStore } from './transactionStore'
+import { useSettingsStore } from './settingsStore'
 import { loadCountryScoped, useCountryScopedPersistence } from './useCountryScopedPersistence'
 import { cloneDeep } from '../utils/math'
+import { currentBillableMonth } from '../utils/date'
 
 let _nextItemId = 2000
 
 export const useBudgetStore = defineStore('budget', () => {
   const monthStore = useMonthStore()
+  const settings    = useSettingsStore()
 
   const _saved = loadCountryScoped('folio_budget', 'clearbook_budget')
 
@@ -98,8 +101,8 @@ export const useBudgetStore = defineStore('budget', () => {
         globalItems.value = BUDGET_TEMPLATE.map(i => ({ id: i.id, name: i.name }))
         _nextItemId       = Math.max(...globalItems.value.map(i => i.id), _nextItemId - 1) + 1
         monthlyEntries.value = {}
-        const now = new Date()
-        _seedMonth(now.getFullYear(), now.getMonth() + 1)
+        const bm = currentBillableMonth(settings.billableMonthStart)
+        _seedMonth(bm.year, bm.month)
       }
     },
   })
@@ -114,8 +117,8 @@ export const useBudgetStore = defineStore('budget', () => {
     yearMap[month] = source ? cloneDeep(source) : []
   }
 
-  const _now = new Date()
-  _seedMonth(_now.getFullYear(), _now.getMonth() + 1)
+  const _bm = currentBillableMonth(settings.billableMonthStart)
+  _seedMonth(_bm.year, _bm.month)
 
   function _activeEntries(): BudgetMonthEntry[] {
     const y = monthStore.activeYear
@@ -259,11 +262,11 @@ export const useBudgetStore = defineStore('budget', () => {
         existingIds.add(item.id)
       }
     }
-    const now = new Date()
+    const bm = currentBillableMonth(settings.billableMonthStart)
     for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const y = d.getFullYear()
-      const m = d.getMonth() + 1
+      let y = bm.year
+      let m = bm.month - i
+      while (m <= 0) { y--; m += 12 }
       monthlyEntries.value[y] ??= {}
       monthlyEntries.value[y]![m] = baseItems.map(item => ({ itemId: item.id, assigned: item.assigned, category: item.category }))
     }

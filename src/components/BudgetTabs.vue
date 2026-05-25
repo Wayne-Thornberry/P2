@@ -12,7 +12,7 @@ import AssignPanel from './AssignPanel.vue'
 import { useConfirm } from '../composables/useConfirm'
 import { useBudgetFunds } from '../composables/useBudgetFunds'
 import { roundCents, txNet } from '../utils/math'
-import { yearMonthKey } from '../utils/date'
+import { yearMonthKey, currentBillableMonth } from '../utils/date'
 const store        = useBudgetStore()
 const txStore      = useTransactionStore()
 const monthStore   = useMonthStore()
@@ -107,6 +107,8 @@ function formatMoney(v: number): string { return settings.formatMoney(v) }
 const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const pickerOpen    = ref(false)
 const pickerYear    = ref(monthStore.activeYear)
+
+const currentBillable = computed(() => currentBillableMonth(settings.billableMonthStart))
 
 function openPicker(): void {
   pickerYear.value = monthStore.activeYear
@@ -285,7 +287,7 @@ async function rollOverSurplus(): Promise<void> {
             class="month-picker-cell"
             :class="{
               'month-picker-cell-active': pickerYear === monthStore.activeYear && i + 1 === monthStore.activeMonth,
-              'month-picker-cell-today': pickerYear === new Date().getFullYear() && i + 1 === new Date().getMonth() + 1,
+              'month-picker-cell-today': pickerYear === currentBillable.year && i + 1 === currentBillable.month,
             }"
             @click="selectMonth(i + 1)"
           >{{ name }}</button>
