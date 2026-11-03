@@ -207,6 +207,10 @@ jobs:
           #
           # Creating a login needs a sysadmin once, and nothing can grant itself that. A box
           # whose runner is already a sysadmin needs no step by hand; see the README.
+          #
+          # The database users themselves come from Grant-FolioDatabaseAccess, which the
+          # deploy also runs after publishing: SqlPackage drops a user the project does not
+          # describe, and the API's own user is one of them.
           $db = '${{ env.DB_NAME }}'
           $pool = '${{ env.API_APP_POOL }}'
 
@@ -218,16 +222,6 @@ jobs:
               "IF IS_SRVROLEMEMBER('dbcreator', 'NT AUTHORITY\SYSTEM') <> 1 ALTER SERVER ROLE [dbcreator] ADD MEMBER [NT AUTHORITY\SYSTEM];"
               'GO'
               "IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE [name] = N'IIS APPPOOL\$pool') CREATE LOGIN [IIS APPPOOL\$pool] FROM WINDOWS;"
-              'GO'
-              "USE [$db];"
-              'GO'
-              "IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE [name] = N'NT AUTHORITY\SYSTEM' OR [sid] = SUSER_SID(N'NT AUTHORITY\SYSTEM')) CREATE USER [NT AUTHORITY\SYSTEM] FOR LOGIN [NT AUTHORITY\SYSTEM];"
-              'GO'
-              "IF IS_ROLEMEMBER('db_owner', 'NT AUTHORITY\SYSTEM') <> 1 ALTER ROLE [db_owner] ADD MEMBER [NT AUTHORITY\SYSTEM];"
-              'GO'
-              "IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE [name] = N'IIS APPPOOL\$pool' OR [sid] = SUSER_SID(N'IIS APPPOOL\$pool')) CREATE USER [IIS APPPOOL\$pool] FOR LOGIN [IIS APPPOOL\$pool];"
-              'GO'
-              "IF IS_ROLEMEMBER('db_owner', 'IIS APPPOOL\$pool') <> 1 ALTER ROLE [db_owner] ADD MEMBER [IIS APPPOOL\$pool];"
               'GO'
           ) -join "`n"
 
@@ -252,6 +246,15 @@ jobs:
           } finally {
               $connection.Dispose()
               Remove-Item $script -Force -ErrorAction SilentlyContinue
+          }
+
+          try {
+              Grant-FolioDatabaseAccess -Server '${{ env.SQL_SERVER }}' -Database $db `
+                  -Principal @('NT AUTHORITY\SYSTEM', "IIS APPPOOL\$pool")
+          } catch {
+              Write-Host ''
+              Write-Host "The grants failed: $($_.Exception.Message)" -ForegroundColor Red
+              exit 1
           }
 
           Write-Host '[OK] The box has its folders, pools, sites, firewall rules, database and grants' -ForegroundColor Green
@@ -528,6 +531,7 @@ jobs:
           # db_owner here.
 
           $conn = New-DeployConnectionString -Server '${{ env.SQL_SERVER }}' -Database '${{ env.DB_NAME }}'
+          $pool = '${{ env.API_APP_POOL }}'
 
           if (-not (Test-FolioDatabaseExists -ConnectionString $conn)) {
               Write-Error "There is no database '${{ env.DB_NAME }}' on '${{ env.SQL_SERVER }}', although the bootstrap step creates it. Something dropped it while this deploy ran, so nothing was published."
@@ -570,6 +574,13 @@ jobs:
           sqlpackage /Action:Publish /SourceFile:"$dacpac" /TargetConnectionString:"$conn" `
               /p:DropObjectsNotInSource=true /p:BlockOnPossibleDataLoss=false
           if ($LASTEXITCODE -ne 0) { Write-Error 'Database deployment failed'; exit $LASTEXITCODE }
+
+          # The grants again: the same option that drops a stale column also drops a user the
+          # project does not describe, and the API's user is one. Losing it would leave the
+          # API unable to reach a database that is right there.
+          Grant-FolioDatabaseAccess -Server '${{ env.SQL_SERVER }}' -Database '${{ env.DB_NAME }}' `
+              -Principal @('NT AUTHORITY\SYSTEM', "IIS APPPOOL\$pool")
+          if (-not $?) { Write-Error 'The database grants failed'; exit 1 }
 
           Write-Host "[OK] Database up to date on ${{ env.SQL_SERVER }}" -ForegroundColor Green
 

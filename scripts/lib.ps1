@@ -163,6 +163,47 @@ function New-DeployConnectionString {
     return $builder.ConnectionString
 }
 
+# The Windows identities that use the database, as users holding db_owner.
+#
+# Run twice: once by the bootstrap step, when the database has just been created, and again
+# after every publish. SqlPackage, publishing with DropObjectsNotInSource, drops a user the
+# project does not describe -- and neither of these is in the project, because they are
+# grants rather than schema. Without the second run the API loses its own user the first
+# time the model is published, and answers 503 on a database that is perfectly there.
+#
+# The guard tests the SID as well as the name: when the runner creates the database it owns
+# it, so its SID is already mapped to dbo and CREATE USER would fail with 15023.
+function Grant-FolioDatabaseAccess {
+    param(
+        [Parameter(Mandatory = $true)][string]$Server,
+        [Parameter(Mandatory = $true)][string]$Database,
+        [Parameter(Mandatory = $true)][string[]]$Principal
+    )
+
+    $statements = New-Object System.Collections.Generic.List[string]
+
+    foreach ($name in $Principal) {
+        $quoted = $name -replace "'", "''"
+        $statements.Add("IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE [name] = N'$quoted' OR [sid] = SUSER_SID(N'$quoted')) CREATE USER [$quoted] FOR LOGIN [$quoted];")
+        $statements.Add('GO')
+        $statements.Add("IF IS_ROLEMEMBER('db_owner', '$quoted') <> 1 ALTER ROLE [db_owner] ADD MEMBER [$quoted];")
+        $statements.Add('GO')
+    }
+
+    $script = Join-Path ([System.IO.Path]::GetTempPath()) 'folio-grants.sql'
+    [System.IO.File]::WriteAllText($script, ($statements -join "`n"))
+
+    $connection = New-Object System.Data.SqlClient.SqlConnection (
+        New-DeployConnectionString -Server $Server -Database $Database)
+    try {
+        $connection.Open()
+        Invoke-SqlScript -Connection $connection -Path $script
+    } finally {
+        $connection.Dispose()
+        Remove-Item $script -Force -ErrorAction SilentlyContinue
+    }
+}
+
 # IIS provider cmdlets raise "Object on target path is already stopped" as an error and
 # ignore -ErrorAction, so a deploy that failed after stopping the pools could not start
 # them again. Checking the state first means the cmdlet is only called when it is needed.
