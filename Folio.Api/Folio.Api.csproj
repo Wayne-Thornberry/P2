@@ -10,7 +10,7 @@
   <ItemGroup>
     <!-- SQL Server is the only provider. The schema is the database project's, so
          the app maps tables that scripts created and never creates one itself. -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.31" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.33" />
   </ItemGroup>
 
   <ItemGroup>
