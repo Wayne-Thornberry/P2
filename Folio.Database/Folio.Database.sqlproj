@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.Build.Sql/2.3.0">
+  <PropertyGroup>
+    <Name>Folio.Database</Name>
+    <!--
+      SQL Server 2022. A project can be deployed to the same version or newer, so this
+      also deploys to SQL Server 2025. Raise it to Sql170DatabaseSchemaProvider only
+      when a 2025-only feature is needed.
+    -->
+    <DSP>Microsoft.Data.Tools.Schema.Sql.Sql160DatabaseSchemaProvider</DSP>
+    <ModelCollation>1033, CI</ModelCollation>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      The schema is the model: Schemas/, Types/ and Tables/ are built into the .dacpac,
+      and SqlPackage compares that against the live database. Adding a table or changing
+      a column is an edit to those files, and the deploy works out the difference.
+
+      Scripts/ is data and one-off changes, not the model, so it is kept out of the
+      dacpac and run by the deploy instead.
+    -->
+    <Build Remove="Scripts\**" />
+    <None Include="Scripts\**" />
+    <PostDeploy Include="Scripts\PostDeployment.sql" />
+  </ItemGroup>
+</Project>

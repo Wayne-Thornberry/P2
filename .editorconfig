@@ -1,0 +1,25 @@
+# Formatting shared by every editor and by `dotnet format`.
+#
+# Line endings are deliberately left out: .gitattributes stores LF in the
+# repository and checks out the native ending, so naming one here would fight it.
+
+root = true
+
+[*]
+charset = utf-8
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# C#, MSBuild and SQL are indented four, the way the files are written today.
+[*.{cs,csproj,props,targets,sql}]
+indent_size = 4
+
+# PowerShell's own convention, which start.ps1 and the deploy scripts follow.
+[*.{ps1,psm1,psd1}]
+indent_size = 4
+
+# Markdown uses trailing spaces for a hard line break.
+[*.md]
+trim_trailing_whitespace = false

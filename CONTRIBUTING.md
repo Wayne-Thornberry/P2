@@ -7,9 +7,8 @@ Thanks for your interest in contributing! Here's how to get involved.
 ## Getting Started
 
 1. **Fork** the repository and clone your fork locally.
-2. Install dependencies: `npm install`
-3. Start the dev server: `npm run dev`
-4. Make your changes on a new branch: `git checkout -b feat/your-feature-name`
+2. Start everything — database, API and site — with `.\start.ps1`.
+3. Make your changes on a new branch: `git checkout -b feat/your-feature-name`
 
 ---
 
@@ -27,10 +26,10 @@ Thanks for your interest in contributing! Here's how to get involved.
 
 ## Before Submitting a PR
 
-- Run `npm run typecheck` — all type errors must be resolved.
-- Run `npm run build` — the build must succeed.
+- Run `npm --prefix Folio.Web run typecheck` — all type errors must be resolved.
+- Run `npm --prefix Folio.Web run build` — the build must succeed.
+- Run `dotnet test Folio.Api.Tests\Folio.Api.Tests.csproj` and `npm --prefix Folio.Web test`.
 - Keep changes focused. One concern per PR.
-- Update [CHANGELOG.md](CHANGELOG.md) under `[Unreleased]` with a short summary.
 
 ---
 
@@ -59,9 +58,14 @@ Open a [Feature Request](https://github.com/Wayne-Thornberry/P2/issues/new?templ
 ## Code Style
 
 - Vue 3 `<script setup>` SFCs with TypeScript.
-- Pinia stores for all shared state.
-- Scoped CSS in separate files under `src/styles/`.
-- No external state management or data-fetching libraries — keep it local.
+- Pinia setup stores for all shared state.
+- A module's CSS lives with the module, under `Folio.Web/src/modules/<name>/styles/`.
+- The browser's copy of the data is a cache: it is read and written through
+  `src/modules/<name>/workspace.ts`, never with `localStorage` directly.
+- On the API side, a table is read and written through the module's own service; a store
+  never talks to SQL Server itself.
+
+The full set of rules is in [AGENTS.md](AGENTS.md).
 
 ---
 

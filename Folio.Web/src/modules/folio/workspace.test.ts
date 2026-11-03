@@ -1,0 +1,124 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { saveSession } from '../../shared'
+import { flushSaves, loadWorkspace, queueStoreSave, savedCountries } from './workspace'
+
+/**
+ * The one part of the site that knows its data lives on a server.
+ *
+ * What is checked here is the contract the stores rely on: the server's copy is in the
+ * keys the stores already read before the app starts, and a changed collection is sent
+ * once rather than on every keystroke.
+ */
+
+function signedIn() {
+  saveSession({
+    token: 'a-token',
+    username: 'wayne',
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+  })
+}
+
+/** A fetch that answers from a table of path → body. */
+function serve(routes: Record<string, unknown>) {
+  const calls: Array<{ method: string; url: string; body: unknown }> = []
+
+  vi.stubGlobal('fetch', async (input: string, init?: RequestInit) => {
+    const url = String(input)
+    const method = init?.method ?? 'GET'
+    calls.push({ method, url, body: init?.body })
+
+    const key = Object.keys(routes).find((candidate) => url.endsWith(candidate))
+    if (key === undefined) return new Response('{"error":"not found"}', { status: 404 })
+
+    const body = routes[key]
+    if (body === undefined) return new Response(null, { status: 204 })
+
+    return new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  })
+
+  return calls
+}
+
+describe('the workspace', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+  })
+
+  it('does nothing without a session', async () => {
+    const calls = serve({})
+
+    await loadWorkspace()
+
+    expect(calls).toHaveLength(0)
+  })
+
+  it('puts the saved collections where the stores look for them', async () => {
+    signedIn()
+
+    serve({
+      '/api/folio/settings': { theme: 'light', country: 'ireland', currency: 'EUR' },
+      '/api/folio/workspace?country=ireland': {
+        folio_transactions: { transactions: [{ id: 1, name: 'Groceries' }], nextId: 2 },
+      },
+    })
+
+    await loadWorkspace()
+
+    expect(JSON.parse(localStorage.getItem('folio_settings')!)).toMatchObject({ country: 'ireland' })
+    expect(JSON.parse(localStorage.getItem('folio_transactions_ireland')!)).toEqual({
+      transactions: [{ id: 1, name: 'Groceries' }],
+      nextId: 2,
+    })
+  })
+
+  it('forgets a collection the server no longer has', async () => {
+    signedIn()
+
+    // Left over from an older page load, and no longer on the server.
+    localStorage.setItem('folio_accounts_ireland', JSON.stringify({ accounts: [{ id: 'acc-1' }] }))
+
+    serve({
+      '/api/folio/settings': { theme: 'light', country: 'ireland' },
+      '/api/folio/workspace?country=ireland': {},
+    })
+
+    await loadWorkspace()
+
+    expect(localStorage.getItem('folio_accounts_ireland')).toBeNull()
+  })
+
+  it('sends a changed collection once, after the changes settle', async () => {
+    signedIn()
+    vi.useFakeTimers()
+
+    const calls = serve({ '/api/folio/transactions?country=ireland': undefined })
+
+    queueStoreSave('folio_transactions', 'ireland', { transactions: [{ id: 1 }] })
+    queueStoreSave('folio_transactions', 'ireland', { transactions: [{ id: 1 }, { id: 2 }] })
+
+    expect(calls).toHaveLength(0)
+
+    vi.advanceTimersByTime(500)
+    await flushSaves()
+
+    const puts = calls.filter((call) => call.method === 'PUT')
+    expect(puts).toHaveLength(1)
+    expect(puts[0].body).toBe(JSON.stringify({ transactions: [{ id: 1 }, { id: 2 }] }))
+  })
+
+  it('asks the server which countries have a budget', async () => {
+    signedIn()
+
+    serve({ '/api/folio/countries': ['ireland', 'sweden'] })
+
+    expect(await savedCountries()).toEqual(['ireland', 'sweden'])
+  })
+})

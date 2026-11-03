@@ -1,0 +1,11 @@
+# Store LF in the repository, check out native line endings.
+* text=auto
+
+# SQL migration scripts are deployed byte-for-byte, and a changed line ending is
+# still a changed script. Keep them LF everywhere.
+*.sql text eol=lf
+
+# Images are binary
+*.jpg binary
+*.png binary
+*.ico binary

@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Folio.Api.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.31" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.3" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      The tests build their database from the database project's own scripts, so a test
+      database has the schema a deployment produces. They are copied rather than
+      referenced because the project that holds them is a .sqlproj: it builds a .dacpac
+      for SqlPackage, which is the deploy's job, not a test's.
+    -->
+    <Content Include="..\Folio.Database\Schemas\*.sql" Link="Schema\Schemas\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\Folio.Database\Types\*.sql" Link="Schema\Types\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\Folio.Database\Tables\*.sql" Link="Schema\Tables\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\Folio.Database\Scripts\PostDeployment.sql" Link="Schema\PostDeployment.sql" CopyToOutputDirectory="PreserveNewest" />
+    <!--
+      And the migrations, because a deploy applies them over a database that already
+      exists: the test that runs them needs the scripts beside it.
+    -->
+    <Content Include="..\Folio.Database\Scripts\Migrations\*.sql" Link="Schema\Migrations\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Folio.Api\Folio.Api.csproj" />
+  </ItemGroup>
+
+</Project>

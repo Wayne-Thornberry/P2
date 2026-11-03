@@ -1,0 +1,37 @@
+# Keeps the packages this site is made of current, without a pull request per patch
+# release. Monthly, and deliberately few at a time: on the first run this opened nine
+# at once, including majors (TypeScript 7, vue-router 5), which is a wall of red rather
+# than a decision anybody makes.
+#
+# Minor and patch releases are grouped into one pull request per ecosystem. A major gets
+# its own, because a major is a decision and should be read.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /Folio.Web
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    groups:
+      npm-minor-and-patch:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    groups:
+      nuget-minor-and-patch:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 1
+    groups:
+      actions:
+        patterns: ['*']

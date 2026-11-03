@@ -1,29 +1,96 @@
 name: CI
 
+# The fast check on a branch or a pull request: does it build, and do the tests pass. main
+#
+# The full suite -- including the database tests, which build a throwaway SQL Server
+# database per test class -- also runs in deploy.yml on the server, where there is
+# certainly a SQL Server. Here they run when one is available and are reported as
+# skipped when not, so a pull request is never blocked on a service this job cannot
+# install. Pushing to main runs the deploy, which runs both jobs itself, so this file
+# stays out of the way there.
+
 on:
+  # main is the deploy's business: deploy.yml runs these same two test jobs before it
+  # touches IIS, so a push to main is one flow rather than three checks racing.
+  push:
+    branches-ignore: [main]
   pull_request:
-    branches: [main]
+  workflow_dispatch:
+
+# A new push to the same branch makes the previous run's answer moot, so it is dropped
+# rather than run to completion. This only ever cancels checks, never a deploy.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
-    name: Typecheck & Build
-    runs-on: ubuntu-latest
+  api:
+    name: API and database
+    runs-on: windows-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build the database project
+        # Built here as well as in the deploy, so a bad table definition fails the pull
+        # request rather than the release.
+        run: dotnet build Folio.Database/Folio.Database.sqlproj -c Release --nologo
+
+      - name: Build and test
+        shell: powershell
+        run: |
+          Write-Host '=== API tests ===' -ForegroundColor Cyan
+
+          # LocalDB is the cheapest way to have a SQL Server here. If the image has it,
+          # every test runs; if not, the database tests report themselves skipped.
+          $localdb = Get-ChildItem 'C:\Program Files\Microsoft SQL Server\*\Tools\Binn\SqlLocalDB.exe' -ErrorAction SilentlyContinue |
+              Sort-Object FullName | Select-Object -Last 1 -ExpandProperty FullName
+          if (-not $localdb) { $localdb = (Get-Command sqllocaldb -ErrorAction SilentlyContinue).Source }
+
+          if ($localdb) {
+              & $localdb create 'Folio' -s | Out-Null
+              $env:Folio_TEST_SQL_SERVER = '(localdb)\Folio'
+              Write-Host "Database tests will run on $env:Folio_TEST_SQL_SERVER"
+          } else {
+              Write-Warning 'No LocalDB on this runner: the database tests will be reported as skipped.'
+          }
+
+          # The test project, not the solution: the .sqlproj is a database model, and
+          # building it is what the step above does.
+          dotnet test Folio.Api.Tests/Folio.Api.Tests.csproj --nologo
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+  sites:
+    name: Site
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: Folio.Web
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
+          node-version: 22
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install
+        run: npm ci
 
-      - name: Type check
-        run: npm run typecheck
+      - name: Test
+        run: npm test
 
       - name: Build
+        # The API's port is baked in at build time; this is the one a deployment uses.
+        env:
+          VITE_API_PORT: 5423
         run: npm run build

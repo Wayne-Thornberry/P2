@@ -1,33 +1,38 @@
+# Build output
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+
+# Where deploy.yml assembles the apps before copying them
+publish/
+
+# Frontend builds. Every Vue project writes its own dist.
+dist/
+
+# Local .NET tool installs
+.tools/
+
+# Dependencies
+node_modules/
+
+# Settings that hold credentials. appsettings.json is committed and points at
+# LocalDB; the ones below either name a real server or are written on the server
+# by the deploy. appsettings.Development.example.json is the committed template.
+Folio.Api/appsettings.Development.json
+Folio.Api/appsettings.Production.json
+
+# Editors and OS
+.vs/
+.idea/
+*.user
+*.suo
+Thumbs.db
+Desktop.ini
+
 # Logs
-logs
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
+# Editor settings, except the extensions this project wants.
 .vscode/*
 !.vscode/extensions.json
-.idea
-.DS_Store
-Thumbs.db
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-# OS
-.DS_Store
-.DS_Store?
-._*
-
-# Release zips
-*.zip

@@ -1,33 +1,726 @@
-name: Build and Deploy to GitHub Pages (disabled — superseded by release.yml)
+name: Deploy to Production
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
+    inputs:
+      deployType:
+        description: 'What to deploy'
+        type: choice
+        options: [full, apiOnly, sitesOnly, dbOnly]
+        default: full
 
 permissions:
-  contents: write
+  contents: read
+
+# One deploy at a time on the one box. Queued rather than cancelled: a deploy that is
+# already copying files must be allowed to finish, or the site is left half written.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+# Everything runs on the server itself: the runner builds in place and deploys to the
+# folders IIS is already serving. Nothing is shipped between machines.
+#
+# Two IIS sites, created and kept true by the bootstrap step below, on the ports this
+# file's env: block fixes:
+#
+#   Folio     the web site: the portal at /, a module at /<name>
+#   FolioApi  the API, on its own port, so the browser calls it directly
+#
+# The browser is served everything from the web site's origin, and calls the API on
+# another, so the API allows that origin through CORS.
+env:
+  # The web site. Purely static: the browser calls the API on its own port directly,
+  # so there is no rewrite to it and no dependency on Application Request Routing.
+  SITE_NAME: Folio
+  SITE_PATH: 'C:\Program Files\FolioWeb'
+  SITE_APP_POOL: Folio
+  SITE_URL: 'http://localhost:5420'
+  SITE_PORT: 5420
+
+  # The API site, in its own app pool.
+  #
+  # API_PORT is baked into every site at build time (VITE_API_PORT) and is the port the
+  # browser calls, so it must match the IIS binding. These are IIS bindings and have
+  # nothing to do with the dev ports in start.ps1 or the vite.config.ts files.
+  API_SITE_NAME: FolioApi
+  API_SITE_PATH: 'C:\Program Files\FolioApi'
+  API_APP_POOL: FolioApi
+  API_SITE_URL: 'http://localhost:5423'
+  API_PORT: 5423
+
+  # The address a browser loads the site from. The site calls the API on the same host,
+  # so this is the origin the API has to allow through CORS. Change it if the site is
+  # reached by a different name or address; a comma-separated list is allowed, which is
+  # what a move to HTTPS needs while both bindings are live.
+  WEB_PUBLIC_ORIGIN: ${{ vars.WEB_PUBLIC_ORIGIN || 'http://localhost:5420' }}
+
+  # SQL Server. localhost means the same box. The database is created once by hand; a
+  # deploy only ever upgrades it, so a deployment login never needs CREATE DATABASE.
+  SQL_SERVER: ${{ vars.SQL_SERVER || 'localhost' }}
+  DB_NAME: ${{ vars.DB_NAME || 'Folio' }}
+
+  # The account the API creates when the database has none. Its password is a secret.
+  ACCOUNT_USERNAME: ${{ vars.ACCOUNT_USERNAME || 'wayne' }}
 
 jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
+  deploy:
+    name: Deploy
+    runs-on: self-hosted
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          node-version: 20
-      - run: npm install
-      - run: npm run build
-      - name: Zip dist for release
+          fetch-depth: 1
+
+      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      #  Resolve what is being deployed
+      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+      - name: Resolve deploy type
+        id: flags
+        shell: powershell
         run: |
-          cd dist
-          zip -r ../release.zip .
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
-      - name: Upload Release Zip
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-dist
-          path: release.zip
+          $type = "${{ inputs.deployType }}"
+          if (-not $type) { $type = "full" }
+
+          $doApi   = $type -in @("full", "apiOnly")
+          $doSites = $type -in @("full", "sitesOnly")
+          # The database goes with the API, so a release never leaves the two out of step.
+          $doDb    = $type -in @("full", "apiOnly", "dbOnly")
+
+          "doApi=$doApi"     | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "doSites=$doSites" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "doDb=$doDb"       | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+          Write-Host "deployType=$type  api=$doApi  sites=$doSites  db=$doDb"
+
+      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      #  BOOTSTRAP  (the box, made true rather than assumed: the
+      #  two folders, both app pools, both sites on the ports below,
+      #  the firewall rules, the database and the two Windows
+      #  grants. Every statement is idempotent, so this runs on
+      #  every deploy -- it repairs drift instead of failing on it --
+      #  and a project needs nothing on the box but its runner.)
+      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+      - name: Bootstrap the box
+        shell: powershell
+        run: |
+          Write-Host '=== Bootstrapping the box ===' -ForegroundColor Cyan
+
+          # The IIS:\ drive only exists once its provider is loaded, and reading it is also
+          # the check that the runner can do the rest of this: services are not UAC-filtered,
+          # so a runner installed as NT AUTHORITY\SYSTEM is already an administrator.
+          Import-Module WebAdministration -ErrorAction SilentlyContinue
+          try {
+              $null = Get-ChildItem 'IIS:\AppPools' -ErrorAction Stop
+          } catch {
+              Write-Host ''
+              Write-Host 'Cannot read the IIS configuration, so the box cannot be bootstrapped.' -ForegroundColor Red
+              Write-Host 'Either IIS is not installed, or the runner is not running as an administrator.' -ForegroundColor Red
+              Write-Host 'Check which account it runs as:'
+              Write-Host "  Get-CimInstance Win32_Service -Filter ""Name LIKE 'actions.runner.%'"" | Select-Object Name, StartName, State"
+              exit 1
+          }
+
+          . "${{ github.workspace }}\scripts\lib.ps1"
+
+          # â”€â”€ the two folders
+          foreach ($path in @('${{ env.SITE_PATH }}', '${{ env.API_SITE_PATH }}')) {
+              if (-not (Test-Path $path)) {
+                  New-Item -ItemType Directory -Force -Path $path | Out-Null
+                  Write-Host "  created $path" -ForegroundColor DarkGray
+              }
+          }
+
+          # â”€â”€ both app pools, with no managed runtime: an ASP.NET Core app brings its own,
+          # and a pool set to v4.0 would look for the .NET Framework and never start
+          foreach ($pool in @('${{ env.SITE_APP_POOL }}', '${{ env.API_APP_POOL }}') | Select-Object -Unique) {
+              if (-not (Test-Path "IIS:\AppPools\$pool")) {
+                  New-WebAppPool -Name $pool | Out-Null
+                  Write-Host "  created app pool $pool" -ForegroundColor DarkGray
+              }
+              Set-ItemProperty "IIS:\AppPools\$pool" -Name managedRuntimeVersion -Value ''
+          }
+
+          # â”€â”€ both sites. The port and the folder are the two things every later step
+          # assumes, so a site that already exists is moved onto the ones in this file
+          # rather than trusted to still have them.
+          $sites = @(
+              [pscustomobject]@{
+                  Name = '${{ env.SITE_NAME }}'
+                  Port = ${{ env.SITE_PORT }}
+                  Path = '${{ env.SITE_PATH }}'
+                  Pool = '${{ env.SITE_APP_POOL }}'
+              }
+              [pscustomobject]@{
+                  Name = '${{ env.API_SITE_NAME }}'
+                  Port = ${{ env.API_PORT }}
+                  Path = '${{ env.API_SITE_PATH }}'
+                  Pool = '${{ env.API_APP_POOL }}'
+              }
+          )
+
+          foreach ($site in $sites) {
+              if (-not (Test-Path "IIS:\Sites\$($site.Name)")) {
+                  New-Website -Name $site.Name -Port $site.Port -PhysicalPath $site.Path -ApplicationPool $site.Pool | Out-Null
+                  Write-Host "  created site $($site.Name) on $($site.Port), serving $($site.Path)" -ForegroundColor DarkGray
+                  continue
+              }
+
+              Set-ItemProperty "IIS:\Sites\$($site.Name)" -Name physicalPath -Value $site.Path
+              Set-ItemProperty "IIS:\Sites\$($site.Name)" -Name applicationPool -Value $site.Pool
+
+              $binding = (Get-Item "IIS:\Sites\$($site.Name)").bindings.Collection | Select-Object -First 1
+              $port = 0
+              if ($binding) { $port = [int](($binding.bindingInformation -split ':')[1]) }
+
+              if ($port -ne $site.Port) {
+                  if ($port -gt 0) { Remove-WebBinding -Name $site.Name -Protocol 'http' -Port $port }
+                  New-WebBinding -Name $site.Name -Protocol 'http' -Port $site.Port
+                  Write-Host "  moved site $($site.Name) from port $port to $($site.Port)" -ForegroundColor DarkGray
+              }
+          }
+
+          # â”€â”€ the firewall: the browser is on another machine, and it calls both ports
+          foreach ($port in @(${{ env.SITE_PORT }}, ${{ env.API_PORT }})) {
+              $rule = "${{ env.SITE_NAME }} $port"
+              if (-not (Get-NetFirewallRule -DisplayName $rule -ErrorAction SilentlyContinue)) {
+                  New-NetFirewallRule -DisplayName $rule -Direction Inbound -Protocol TCP -LocalPort $port -Action Allow | Out-Null
+                  Write-Host "  opened inbound TCP $port" -ForegroundColor DarkGray
+              }
+          }
+
+          # â”€â”€ the database, and the two Windows identities that use it
+          #
+          # No password exists anywhere: NT AUTHORITY\SYSTEM is the runner -- it deploys the
+          # schema and runs the tests, and the tests each build and drop their own database,
+          # so it needs dbcreator as well as db_owner -- and IIS APPPOOL\<ApiPool> is the API
+          # while it is serving.
+          #
+          # Creating a login needs a sysadmin once, and nothing can grant itself that. A box
+          # whose runner is already a sysadmin needs no step by hand; see the README.
+          $db = '${{ env.DB_NAME }}'
+          $pool = '${{ env.API_APP_POOL }}'
+
+          $sql = @(
+              "IF DB_ID(N'$db') IS NULL CREATE DATABASE [$db];"
+              'GO'
+              "IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE [name] = N'NT AUTHORITY\SYSTEM') CREATE LOGIN [NT AUTHORITY\SYSTEM] FROM WINDOWS;"
+              'GO'
+              "IF IS_SRVROLEMEMBER('dbcreator', 'NT AUTHORITY\SYSTEM') <> 1 ALTER SERVER ROLE [dbcreator] ADD MEMBER [NT AUTHORITY\SYSTEM];"
+              'GO'
+              "IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE [name] = N'IIS APPPOOL\$pool') CREATE LOGIN [IIS APPPOOL\$pool] FROM WINDOWS;"
+              'GO'
+              "USE [$db];"
+              'GO'
+              "IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE [name] = N'NT AUTHORITY\SYSTEM') CREATE USER [NT AUTHORITY\SYSTEM] FOR LOGIN [NT AUTHORITY\SYSTEM];"
+              'GO'
+              "IF IS_ROLEMEMBER('db_owner', 'NT AUTHORITY\SYSTEM') <> 1 ALTER ROLE [db_owner] ADD MEMBER [NT AUTHORITY\SYSTEM];"
+              'GO'
+              "IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE [name] = N'IIS APPPOOL\$pool') CREATE USER [IIS APPPOOL\$pool] FOR LOGIN [IIS APPPOOL\$pool];"
+              'GO'
+              "IF IS_ROLEMEMBER('db_owner', 'IIS APPPOOL\$pool') <> 1 ALTER ROLE [db_owner] ADD MEMBER [IIS APPPOOL\$pool];"
+              'GO'
+          ) -join "`n"
+
+          $script = Join-Path ([System.IO.Path]::GetTempPath()) 'bootstrap.sql'
+          [System.IO.File]::WriteAllText($script, $sql)
+
+          $connection = New-Object System.Data.SqlClient.SqlConnection (
+              New-DeployConnectionString -Server '${{ env.SQL_SERVER }}' -Database 'master')
+          try {
+              $connection.Open()
+              Invoke-SqlScript -Connection $connection -Path $script
+          } catch {
+              Write-Host ''
+              Write-Host "The database step failed: $($_.Exception.Message)" -ForegroundColor Red
+              if ($_.Exception.Message -match 'permission|denied') {
+                  Write-Host ''
+                  Write-Host 'The runner account has to be a sysadmin on this instance once, to create the' -ForegroundColor Yellow
+                  Write-Host 'logins and the grants. In SSMS, as an administrator:' -ForegroundColor Yellow
+                  Write-Host '  ALTER SERVER ROLE sysadmin ADD MEMBER [NT AUTHORITY\SYSTEM];' -ForegroundColor Yellow
+              }
+              exit 1
+          } finally {
+              $connection.Dispose()
+              Remove-Item $script -Force -ErrorAction SilentlyContinue
+          }
+
+          Write-Host '[OK] The box has its folders, pools, sites, firewall rules, database and grants' -ForegroundColor Green
+
+      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      #  TEST  (before anything is stopped or copied, so a failure
+      #  leaves the running sites exactly as they were)
+      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+      - name: Test the API and the database
+        if: steps.flags.outputs.doApi == 'True' || steps.flags.outputs.doDb == 'True'
+        shell: powershell
+        run: |
+          Write-Host '=== Running the API tests ===' -ForegroundColor Cyan
+
+          # Every test class builds its own throwaway database, so the account the tests
+          # run as needs CREATE DATABASE. There is no login to configure: the runner runs as
+          # NT AUTHORITY\SYSTEM, which the bootstrap step above made a dbcreator, so the
+          # first candidate is simply this box.
+          #
+          # Each candidate is asked whether it can by *connecting to it*, and the first that
+          # answers is used. Asking only "is LocalDB installed" is what let a misconfigured
+          # login reach the suite and fail once per test class.
+          $candidates = @([pscustomobject]@{
+              Where      = 'this box, as the runner account'
+              Connection = "Server=${{ env.SQL_SERVER }};Database=master;Trusted_Connection=True;TrustServerCertificate=True"
+          })
+
+          $configured = '${{ secrets.SQL_TEST_CONNECTION }}'
+          if (-not $configured) { $configured = '${{ vars.SQL_TEST_CONNECTION }}' }
+          if ($configured) {
+              $candidates += [pscustomobject]@{ Where = 'the SQL_TEST_CONNECTION secret'; Connection = $configured }
+          }
+
+          $localdb = Get-ChildItem 'C:\Program Files\Microsoft SQL Server\*\Tools\Binn\SqlLocalDB.exe' -ErrorAction SilentlyContinue |
+              Sort-Object FullName | Select-Object -Last 1 -ExpandProperty FullName
+          if (-not $localdb) { $localdb = (Get-Command sqllocaldb -ErrorAction SilentlyContinue).Source }
+
+          if ($localdb) {
+              if (@(& $localdb info | ForEach-Object { $_.Trim() }) -notcontains 'Folio') {
+                  Write-Host "Creating the LocalDB instance 'Folio'..."
+                  & $localdb create 'Folio' -s | Out-Null
+              }
+              $candidates += [pscustomobject]@{
+                  Where      = 'LocalDB on this runner'
+                  Connection = 'Server=(localdb)\Folio;Database=master;Trusted_Connection=True;TrustServerCertificate=True'
+              }
+          }
+
+          $notes = @()
+          $server = $null
+
+          # The text may be a server name or a whole connection string. Asking it which it is
+          # beats guessing from a character in it: "(localdb)\Folio;Database=master;..." is a
+          # connection string that contains a backslash, and a bare "(localdb)\Folio" is not.
+          function Resolve-TestConnection([string]$Text) {
+              try {
+                  $parsed = New-Object System.Data.SqlClient.SqlConnectionStringBuilder $Text
+                  if ($parsed['Data Source']) { return $parsed.ConnectionString }
+              } catch {
+                  # Not a connection string, so it is a server name.
+              }
+
+              $builder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder
+              $builder['Data Source'] = $Text
+              $builder['Initial Catalog'] = 'master'
+              $builder['Integrated Security'] = $true
+              $builder['TrustServerCertificate'] = $true
+              return $builder.ConnectionString
+          }
+
+          foreach ($candidate in $candidates) {
+              try {
+                  $probe = New-Object System.Data.SqlClient.SqlConnection (Resolve-TestConnection $candidate.Connection)
+                  try { $probe.Open() } finally { $probe.Dispose() }
+
+                  $server = $candidate.Connection
+                  Write-Host "Tests will build their databases on: $($candidate.Where)"
+                  break
+              } catch {
+                  $notes += "  $($candidate.Where): $($_.Exception.Message)"
+              }
+          }
+
+          if (-not $server) {
+              Write-Host 'No SQL Server the tests can build a database on:' -ForegroundColor Red
+              $notes | ForEach-Object { Write-Host $_ }
+              Write-Error 'Every test class creates and drops its own database, so the runner account needs CREATE DATABASE on this instance -- the bootstrap step grants it, which needs the runner to be a sysadmin once (see the README).'
+              exit 1
+          }
+
+          # A deploy whose tests silently skipped has checked nothing, so here a missing
+          # database is a failure rather than a skip.
+          $env:Folio_TEST_SQL_SERVER = $server
+          $env:Folio_REQUIRE_DATABASE_TESTS = '1'
+
+          dotnet test "${{ github.workspace }}\Folio.Api.Tests\Folio.Api.Tests.csproj" --nologo
+          if ($LASTEXITCODE -ne 0) { Write-Error 'The tests failed, so nothing was deployed.'; exit 1 }
+
+      - name: Test the site
+        if: steps.flags.outputs.doSites == 'True'
+        shell: powershell
+        run: |
+          Write-Host '=== Running the site tests ===' -ForegroundColor Cyan
+          Push-Location "${{ github.workspace }}\Folio.Web"
+          npm ci
+          if ($LASTEXITCODE -ne 0) { Pop-Location; Write-Error 'npm ci failed'; exit 1 }
+          npm test
+          if ($LASTEXITCODE -ne 0) { Pop-Location; Write-Error 'The site tests failed, so nothing was deployed.'; exit 1 }
+          Pop-Location
+
+      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      #  BUILD
+      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+      - name: Build the API
+        if: steps.flags.outputs.doApi == 'True'
+        shell: powershell
+        run: |
+          Write-Host '=== Building Folio.Api ===' -ForegroundColor Cyan
+          $out = "${{ github.workspace }}\publish\api"
+          Remove-Item $out -Recurse -Force -ErrorAction SilentlyContinue
+
+          # Self-contained: the box needs the ASP.NET Core hosting bundle for IIS, but
+          # not a particular .NET runtime on PATH.
+          dotnet publish "${{ github.workspace }}\Folio.Api\Folio.Api.csproj" `
+              -c Release -r win-x64 --self-contained -p:PublishSingleFile=false -o $out
+          if ($LASTEXITCODE -ne 0) { Write-Error 'API build failed'; exit 1 }
+
+          New-Item -ItemType Directory -Force -Path "$out\logs" | Out-Null
+          Write-Host '[OK] API built' -ForegroundColor Green
+
+      - name: Build the database project
+        if: steps.flags.outputs.doDb == 'True'
+        shell: powershell
+        run: |
+          Write-Host '=== Building Folio.Database ===' -ForegroundColor Cyan
+
+          # The model (Schemas, Types, Tables) becomes a .dacpac. SqlPackage then compares
+          # it with the live database and applies the difference.
+          dotnet build "${{ github.workspace }}\Folio.Database\Folio.Database.sqlproj" -c Release
+          if ($LASTEXITCODE -ne 0) { Write-Error 'The database project did not build'; exit 1 }
+
+          $dacpac = "${{ github.workspace }}\Folio.Database\bin\Release\Folio.Database.dacpac"
+          if (-not (Test-Path $dacpac)) { Write-Error "No dacpac at $dacpac"; exit 1 }
+
+          Write-Host '[OK] Database project built' -ForegroundColor Green
+
+      - name: Build and stage the site
+        id: stage
+        if: steps.flags.outputs.doSites == 'True'
+        shell: powershell
+        run: |
+          Write-Host '=== Building the site ===' -ForegroundColor Cyan
+          Push-Location "${{ github.workspace }}\Folio.Web"
+
+          # The API is its own site, so the build needs to know its port: Vite inlines
+          # VITE_* variables at build time.
+          $env:VITE_API_PORT = '${{ env.API_PORT }}'
+
+          npm run build
+          if ($LASTEXITCODE -ne 0) { Pop-Location; Write-Error 'The site failed to build'; exit 1 }
+          Pop-Location
+
+          Write-Host '=== Staging the site ===' -ForegroundColor Cyan
+          $staging = "${{ github.workspace }}\publish\www"
+          Remove-Item $staging -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $staging | Out-Null
+
+          # The build output, plus the rewrite rule that is not part of it. Every app is
+          # a route in this one bundle, so there is nothing per module to copy.
+          Copy-Item "${{ github.workspace }}\Folio.Web\dist\*" $staging -Recurse -Force
+          Copy-Item "${{ github.workspace }}\Folio.Web\web.config" $staging -Force
+
+          Write-Host '[OK] Site staged' -ForegroundColor Green
+
+      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      #  STOP  (release file locks before copying anything)
+      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+      - name: Stop IIS app pools
+        shell: powershell
+        run: |
+          Write-Host '=== Stopping IIS app pools ===' -ForegroundColor Cyan
+          Import-Module WebAdministration -ErrorAction SilentlyContinue
+          . "${{ github.workspace }}\scripts\lib.ps1"
+
+          if ('${{ steps.flags.outputs.doSites }}' -eq 'True') { Set-IISPoolState -Name '${{ env.SITE_APP_POOL }}' -State Stopped }
+          if ('${{ steps.flags.outputs.doApi }}' -eq 'True') { Set-IISPoolState -Name '${{ env.API_APP_POOL }}' -State Stopped }
+
+      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      #  DEPLOY
+      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+      - name: Deploy the site
+        id: deploySite
+        if: steps.flags.outputs.doSites == 'True'
+        shell: powershell
+        run: |
+          Write-Host '=== Deploying the site ===' -ForegroundColor Cyan
+          $src = "${{ github.workspace }}\publish\www"
+          $dst = '${{ env.SITE_PATH }}'
+
+          New-Item -ItemType Directory -Force -Path $dst | Out-Null
+
+          # /MIR: the folder is the site, so a file that is no longer built should not
+          # linger. The web.config files are part of the staged tree.
+          robocopy $src $dst /MIR /NP /NJH /NJS /NDL
+          if ($LASTEXITCODE -ge 8) { Write-Error "robocopy failed (exit: $LASTEXITCODE)"; exit 1 }
+          $global:LASTEXITCODE = 0
+
+          Write-Host "[OK] Site deployed to $dst" -ForegroundColor Green
+
+      - name: Deploy the API
+        id: deployApi
+        if: steps.flags.outputs.doApi == 'True'
+        shell: powershell
+        run: |
+          Write-Host '=== Deploying the API ===' -ForegroundColor Cyan
+          $src = "${{ github.workspace }}\publish\api"
+          $dst = '${{ env.API_SITE_PATH }}'
+          New-Item -ItemType Directory -Force -Path $dst | Out-Null
+
+          . "${{ github.workspace }}\scripts\lib.ps1"
+
+          # Windows authentication: the runner runs as NT AUTHORITY\SYSTEM, which the
+          # bootstrap step gave db_owner on this database. No SQL login, no secret.
+          $conn = New-DeployConnectionString `
+              -Server '${{ env.SQL_SERVER }}' `
+              -Database '${{ env.DB_NAME }}'
+
+          # The settings the deploy owns, written over appsettings.json on every deploy:
+          # the connection string, the origin the browser loads the site from, and the
+          # password the one account is created with the first time the API meets an
+          # empty database. Nothing secret lives in the repository.
+          $settings = [ordered]@{ ConnectionStrings = @{ Default = $conn } }
+
+          $origins = '${{ env.WEB_PUBLIC_ORIGIN }}' -split ',' |
+              ForEach-Object { $_.Trim() } |
+              Where-Object { $_ }
+          if ($origins) { $settings['Cors'] = @{ AllowedOrigins = @($origins) } }
+
+          $password = '${{ secrets.ACCOUNT_PASSWORD }}'
+          if ($password) {
+              $settings['Auth'] = @{
+                  SeedUsername = '${{ env.ACCOUNT_USERNAME }}'
+                  SeedPassword = $password
+              }
+          } else {
+              Write-Warning 'No ACCOUNT_PASSWORD secret is set, so no account will be created on an empty database.'
+          }
+
+          # The word that lets a forgotten password be replaced from the sign-in page. With
+          # none set, the reset endpoint refuses and the only way back in is the box.
+          $recovery = '${{ secrets.RECOVERY_CODE }}'
+          if ($recovery) {
+              if (-not $settings['Auth']) { $settings['Auth'] = @{} }
+              $settings['Auth']['RecoveryCode'] = $recovery
+          } else {
+              Write-Warning 'No RECOVERY_CODE secret is set, so a forgotten password cannot be reset from the site.'
+          }
+
+          $settingsPath = "$src\appsettings.Production.json"
+          [System.IO.File]::WriteAllText(
+              $settingsPath,
+              ($settings | ConvertTo-Json -Depth 5),
+              (New-Object System.Text.UTF8Encoding($false)))
+          Write-Host "[OK] Wrote $settingsPath"
+
+          robocopy $src $dst /MIR /NP /NJH /NJS /NDL
+          if ($LASTEXITCODE -ge 8) { Write-Error "API robocopy failed (exit: $LASTEXITCODE)"; exit 1 }
+          $global:LASTEXITCODE = 0
+
+          # web.config points stdoutLogFile at .\logs\stdout. Creating the folder means
+          # enabling stdout logging is a one-line change when an app will not start.
+          New-Item -ItemType Directory -Force -Path "$dst\logs" | Out-Null
+
+          Write-Host "[OK] API deployed to $dst" -ForegroundColor Green
+
+      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      #  DATABASE  (the numbered migrations, then SqlPackage diffs the model
+      #  against the live database and applies the difference)
+      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+      - name: Deploy the database
+        id: deployDb
+        if: steps.flags.outputs.doDb == 'True'
+        shell: powershell
+        run: |
+          Write-Host '=== Database ===' -ForegroundColor Cyan
+
+          . "${{ github.workspace }}\scripts\lib.ps1"
+
+          # Windows authentication, as the runner account: the bootstrap step gave it
+          # db_owner here.
+
+          $conn = New-DeployConnectionString -Server '${{ env.SQL_SERVER }}' -Database '${{ env.DB_NAME }}'
+
+          if (-not (Test-FolioDatabaseExists -ConnectionString $conn)) {
+              Write-Error "There is no database '${{ env.DB_NAME }}' on '${{ env.SQL_SERVER }}', although the bootstrap step creates it. Something dropped it while this deploy ran, so nothing was published."
+              exit 1
+          }
+
+          # The numbered scripts first, so the database already holds anything the model
+          # cannot express as a diff (moved data, a backfilled column). They are
+          # idempotent and are applied on every deploy.
+          Invoke-FolioMigrations -ConnectionString $conn -MigrationsDir "${{ github.workspace }}\Folio.Database\Scripts\Migrations"
+          if (-not $?) { Write-Error 'The database migrations failed'; exit 1 }
+
+          # Then the model: whatever is still different between the .dacpac and the
+          # database is applied. The reference data in Scripts\PostDeployment.sql runs as
+          # part of this.
+          $tools = 'C:\Program Files\dotnet-tools'
+          if (-not (Get-Command sqlpackage -ErrorAction SilentlyContinue)) {
+              Write-Host 'sqlpackage not found, installing it...'
+              dotnet tool install --tool-path $tools microsoft.sqlpackage
+              if ($LASTEXITCODE -ne 0) { Write-Error 'Could not install sqlpackage'; exit 1 }
+              $env:PATH = "$tools;$env:PATH"
+          }
+
+          if (-not (Get-Command sqlpackage -ErrorAction SilentlyContinue)) {
+              Write-Error "sqlpackage is still not available. Install it with: dotnet tool install --tool-path '$tools' microsoft.sqlpackage"
+              exit 1
+          }
+
+          $dacpac = "${{ github.workspace }}\Folio.Database\bin\Release\Folio.Database.dacpac"
+          if (-not (Test-Path $dacpac)) { Write-Error "No dacpac at $dacpac"; exit 1 }
+
+          # sqlpackage is built against a particular runtime patch and the host refuses to
+          # fall back to an older one, so "Major" lets it use a newer runtime that is
+          # already installed while still preferring its own.
+          $env:DOTNET_ROLL_FORWARD = 'Major'
+
+          sqlpackage /Action:Publish /SourceFile:"$dacpac" /TargetConnectionString:"$conn"
+          if ($LASTEXITCODE -ne 0) { Write-Error 'Database deployment failed'; exit $LASTEXITCODE }
+
+          Write-Host "[OK] Database up to date on ${{ env.SQL_SERVER }}" -ForegroundColor Green
+
+      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      #  START
+      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+      - name: Start IIS app pools
+        # always(), so a failed deploy does not leave the site stopped: whatever went
+        # wrong, the last known-good files are what the pools then serve.
+        if: always()
+        shell: powershell
+        run: |
+          Write-Host '=== Starting IIS app pools ===' -ForegroundColor Cyan
+          Import-Module WebAdministration -ErrorAction SilentlyContinue
+          . "${{ github.workspace }}\scripts\lib.ps1"
+
+          if ('${{ steps.flags.outputs.doSites }}' -eq 'True') { Set-IISPoolState -Name '${{ env.SITE_APP_POOL }}' -State Started }
+          if ('${{ steps.flags.outputs.doApi }}' -eq 'True') { Set-IISPoolState -Name '${{ env.API_APP_POOL }}' -State Started }
+
+      - name: Smoke test the API
+        # Only what was actually deployed: a deploy that stopped earlier is already the
+        # failure, and two minutes of retries against a site nobody wrote is noise.
+        if: steps.deployApi.outcome == 'success'
+        shell: powershell
+        run: |
+          Write-Host '=== Checking the API answers ===' -ForegroundColor Cyan
+          $url = '${{ env.API_SITE_URL }}/api/health'
+
+          $deadline = (Get-Date).AddSeconds(60)
+          $lastStatus = $null
+          $lastBody = $null
+          $lastError = $null
+
+          while ((Get-Date) -lt $deadline) {
+              try {
+                  $res = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 5
+                  if ($res.StatusCode -eq 200 -and $res.Content -match '"database"\s*:\s*"ok"') {
+                      Write-Host "[OK] API healthy at $url" -ForegroundColor Green
+                      exit 0
+                  }
+                  $lastStatus = $res.StatusCode
+                  $lastBody = $res.Content
+              } catch {
+                  $code = 0
+                  if ($_.Exception.Response) { try { $code = [int]$_.Exception.Response.StatusCode } catch { $code = 0 } }
+                  if ($code -gt 0) {
+                      $lastStatus = $code
+                      try {
+                          $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+                          $lastBody = $reader.ReadToEnd()
+                          $reader.Dispose()
+                      } catch { }
+                  } else {
+                      $lastError = $_.Exception.Message
+                  }
+              }
+              Start-Sleep -Seconds 3
+          }
+
+          Write-Host ''
+          if ($lastStatus) {
+              Write-Host "The API answered, but not as healthy. Last status: $lastStatus" -ForegroundColor Red
+          } elseif ($lastError) {
+              Write-Host 'The API never answered. Last connection error:' -ForegroundColor Red
+              Write-Host "  $lastError"
+          } else {
+              Write-Host 'The API never answered within 60s.' -ForegroundColor Red
+          }
+
+          if ($lastBody) {
+              Write-Host ''
+              Write-Host 'Last response body:'
+              Write-Host $lastBody
+          }
+
+          . "${{ github.workspace }}\scripts\lib.ps1"
+          Show-SiteDiagnostics -SiteName '${{ env.API_SITE_NAME }}' -PoolName '${{ env.API_APP_POOL }}' `
+              -Port ${{ env.API_PORT }} -SitePath '${{ env.API_SITE_PATH }}'
+
+          exit 1
+
+      - name: Smoke test the site
+        # always() so a failing API test above does not hide the site's result; the
+        # outcome check keeps it from running when the site was never deployed.
+        if: always() && steps.deploySite.outcome == 'success'
+        shell: powershell
+        run: |
+          Write-Host '=== Checking the site answers ===' -ForegroundColor Cyan
+
+          # The root serves the app, and a deep link proves the rewrite rule is in place:
+          # /login is served by index.html rather than looked up as a file, which is what
+          # makes every other route work too.
+          $paths = @('/', '/login')
+
+          $failed = $false
+
+          foreach ($path in $paths) {
+              $url = '${{ env.SITE_URL }}' + $path
+              $deadline = (Get-Date).AddSeconds(60)
+              $served = $false
+
+              while (-not $served -and (Get-Date) -lt $deadline) {
+                  try {
+                      $res = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 5
+                      if ($res.StatusCode -ge 200 -and $res.StatusCode -lt 400 -and $res.Content -match '<div id="app">') {
+                          Write-Host "[OK] $url" -ForegroundColor Green
+                          $served = $true
+                          break
+                      }
+                  } catch {
+                      # Still starting, or not there yet.
+                  }
+                  Start-Sleep -Seconds 2
+              }
+
+              if (-not $served) {
+                  Write-Host "[FAILED] $url" -ForegroundColor Red
+                  $failed = $true
+              }
+          }
+
+          if ($failed) {
+              . "${{ github.workspace }}\scripts\lib.ps1"
+              Show-SiteDiagnostics -SiteName '${{ env.SITE_NAME }}' -PoolName '${{ env.SITE_APP_POOL }}' `
+                  -Port ${{ env.SITE_PORT }} -SitePath '${{ env.SITE_PATH }}'
+              exit 1
+          }
+
+      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      #  CLEANUP
+      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+      - name: Cleanup
+        if: always()
+        shell: powershell
+        run: |
+          Write-Host '=== Cleaning build output ===' -ForegroundColor Cyan
+          Remove-Item "${{ github.workspace }}\publish" -Recurse -Force -ErrorAction SilentlyContinue
+          Write-Host '[OK] Cleaned' -ForegroundColor Green

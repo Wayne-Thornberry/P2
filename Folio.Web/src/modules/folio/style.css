@@ -1,0 +1,31 @@
+/*
+  Folio's own look, imported by the site's stylesheet after Tailwind's own layers.
+  Everything here is scoped to the classes Folio's components use; the portal keeps its
+  own styles in src/style.css.
+*/
+
+@import "./styles/base.css";
+@import "./styles/datatable.css";
+@import "./styles/components.css";
+@import "./styles/budget.css";
+@import "./styles/transactions.css";
+@import "./styles/settings.css";
+@import "./styles/reports.css";
+@import "./styles/dashboard.css";
+@import "./styles/savings.css";
+@import "./styles/finance.css";
+@import "./styles/template.css";
+@import "./styles/assign.css";
+@import "./styles/about.css";
+@import "./styles/accounts.css";
+@import "./styles/planner.css";
+@import "./styles/performance.css";
+@import "./styles/calendar.css";
+@import "./styles/csv-import.css";
+@import "./styles/theme-midnight.css";
+@import "./styles/theme-forest.css";
+@import "./styles/theme-purple.css";
+@import "./styles/theme-slate.css";
+@import "./styles/theme-rose.css";
+@import "./styles/theme-teal.css";
+@import "./styles/app.css";
