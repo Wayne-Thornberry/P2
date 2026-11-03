@@ -190,6 +190,13 @@ IIS and the ASP.NET Core hosting bundle, SQL Server, and a runner. The deploy in
 `sqlpackage` itself if it is missing, and creates the database and grants the runner and
 the API's app pool what they need in Windows terms — no SQL login, no password.
 
+The grants are made twice on purpose: once by the bootstrap step when the database is
+created, and again straight after every publish. `sqlpackage` runs with
+`DropObjectsNotInSource`, which is what actually drops a column the model no longer has —
+and it drops a database user the project does not describe too, which is both of them.
+Without the second pass the API loses its own user and answers 503 on a database that is
+perfectly there.
+
 The one thing that needs a sysadmin once is creating those logins: the runner account has
 to be a sysadmin for that first bootstrap. See the failure message the bootstrap prints if
 it is not.
