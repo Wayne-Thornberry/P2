@@ -1,9 +1,6 @@
--- One schema per module, plus core for the account everyone signs in with.
+-- The one schema this project keeps its data in.
 --
--- A module's tables live in its own schema, so they can be found, backed up or dropped
--- without reading anyone else's. Adding a module adds a schema here.
-CREATE SCHEMA [core] AUTHORIZATION [dbo];
-GO
-
+-- There is no core schema and no users table: this is a budget on a private box, used by
+-- one person, so there is nobody to sign in as and nothing to separate rows by.
 CREATE SCHEMA [folio] AUTHORIZATION [dbo];
 GO

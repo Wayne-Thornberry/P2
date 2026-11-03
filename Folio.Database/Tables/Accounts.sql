@@ -3,7 +3,6 @@
 -- and savings goals both refer to it.
 CREATE TABLE [folio].[Accounts]
 (
-    [UserId]            INT            NOT NULL,
     [Country]           NVARCHAR (40)  NOT NULL,
     [Id]                NVARCHAR (32)  NOT NULL,
     [Name]              NVARCHAR (100) NOT NULL,
@@ -12,10 +11,9 @@ CREATE TABLE [folio].[Accounts]
     [Archived]          BIT            NULL,
     [BankId]            NVARCHAR (32)  NULL,
     [SortOrder]         INT            NOT NULL,
-    CONSTRAINT [PK_Accounts] PRIMARY KEY CLUSTERED ([UserId], [Country], [Id]),
-    CONSTRAINT [FK_Accounts_Users] FOREIGN KEY ([UserId]) REFERENCES [core].[Users] ([Id]) ON DELETE CASCADE
+    CONSTRAINT [PK_Accounts] PRIMARY KEY CLUSTERED ([Country], [Id])
 );
 GO
 
-CREATE NONCLUSTERED INDEX [IX_Accounts_UserId_Country_Name]
-    ON [folio].[Accounts] ([UserId], [Country], [Name]);
+CREATE NONCLUSTERED INDEX [IX_Accounts_Country_Name]
+    ON [folio].[Accounts] ([Country], [Name]);

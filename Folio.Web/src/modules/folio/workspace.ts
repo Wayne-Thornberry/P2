@@ -1,5 +1,4 @@
 import { api } from '../../shared'
-import { isSignedIn } from '../../shared'
 import { storageKey } from './utils/storeStorage'
 
 /**
@@ -51,7 +50,6 @@ let queue: Promise<unknown> = Promise.resolve()
  * a test -- it does nothing and the browser's own copy is what the app reads.
  */
 export async function loadWorkspace(): Promise<void> {
-  if (!isSignedIn()) return
 
   let settings: Record<string, unknown> | null
 
@@ -100,7 +98,7 @@ export async function loadWorkspace(): Promise<void> {
  * is to save the budget, not to describe every step of arriving at it.
  */
 export function queueStoreSave(base: string, country: string, blob: unknown): void {
-  if (!isSignedIn() || !country || !RESOURCES[base]) return
+  if (!country || !RESOURCES[base]) return
 
   const key = `${base}:${country}`
   const task = () =>
@@ -120,14 +118,8 @@ export function queueStoreSave(base: string, country: string, blob: unknown): vo
 
 /** Saves the account's settings. Not debounced: a country change has to land before the reload. */
 export function queueSettingsSave(blob: unknown): void {
-  if (!isSignedIn()) return
 
   enqueue(() => api.put<void>('/api/folio/settings', blob))
-}
-
-/** Whether the site is signed in and therefore has somewhere to save to. */
-export function canSave(): boolean {
-  return isSignedIn()
 }
 
 /**
@@ -197,15 +189,13 @@ export async function deleteWorkspace(country: string): Promise<void> {
     pending.delete(key)
   }
 
-  if (!isSignedIn() || !country) return
+  if (!country) return
 
   await api.delete(`/api/folio/workspace?country=${encodeURIComponent(country)}`)
 }
 
 /** Every country this account has saved, according to the server. */
 export async function savedCountries(): Promise<string[]> {
-  if (!isSignedIn()) return []
-
   try {
     return await api.get<string[]>('/api/folio/countries')
   } catch (error) {
@@ -222,8 +212,6 @@ export async function savedCountries(): Promise<string[]> {
  */
 export async function readCountry(country: string): Promise<Record<string, unknown>> {
   const local = readLocal(country)
-
-  if (!isSignedIn()) return local
 
   try {
     const remote = await api.get<Record<string, unknown>>(

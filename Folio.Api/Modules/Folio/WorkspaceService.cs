@@ -16,9 +16,9 @@ public sealed class WorkspaceService(FolioDbContext db)
 {
     // ── Settings ────────────────────────────────────────────────────────────────────────
 
-    public async Task<SettingsBlob?> ReadSettingsAsync(int userId, CancellationToken cancellationToken)
+    public async Task<SettingsBlob?> ReadSettingsAsync(CancellationToken cancellationToken)
     {
-        var row = await db.Settings.AsNoTracking().FirstOrDefaultAsync(s => s.UserId == userId, cancellationToken);
+        var row = await db.Settings.AsNoTracking().FirstOrDefaultAsync(cancellationToken);
 
         return row is null
             ? null
@@ -33,13 +33,13 @@ public sealed class WorkspaceService(FolioDbContext db)
                 row.BalanceCutoffTxId);
     }
 
-    public async Task SaveSettingsAsync(int userId, SettingsBlob blob, CancellationToken cancellationToken)
+    public async Task SaveSettingsAsync(SettingsBlob blob, CancellationToken cancellationToken)
     {
-        var row = await db.Settings.FirstOrDefaultAsync(s => s.UserId == userId, cancellationToken);
+        var row = await db.Settings.FirstOrDefaultAsync(cancellationToken);
 
         if (row is null)
         {
-            row = new Settings { UserId = userId };
+            row = new Settings();
             db.Settings.Add(row);
         }
 
@@ -57,18 +57,18 @@ public sealed class WorkspaceService(FolioDbContext db)
 
     // ── The whole workspace ─────────────────────────────────────────────────────────────
 
-    public async Task<WorkspaceResponse> ReadAsync(int userId, string country, CancellationToken cancellationToken) =>
+    public async Task<WorkspaceResponse> ReadAsync(string country, CancellationToken cancellationToken) =>
         new()
         {
-            Accounts = await ReadAccountsAsync(userId, country, cancellationToken),
-            Transactions = await ReadTransactionsAsync(userId, country, cancellationToken),
-            Upcoming = await ReadUpcomingAsync(userId, country, cancellationToken),
-            Budget = await ReadBudgetAsync(userId, country, cancellationToken),
-            Template = await ReadTemplateAsync(userId, country, cancellationToken),
-            SavingsGoals = await ReadSavingsGoalsAsync(userId, country, cancellationToken),
-            Finance = await ReadFinanceAsync(userId, country, cancellationToken),
-            Planner = await ReadPlannerAsync(userId, country, cancellationToken),
-            ImportHistory = await ReadImportHistoryAsync(userId, country, cancellationToken),
+            Accounts = await ReadAccountsAsync(country, cancellationToken),
+            Transactions = await ReadTransactionsAsync(country, cancellationToken),
+            Upcoming = await ReadUpcomingAsync(country, cancellationToken),
+            Budget = await ReadBudgetAsync(country, cancellationToken),
+            Template = await ReadTemplateAsync(country, cancellationToken),
+            SavingsGoals = await ReadSavingsGoalsAsync(country, cancellationToken),
+            Finance = await ReadFinanceAsync(country, cancellationToken),
+            Planner = await ReadPlannerAsync(country, cancellationToken),
+            ImportHistory = await ReadImportHistoryAsync(country, cancellationToken),
         };
 
     /// <summary>
@@ -79,11 +79,11 @@ public sealed class WorkspaceService(FolioDbContext db)
     /// every table: a country with no accounts and no transactions is a country with
     /// nothing to export.
     /// </summary>
-    public async Task<IReadOnlyList<string>> ListCountriesAsync(int userId, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<string>> ListCountriesAsync(CancellationToken cancellationToken)
     {
-        var fromCounters = db.Counters.Where(row => row.UserId == userId).Select(row => row.Country);
-        var fromAccounts = db.Accounts.Where(row => row.UserId == userId).Select(row => row.Country);
-        var fromTransactions = db.Transactions.Where(row => row.UserId == userId).Select(row => row.Country);
+        var fromCounters = db.Counters.Select(row => row.Country);
+        var fromAccounts = db.Accounts.Select(row => row.Country);
+        var fromTransactions = db.Transactions.Select(row => row.Country);
 
         return await fromCounters
             .Union(fromAccounts)
@@ -94,10 +94,10 @@ public sealed class WorkspaceService(FolioDbContext db)
 
     // ── Accounts ────────────────────────────────────────────────────────────────────────
 
-    private async Task<AccountsBlob?> ReadAccountsAsync(int userId, string country, CancellationToken cancellationToken)
+    private async Task<AccountsBlob?> ReadAccountsAsync(string country, CancellationToken cancellationToken)
     {
         var rows = await db.Accounts.AsNoTracking()
-            .Where(row => row.UserId == userId && row.Country == country)
+            .Where(row => row.Country == country)
             .OrderBy(row => row.SortOrder)
             .ToListAsync(cancellationToken);
 
@@ -108,16 +108,15 @@ public sealed class WorkspaceService(FolioDbContext db)
             .Select(row => new AccountDto(row.Id, row.Name, row.Type, row.ExcludeFromBudget, row.Archived, row.BankId))
             .ToList();
 
-        return new AccountsBlob(accounts, await ReadCounterAsync(userId, country, CounterNames.Accounts, cancellationToken));
+        return new AccountsBlob(accounts, await ReadCounterAsync(country, CounterNames.Accounts, cancellationToken));
     }
 
-    public async Task SaveAccountsAsync(int userId, string country, AccountsBlob blob, CancellationToken cancellationToken)
+    public async Task SaveAccountsAsync(string country, AccountsBlob blob, CancellationToken cancellationToken)
     {
         var rows = (blob.Accounts ?? [])
             .Where(account => !string.IsNullOrWhiteSpace(account.Id))
             .Select((account, index) => new Account
             {
-                UserId = userId,
                 Country = country,
                 Id = account.Id.Trim(),
                 Name = Text(account.Name, account.Id, 100),
@@ -130,19 +129,19 @@ public sealed class WorkspaceService(FolioDbContext db)
             .ToList();
 
         await ReplaceAsync(
-            db.Accounts.Where(row => row.UserId == userId && row.Country == country),
+            db.Accounts.Where(row => row.Country == country),
             rows,
             cancellationToken);
 
-        await SetCounterAsync(userId, country, CounterNames.Accounts, blob.NextId, cancellationToken);
+        await SetCounterAsync(country, CounterNames.Accounts, blob.NextId, cancellationToken);
     }
 
     // ── Transactions ────────────────────────────────────────────────────────────────────
 
-    private async Task<TransactionsBlob?> ReadTransactionsAsync(int userId, string country, CancellationToken cancellationToken)
+    private async Task<TransactionsBlob?> ReadTransactionsAsync(string country, CancellationToken cancellationToken)
     {
         var rows = await db.Transactions.AsNoTracking()
-            .Where(row => row.UserId == userId && row.Country == country)
+            .Where(row => row.Country == country)
             .OrderBy(row => row.SortOrder)
             .ToListAsync(cancellationToken);
 
@@ -167,15 +166,14 @@ public sealed class WorkspaceService(FolioDbContext db)
 
         return new TransactionsBlob(
             transactions,
-            await ReadCounterAsync(userId, country, CounterNames.Transactions, cancellationToken));
+            await ReadCounterAsync(country, CounterNames.Transactions, cancellationToken));
     }
 
-    public async Task SaveTransactionsAsync(int userId, string country, TransactionsBlob blob, CancellationToken cancellationToken)
+    public async Task SaveTransactionsAsync(string country, TransactionsBlob blob, CancellationToken cancellationToken)
     {
         var rows = (blob.Transactions ?? [])
             .Select((transaction, index) => new TransactionRow
             {
-                UserId = userId,
                 Country = country,
                 Id = transaction.Id,
                 Name = Text(transaction.Name, "Transaction", 200),
@@ -194,19 +192,19 @@ public sealed class WorkspaceService(FolioDbContext db)
             .ToList();
 
         await ReplaceAsync(
-            db.Transactions.Where(row => row.UserId == userId && row.Country == country),
+            db.Transactions.Where(row => row.Country == country),
             rows,
             cancellationToken);
 
-        await SetCounterAsync(userId, country, CounterNames.Transactions, blob.NextId, cancellationToken);
+        await SetCounterAsync(country, CounterNames.Transactions, blob.NextId, cancellationToken);
     }
 
     // ── Upcoming transactions ───────────────────────────────────────────────────────────
 
-    private async Task<UpcomingBlob?> ReadUpcomingAsync(int userId, string country, CancellationToken cancellationToken)
+    private async Task<UpcomingBlob?> ReadUpcomingAsync(string country, CancellationToken cancellationToken)
     {
         var rows = await db.UpcomingTransactions.AsNoTracking()
-            .Where(row => row.UserId == userId && row.Country == country)
+            .Where(row => row.Country == country)
             .OrderBy(row => row.SortOrder)
             .ToListAsync(cancellationToken);
 
@@ -227,15 +225,14 @@ public sealed class WorkspaceService(FolioDbContext db)
                 row.Recurring))
             .ToList();
 
-        return new UpcomingBlob(items, await ReadCounterAsync(userId, country, CounterNames.Upcoming, cancellationToken));
+        return new UpcomingBlob(items, await ReadCounterAsync(country, CounterNames.Upcoming, cancellationToken));
     }
 
-    public async Task SaveUpcomingAsync(int userId, string country, UpcomingBlob blob, CancellationToken cancellationToken)
+    public async Task SaveUpcomingAsync(string country, UpcomingBlob blob, CancellationToken cancellationToken)
     {
         var rows = (blob.Items ?? [])
             .Select((item, index) => new UpcomingTransactionRow
             {
-                UserId = userId,
                 Country = country,
                 Id = item.Id,
                 Title = Text(item.Title, "Planned", 200),
@@ -252,24 +249,24 @@ public sealed class WorkspaceService(FolioDbContext db)
             .ToList();
 
         await ReplaceAsync(
-            db.UpcomingTransactions.Where(row => row.UserId == userId && row.Country == country),
+            db.UpcomingTransactions.Where(row => row.Country == country),
             rows,
             cancellationToken);
 
-        await SetCounterAsync(userId, country, CounterNames.Upcoming, blob.NextId, cancellationToken);
+        await SetCounterAsync(country, CounterNames.Upcoming, blob.NextId, cancellationToken);
     }
 
     // ── Budget ──────────────────────────────────────────────────────────────────────────
 
-    private async Task<BudgetBlob?> ReadBudgetAsync(int userId, string country, CancellationToken cancellationToken)
+    private async Task<BudgetBlob?> ReadBudgetAsync(string country, CancellationToken cancellationToken)
     {
         var items = await db.BudgetItems.AsNoTracking()
-            .Where(row => row.UserId == userId && row.Country == country)
+            .Where(row => row.Country == country)
             .OrderBy(row => row.SortOrder)
             .ToListAsync(cancellationToken);
 
         var assignments = await db.BudgetAssignments.AsNoTracking()
-            .Where(row => row.UserId == userId && row.Country == country)
+            .Where(row => row.Country == country)
             .OrderBy(row => row.Year).ThenBy(row => row.Month).ThenBy(row => row.ItemId)
             .ToListAsync(cancellationToken);
 
@@ -295,15 +292,14 @@ public sealed class WorkspaceService(FolioDbContext db)
         return new BudgetBlob(
             items.Select(row => new BudgetItemDto(row.Id, row.Name)).ToList(),
             months,
-            await ReadCounterAsync(userId, country, CounterNames.Budget, cancellationToken));
+            await ReadCounterAsync(country, CounterNames.Budget, cancellationToken));
     }
 
-    public async Task SaveBudgetAsync(int userId, string country, BudgetBlob blob, CancellationToken cancellationToken)
+    public async Task SaveBudgetAsync(string country, BudgetBlob blob, CancellationToken cancellationToken)
     {
         var items = (blob.GlobalItems ?? [])
             .Select((item, index) => new BudgetItem
             {
-                UserId = userId,
                 Country = country,
                 Id = item.Id,
                 Name = Text(item.Name, "Item", 100),
@@ -327,7 +323,6 @@ public sealed class WorkspaceService(FolioDbContext db)
                 {
                     assignments.Add(new BudgetAssignment
                     {
-                        UserId = userId,
                         Country = country,
                         Year = year,
                         Month = month,
@@ -341,23 +336,23 @@ public sealed class WorkspaceService(FolioDbContext db)
 
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
-        await db.BudgetAssignments.Where(row => row.UserId == userId && row.Country == country).ExecuteDeleteAsync(cancellationToken);
-        await ReplaceAsync(db.BudgetItems.Where(row => row.UserId == userId && row.Country == country), items, cancellationToken);
+        await db.BudgetAssignments.Where(row => row.Country == country).ExecuteDeleteAsync(cancellationToken);
+        await ReplaceAsync(db.BudgetItems.Where(row => row.Country == country), items, cancellationToken);
 
         db.BudgetAssignments.AddRange(assignments);
         await db.SaveChangesAsync(cancellationToken);
 
-        await SetCounterAsync(userId, country, CounterNames.Budget, blob.NextId, cancellationToken);
+        await SetCounterAsync(country, CounterNames.Budget, blob.NextId, cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
     }
 
     // ── Budget template ────────────────────────────────────────────────────────────────
 
-    private async Task<TemplateBlob?> ReadTemplateAsync(int userId, string country, CancellationToken cancellationToken)
+    private async Task<TemplateBlob?> ReadTemplateAsync(string country, CancellationToken cancellationToken)
     {
         var rows = await db.BudgetTemplateEntries.AsNoTracking()
-            .Where(row => row.UserId == userId && row.Country == country)
+            .Where(row => row.Country == country)
             .OrderBy(row => row.SortOrder)
             .ToListAsync(cancellationToken);
 
@@ -366,12 +361,11 @@ public sealed class WorkspaceService(FolioDbContext db)
             : new TemplateBlob(rows.Select(row => new BudgetEntryDto(row.ItemId, row.Assigned, row.Category)).ToList());
     }
 
-    public async Task SaveTemplateAsync(int userId, string country, TemplateBlob blob, CancellationToken cancellationToken)
+    public async Task SaveTemplateAsync(string country, TemplateBlob blob, CancellationToken cancellationToken)
     {
         var rows = (blob.Entries ?? [])
             .Select((entry, index) => new BudgetTemplateEntry
             {
-                UserId = userId,
                 Country = country,
                 ItemId = entry.ItemId,
                 Assigned = entry.Assigned,
@@ -381,22 +375,22 @@ public sealed class WorkspaceService(FolioDbContext db)
             .ToList();
 
         await ReplaceAsync(
-            db.BudgetTemplateEntries.Where(row => row.UserId == userId && row.Country == country),
+            db.BudgetTemplateEntries.Where(row => row.Country == country),
             rows,
             cancellationToken);
     }
 
     // ── Savings goals ──────────────────────────────────────────────────────────────────
 
-    private async Task<SavingsGoalsBlob?> ReadSavingsGoalsAsync(int userId, string country, CancellationToken cancellationToken)
+    private async Task<SavingsGoalsBlob?> ReadSavingsGoalsAsync(string country, CancellationToken cancellationToken)
     {
         var goals = await db.SavingsGoals.AsNoTracking()
-            .Where(row => row.UserId == userId && row.Country == country)
+            .Where(row => row.Country == country)
             .OrderBy(row => row.SortOrder)
             .ToListAsync(cancellationToken);
 
         var contributions = await db.SavingsContributions.AsNoTracking()
-            .Where(row => row.UserId == userId && row.Country == country)
+            .Where(row => row.Country == country)
             .OrderBy(row => row.SortOrder)
             .ToListAsync(cancellationToken);
 
@@ -424,16 +418,15 @@ public sealed class WorkspaceService(FolioDbContext db)
 
         return new SavingsGoalsBlob(
             dtos,
-            await ReadCounterAsync(userId, country, CounterNames.SavingsGoals, cancellationToken),
-            await ReadCounterAsync(userId, country, CounterNames.SavingsContributions, cancellationToken));
+            await ReadCounterAsync(country, CounterNames.SavingsGoals, cancellationToken),
+            await ReadCounterAsync(country, CounterNames.SavingsContributions, cancellationToken));
     }
 
-    public async Task SaveSavingsGoalsAsync(int userId, string country, SavingsGoalsBlob blob, CancellationToken cancellationToken)
+    public async Task SaveSavingsGoalsAsync(string country, SavingsGoalsBlob blob, CancellationToken cancellationToken)
     {
         var goals = (blob.Goals ?? [])
             .Select((goal, index) => new SavingsGoal
             {
-                UserId = userId,
                 Country = country,
                 Id = goal.Id,
                 Name = Text(goal.Name, "Goal", 100),
@@ -450,7 +443,6 @@ public sealed class WorkspaceService(FolioDbContext db)
         var contributions = (blob.Goals ?? [])
             .SelectMany(goal => (goal.Contributions ?? []).Select((contribution, index) => new SavingsContribution
             {
-                UserId = userId,
                 Country = country,
                 Id = contribution.Id,
                 GoalId = goal.Id,
@@ -464,29 +456,29 @@ public sealed class WorkspaceService(FolioDbContext db)
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
         // The contributions point at the goals, so they go first.
-        await db.SavingsContributions.Where(row => row.UserId == userId && row.Country == country).ExecuteDeleteAsync(cancellationToken);
-        await ReplaceAsync(db.SavingsGoals.Where(row => row.UserId == userId && row.Country == country), goals, cancellationToken);
+        await db.SavingsContributions.Where(row => row.Country == country).ExecuteDeleteAsync(cancellationToken);
+        await ReplaceAsync(db.SavingsGoals.Where(row => row.Country == country), goals, cancellationToken);
 
         db.SavingsContributions.AddRange(contributions);
         await db.SaveChangesAsync(cancellationToken);
 
-        await SetCounterAsync(userId, country, CounterNames.SavingsGoals, blob.NextGoalId, cancellationToken);
-        await SetCounterAsync(userId, country, CounterNames.SavingsContributions, blob.NextContribId, cancellationToken);
+        await SetCounterAsync(country, CounterNames.SavingsGoals, blob.NextGoalId, cancellationToken);
+        await SetCounterAsync(country, CounterNames.SavingsContributions, blob.NextContribId, cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
     }
 
     // ── Loans and savings records ──────────────────────────────────────────────────────
 
-    private async Task<FinanceBlob?> ReadFinanceAsync(int userId, string country, CancellationToken cancellationToken)
+    private async Task<FinanceBlob?> ReadFinanceAsync(string country, CancellationToken cancellationToken)
     {
         var loans = await db.Loans.AsNoTracking()
-            .Where(row => row.UserId == userId && row.Country == country)
+            .Where(row => row.Country == country)
             .OrderBy(row => row.SortOrder)
             .ToListAsync(cancellationToken);
 
         var savings = await db.SavingsRecords.AsNoTracking()
-            .Where(row => row.UserId == userId && row.Country == country)
+            .Where(row => row.Country == country)
             .OrderBy(row => row.SortOrder)
             .ToListAsync(cancellationToken);
 
@@ -516,16 +508,15 @@ public sealed class WorkspaceService(FolioDbContext db)
                 row.Color,
                 Utc(row.CreatedAt),
                 row.Archived)).ToList(),
-            await ReadCounterAsync(userId, country, CounterNames.Loans, cancellationToken),
-            await ReadCounterAsync(userId, country, CounterNames.SavingsRecords, cancellationToken));
+            await ReadCounterAsync(country, CounterNames.Loans, cancellationToken),
+            await ReadCounterAsync(country, CounterNames.SavingsRecords, cancellationToken));
     }
 
-    public async Task SaveFinanceAsync(int userId, string country, FinanceBlob blob, CancellationToken cancellationToken)
+    public async Task SaveFinanceAsync(string country, FinanceBlob blob, CancellationToken cancellationToken)
     {
         var loans = (blob.Loans ?? [])
             .Select((loan, index) => new Loan
             {
-                UserId = userId,
                 Country = country,
                 Id = loan.Id,
                 Name = Text(loan.Name, "Loan", 100),
@@ -544,7 +535,6 @@ public sealed class WorkspaceService(FolioDbContext db)
         var savings = (blob.Savings ?? [])
             .Select((record, index) => new SavingsRecord
             {
-                UserId = userId,
                 Country = country,
                 Id = record.Id,
                 Name = Text(record.Name, "Savings", 100),
@@ -562,34 +552,34 @@ public sealed class WorkspaceService(FolioDbContext db)
 
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
-        await ReplaceAsync(db.Loans.Where(row => row.UserId == userId && row.Country == country), loans, cancellationToken);
-        await ReplaceAsync(db.SavingsRecords.Where(row => row.UserId == userId && row.Country == country), savings, cancellationToken);
+        await ReplaceAsync(db.Loans.Where(row => row.Country == country), loans, cancellationToken);
+        await ReplaceAsync(db.SavingsRecords.Where(row => row.Country == country), savings, cancellationToken);
 
-        await SetCounterAsync(userId, country, CounterNames.Loans, blob.NextLoanId, cancellationToken);
-        await SetCounterAsync(userId, country, CounterNames.SavingsRecords, blob.NextSavId, cancellationToken);
+        await SetCounterAsync(country, CounterNames.Loans, blob.NextLoanId, cancellationToken);
+        await SetCounterAsync(country, CounterNames.SavingsRecords, blob.NextSavId, cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
     }
 
     // ── Planner ─────────────────────────────────────────────────────────────────────────
 
-    private async Task<PlannerBlob?> ReadPlannerAsync(int userId, string country, CancellationToken cancellationToken)
+    private async Task<PlannerBlob?> ReadPlannerAsync(string country, CancellationToken cancellationToken)
     {
         var state = await db.PlannerState.AsNoTracking()
-            .FirstOrDefaultAsync(row => row.UserId == userId && row.Country == country, cancellationToken);
+            .FirstOrDefaultAsync(row => row.Country == country, cancellationToken);
 
         var items = await db.PlannerItems.AsNoTracking()
-            .Where(row => row.UserId == userId && row.Country == country)
+            .Where(row => row.Country == country)
             .OrderBy(row => row.SortOrder)
             .ToListAsync(cancellationToken);
 
         var simulations = await db.PlannerSimulations.AsNoTracking()
-            .Where(row => row.UserId == userId && row.Country == country)
+            .Where(row => row.Country == country)
             .OrderBy(row => row.SortOrder)
             .ToListAsync(cancellationToken);
 
         var simulationItems = await db.PlannerSimulationItems.AsNoTracking()
-            .Where(row => row.UserId == userId && row.Country == country)
+            .Where(row => row.Country == country)
             .OrderBy(row => row.SortOrder)
             .ToListAsync(cancellationToken);
 
@@ -618,17 +608,16 @@ public sealed class WorkspaceService(FolioDbContext db)
                 row.Month,
                 bySimulation.TryGetValue(row.Id, out var list) ? list : [])).ToList(),
             state?.IdealSimulationId,
-            await ReadCounterAsync(userId, country, CounterNames.Planner, cancellationToken),
-            await ReadCounterAsync(userId, country, CounterNames.Simulations, cancellationToken),
-            await ReadCounterAsync(userId, country, CounterNames.SimulationItems, cancellationToken));
+            await ReadCounterAsync(country, CounterNames.Planner, cancellationToken),
+            await ReadCounterAsync(country, CounterNames.Simulations, cancellationToken),
+            await ReadCounterAsync(country, CounterNames.SimulationItems, cancellationToken));
     }
 
-    public async Task SavePlannerAsync(int userId, string country, PlannerBlob blob, CancellationToken cancellationToken)
+    public async Task SavePlannerAsync(string country, PlannerBlob blob, CancellationToken cancellationToken)
     {
         var items = (blob.Items ?? [])
             .Select((item, index) => new PlannerItem
             {
-                UserId = userId,
                 Country = country,
                 Id = item.Id,
                 Name = Text(item.Name, "Item", 100),
@@ -640,7 +629,6 @@ public sealed class WorkspaceService(FolioDbContext db)
         var simulations = (blob.Simulations ?? [])
             .Select((simulation, index) => new PlannerSimulation
             {
-                UserId = userId,
                 Country = country,
                 Id = simulation.Id,
                 Name = Text(simulation.Name, "Scenario", 100),
@@ -652,7 +640,6 @@ public sealed class WorkspaceService(FolioDbContext db)
         var simulationItems = (blob.Simulations ?? [])
             .SelectMany(simulation => (simulation.Items ?? []).Select((item, index) => new PlannerSimulationItem
             {
-                UserId = userId,
                 Country = country,
                 Id = item.Id,
                 SimulationId = simulation.Id,
@@ -668,18 +655,18 @@ public sealed class WorkspaceService(FolioDbContext db)
 
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
-        await db.PlannerSimulationItems.Where(row => row.UserId == userId && row.Country == country).ExecuteDeleteAsync(cancellationToken);
-        await ReplaceAsync(db.PlannerSimulations.Where(row => row.UserId == userId && row.Country == country), simulations, cancellationToken);
-        await ReplaceAsync(db.PlannerItems.Where(row => row.UserId == userId && row.Country == country), items, cancellationToken);
+        await db.PlannerSimulationItems.Where(row => row.Country == country).ExecuteDeleteAsync(cancellationToken);
+        await ReplaceAsync(db.PlannerSimulations.Where(row => row.Country == country), simulations, cancellationToken);
+        await ReplaceAsync(db.PlannerItems.Where(row => row.Country == country), items, cancellationToken);
 
         db.PlannerSimulationItems.AddRange(simulationItems);
 
         var state = await db.PlannerState.FirstOrDefaultAsync(
-            row => row.UserId == userId && row.Country == country, cancellationToken);
+            row => row.Country == country, cancellationToken);
 
         if (state is null)
         {
-            state = new PlannerState { UserId = userId, Country = country };
+            state = new PlannerState { Country = country };
             db.PlannerState.Add(state);
         }
 
@@ -688,19 +675,19 @@ public sealed class WorkspaceService(FolioDbContext db)
 
         await db.SaveChangesAsync(cancellationToken);
 
-        await SetCounterAsync(userId, country, CounterNames.Planner, blob.NextId, cancellationToken);
-        await SetCounterAsync(userId, country, CounterNames.Simulations, blob.NextSimId, cancellationToken);
-        await SetCounterAsync(userId, country, CounterNames.SimulationItems, blob.NextSimItemId, cancellationToken);
+        await SetCounterAsync(country, CounterNames.Planner, blob.NextId, cancellationToken);
+        await SetCounterAsync(country, CounterNames.Simulations, blob.NextSimId, cancellationToken);
+        await SetCounterAsync(country, CounterNames.SimulationItems, blob.NextSimItemId, cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
     }
 
     // ── Import history ─────────────────────────────────────────────────────────────────
 
-    private async Task<ImportHistoryBlob?> ReadImportHistoryAsync(int userId, string country, CancellationToken cancellationToken)
+    private async Task<ImportHistoryBlob?> ReadImportHistoryAsync(string country, CancellationToken cancellationToken)
     {
         var rows = await db.ImportHistory.AsNoTracking()
-            .Where(row => row.UserId == userId && row.Country == country)
+            .Where(row => row.Country == country)
             .OrderBy(row => row.SortOrder)
             .ToListAsync(cancellationToken);
 
@@ -713,15 +700,14 @@ public sealed class WorkspaceService(FolioDbContext db)
 
         return new ImportHistoryBlob(
             imports,
-            await ReadCounterAsync(userId, country, CounterNames.ImportHistory, cancellationToken));
+            await ReadCounterAsync(country, CounterNames.ImportHistory, cancellationToken));
     }
 
-    public async Task SaveImportHistoryAsync(int userId, string country, ImportHistoryBlob blob, CancellationToken cancellationToken)
+    public async Task SaveImportHistoryAsync(string country, ImportHistoryBlob blob, CancellationToken cancellationToken)
     {
         var rows = (blob.Imports ?? [])
             .Select((import, index) => new ImportRecord
             {
-                UserId = userId,
                 Country = country,
                 Id = import.Id,
                 Date = UtcInput(import.Date),
@@ -734,11 +720,11 @@ public sealed class WorkspaceService(FolioDbContext db)
             .ToList();
 
         await ReplaceAsync(
-            db.ImportHistory.Where(row => row.UserId == userId && row.Country == country),
+            db.ImportHistory.Where(row => row.Country == country),
             rows,
             cancellationToken);
 
-        await SetCounterAsync(userId, country, CounterNames.ImportHistory, blob.NextId, cancellationToken);
+        await SetCounterAsync(country, CounterNames.ImportHistory, blob.NextId, cancellationToken);
     }
 
     // ── Shared helpers ─────────────────────────────────────────────────────────────────
@@ -762,24 +748,24 @@ public sealed class WorkspaceService(FolioDbContext db)
         }
     }
 
-    private async Task<int?> ReadCounterAsync(int userId, string country, string name, CancellationToken cancellationToken)
+    private async Task<int?> ReadCounterAsync(string country, string name, CancellationToken cancellationToken)
     {
         var row = await db.Counters.AsNoTracking()
-            .FirstOrDefaultAsync(counter => counter.UserId == userId && counter.Country == country && counter.Name == name, cancellationToken);
+            .FirstOrDefaultAsync(counter => counter.Country == country && counter.Name == name, cancellationToken);
 
         return row?.Value;
     }
 
-    private async Task SetCounterAsync(int userId, string country, string name, int? value, CancellationToken cancellationToken)
+    private async Task SetCounterAsync(string country, string name, int? value, CancellationToken cancellationToken)
     {
         if (value is not { } next)
             return;
 
         var row = await db.Counters.FirstOrDefaultAsync(
-            counter => counter.UserId == userId && counter.Country == country && counter.Name == name, cancellationToken);
+            counter => counter.Country == country && counter.Name == name, cancellationToken);
 
         if (row is null)
-            db.Counters.Add(new Counter { UserId = userId, Country = country, Name = name, Value = next });
+            db.Counters.Add(new Counter { Country = country, Name = name, Value = next });
         else
             row.Value = next;
 

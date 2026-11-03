@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { saveSession } from '../../shared'
 import { flushSaves, loadWorkspace, queueStoreSave, savedCountries } from './workspace'
 
 /**
@@ -9,14 +8,6 @@ import { flushSaves, loadWorkspace, queueStoreSave, savedCountries } from './wor
  * keys the stores already read before the app starts, and a changed collection is sent
  * once rather than on every keystroke.
  */
-
-function signedIn() {
-  saveSession({
-    token: 'a-token',
-    username: 'wayne',
-    expiresAt: new Date(Date.now() + 60_000).toISOString(),
-  })
-}
 
 /** A fetch that answers from a table of path → body. */
 function serve(routes: Record<string, unknown>) {
@@ -52,16 +43,7 @@ describe('the workspace', () => {
     vi.useRealTimers()
   })
 
-  it('does nothing without a session', async () => {
-    const calls = serve({})
-
-    await loadWorkspace()
-
-    expect(calls).toHaveLength(0)
-  })
-
   it('puts the saved collections where the stores look for them', async () => {
-    signedIn()
 
     serve({
       '/api/folio/settings': { theme: 'light', country: 'ireland', currency: 'EUR' },
@@ -80,7 +62,6 @@ describe('the workspace', () => {
   })
 
   it('forgets a collection the server no longer has', async () => {
-    signedIn()
 
     // Left over from an older page load, and no longer on the server.
     localStorage.setItem('folio_accounts_ireland', JSON.stringify({ accounts: [{ id: 'acc-1' }] }))
@@ -96,7 +77,6 @@ describe('the workspace', () => {
   })
 
   it('sends a changed collection once, after the changes settle', async () => {
-    signedIn()
     vi.useFakeTimers()
 
     const calls = serve({ '/api/folio/transactions?country=ireland': undefined })
@@ -115,7 +95,6 @@ describe('the workspace', () => {
   })
 
   it('asks the server which countries have a budget', async () => {
-    signedIn()
 
     serve({ '/api/folio/countries': ['ireland', 'sweden'] })
 

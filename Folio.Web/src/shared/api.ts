@@ -1,5 +1,4 @@
 import { apiUrl } from './config'
-import { clearSession, readSession } from './session'
 
 /**
  * Everything that went wrong on the way to the API, with the API's own words for it.
@@ -15,30 +14,20 @@ export class ApiError extends Error {
     this.name = 'ApiError'
     this.status = status
   }
-
-  /** Whether the session was refused rather than the request being wrong. */
-  get isSignedOut(): boolean {
-    return this.status === 401
-  }
 }
 
 /**
- * A request to the API, carrying the session when there is one.
+ * A request to the API.
  *
- * A 401 clears the stored session: the token has expired or been signed out
- * elsewhere, and continuing to send it only produces more of the same.
+ * There is no session and no token: the API is open on a private box, so a request is
+ * just a request.
  */
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
 
-  const session = readSession()
-  if (session) headers.set('Authorization', `Bearer ${session.token}`)
-
   if (init.body !== undefined) headers.set('Content-Type', 'application/json')
 
   const response = await fetch(apiUrl(path), { ...init, headers })
-
-  if (response.status === 401) clearSession()
 
   if (!response.ok) throw new ApiError(response.status, await errorMessage(response))
 

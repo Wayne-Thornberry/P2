@@ -8,8 +8,8 @@ it before changing anything. In short:
   `Tables/`) is the schema; a migration is only for data that a diff cannot move.
 - **No SQL logins or passwords.** Windows authentication, granted by the deploy's bootstrap
   step.
-- **The API refuses by default.** Everything under `/api` needs a session unless the
-  endpoint opts out explicitly with `.AllowAnonymous()`.
+- **The API is open.** There is no sign-in and no sessions: the box is private, so the
+  endpoints are not guarded. Do not reintroduce a user, a token or a `UserId` column.
 - **The API never creates a schema object.** "Invalid object name" means the database has
   not been deployed.
 - **`npm ci` inside `Folio.Web`.** No npm workspaces — this tree cannot create symlinks.

@@ -3,7 +3,6 @@
 -- still means something once the transaction behind it changes.
 CREATE TABLE [folio].[PlannerSimulationItems]
 (
-    [UserId]        INT            NOT NULL,
     [Country]       NVARCHAR (40)  NOT NULL,
     [Id]            INT            NOT NULL,
     [SimulationId]  INT            NOT NULL,
@@ -14,14 +13,13 @@ CREATE TABLE [folio].[PlannerSimulationItems]
     [TransactionId] INT            NULL,
     [PlannerItemId] INT            NULL,
     [SortOrder]     INT            NOT NULL,
-    CONSTRAINT [PK_PlannerSimulationItems] PRIMARY KEY CLUSTERED ([UserId], [Country], [Id]),
-    CONSTRAINT [FK_PlannerSimulationItems_Users] FOREIGN KEY ([UserId]) REFERENCES [core].[Users] ([Id]) ON DELETE CASCADE,
-    CONSTRAINT [FK_PlannerSimulationItems_PlannerSimulations] FOREIGN KEY ([UserId], [Country], [SimulationId])
-        REFERENCES [folio].[PlannerSimulations] ([UserId], [Country], [Id]),
+    CONSTRAINT [PK_PlannerSimulationItems] PRIMARY KEY CLUSTERED ([Country], [Id]),
+    CONSTRAINT [FK_PlannerSimulationItems_PlannerSimulations] FOREIGN KEY ([Country], [SimulationId])
+        REFERENCES [folio].[PlannerSimulations] ([Country], [Id]),
     CONSTRAINT [CK_PlannerSimulationItems_Kind] CHECK ([Kind] IN ('income', 'expense')),
     CONSTRAINT [CK_PlannerSimulationItems_Source] CHECK ([Source] IN ('transaction', 'planner', 'custom'))
 );
 GO
 
 CREATE NONCLUSTERED INDEX [IX_PlannerSimulationItems_Simulation]
-    ON [folio].[PlannerSimulationItems] ([UserId], [Country], [SimulationId]);
+    ON [folio].[PlannerSimulationItems] ([Country], [SimulationId]);

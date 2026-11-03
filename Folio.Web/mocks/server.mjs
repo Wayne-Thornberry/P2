@@ -7,16 +7,14 @@
 // It answers the same paths the real API does, with the same shapes, including the
 // `{ "error": "..." }` body a refusal carries. One handler per module, so a module
 // still owns its own fake data -- it just does not own a process.
+//
+// There is no sign-in here either, because there is none in the real API: the box is
+// private and the site is open on it.
 
 import http from 'node:http'
-import { randomUUID } from 'node:crypto'
 import { seedSettings, seedWorkspace } from './seed.mjs'
 
 const PORT = Number(process.env.MOCK_PORT ?? 5490)
-const PASSWORD = process.env.MOCK_PASSWORD ?? 'mock'
-
-const account = { id: 1, username: 'wayne' }
-const tokens = new Set()
 
 const modules = [
   {
@@ -44,7 +42,7 @@ const COLLECTIONS = {
 }
 
 const workspace = new Map([['ireland', seedWorkspace('ireland')]])
-const settings = new Map([[account.id, seedSettings()]])
+const settings = seedSettings()
 
 function countryWorkspace(country) {
   if (!workspace.has(country)) workspace.set(country, {})
@@ -80,27 +78,10 @@ function readJson(request) {
   })
 }
 
-function bearer(request) {
-  const header = request.headers.authorization ?? ''
-  return header.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : null
-}
-
-const signedIn = (request) => {
-  const token = bearer(request)
-  return token !== null && tokens.has(token)
-}
-
 /** The folio module's endpoints. Returns true when it answered. */
 async function folioModule(request, response, route, url) {
   if (route === 'GET /api/folio/settings') {
-    const saved = settings.get(account.id)
-
-    if (!saved) {
-      response.writeHead(204).end()
-      return true
-    }
-
-    json(response, 200, saved)
+    json(response, 200, settings)
     return true
   }
 
@@ -112,7 +93,7 @@ async function folioModule(request, response, route, url) {
       return true
     }
 
-    settings.set(account.id, body)
+    Object.assign(settings, body)
     response.writeHead(204).end()
     return true
   }
@@ -137,6 +118,11 @@ async function folioModule(request, response, route, url) {
 
     workspace.set(country, {})
     response.writeHead(204).end()
+    return true
+  }
+
+  if (route === 'GET /api/folio/countries') {
+    json(response, 200, [...workspace.keys()])
     return true
   }
 
@@ -176,45 +162,6 @@ const server = http.createServer(async (request, response) => {
 
   if (route === 'GET /api/health') return json(response, 200, { status: 'ok', database: 'ok' })
 
-  if (route === 'POST /api/core/auth/login') {
-    const body = await readJson(request)
-
-    if (!body) return json(response, 400, { error: 'A username and a password are needed.' })
-
-    const username = String(body.username ?? '').trim()
-    const password = String(body.password ?? '')
-
-    if (username.length === 0 || password.length === 0) {
-      return json(response, 400, { error: 'A username and a password are needed.' })
-    }
-
-    if (username !== account.username || password !== PASSWORD) {
-      return json(response, 401, { error: 'That username and password do not match an account.' })
-    }
-
-    const token = randomUUID()
-    tokens.add(token)
-
-    return json(response, 200, {
-      token,
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-      username: account.username,
-    })
-  }
-
-  if (route === 'POST /api/core/auth/logout') {
-    const token = bearer(request)
-    if (token) tokens.delete(token)
-    response.writeHead(204).end()
-    return
-  }
-
-  if (route === 'GET /api/core/auth/me') {
-    return signedIn(request) ? json(response, 200, account) : json(response, 401, { error: 'Not signed in.' })
-  }
-
-  if (!signedIn(request)) return json(response, 401, { error: 'Not signed in.' })
-
   if (route === 'GET /api/core/modules') return json(response, 200, modules)
 
   for (const handler of moduleHandlers) {
@@ -225,5 +172,5 @@ const server = http.createServer(async (request, response) => {
 })
 
 server.listen(PORT, '127.0.0.1', () => {
-  console.log(`Mock API on http://127.0.0.1:${PORT} (user '${account.username}', password '${PASSWORD}')`)
+  console.log(`Mock API on http://127.0.0.1:${PORT}, serving the example budget for 'ireland'`)
 })

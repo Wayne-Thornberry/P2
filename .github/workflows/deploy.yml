@@ -62,9 +62,6 @@ env:
   SQL_SERVER: ${{ vars.SQL_SERVER || 'localhost' }}
   DB_NAME: ${{ vars.DB_NAME || 'Folio' }}
 
-  # The account the API creates when the database has none. Its password is a secret.
-  ACCOUNT_USERNAME: ${{ vars.ACCOUNT_USERNAME || 'wayne' }}
-
 jobs:
   deploy:
     name: Deploy
@@ -486,35 +483,14 @@ jobs:
               -Database '${{ env.DB_NAME }}'
 
           # The settings the deploy owns, written over appsettings.json on every deploy:
-          # the connection string, the origin the browser loads the site from, and the
-          # password the one account is created with the first time the API meets an
-          # empty database. Nothing secret lives in the repository.
+          # the connection string and the origin the browser loads the site from. Nothing
+          # secret lives in the repository, because nothing here needs a secret.
           $settings = [ordered]@{ ConnectionStrings = @{ Default = $conn } }
 
           $origins = '${{ env.WEB_PUBLIC_ORIGIN }}' -split ',' |
-              ForEach-Object { $_.Trim() } |
-              Where-Object { $_ }
+                ForEach-Object { $_.Trim() } |
+                Where-Object { $_ }
           if ($origins) { $settings['Cors'] = @{ AllowedOrigins = @($origins) } }
-
-          $password = '${{ secrets.ACCOUNT_PASSWORD }}'
-          if ($password) {
-              $settings['Auth'] = @{
-                  SeedUsername = '${{ env.ACCOUNT_USERNAME }}'
-                  SeedPassword = $password
-              }
-          } else {
-              Write-Warning 'No ACCOUNT_PASSWORD secret is set, so no account will be created on an empty database.'
-          }
-
-          # The word that lets a forgotten password be replaced from the sign-in page. With
-          # none set, the reset endpoint refuses and the only way back in is the box.
-          $recovery = '${{ secrets.RECOVERY_CODE }}'
-          if ($recovery) {
-              if (-not $settings['Auth']) { $settings['Auth'] = @{} }
-              $settings['Auth']['RecoveryCode'] = $recovery
-          } else {
-              Write-Warning 'No RECOVERY_CODE secret is set, so a forgotten password cannot be reset from the site.'
-          }
 
           $settingsPath = "$src\appsettings.Production.json"
           [System.IO.File]::WriteAllText(
@@ -587,7 +563,11 @@ jobs:
           # already installed while still preferring its own.
           $env:DOTNET_ROLL_FORWARD = 'Major'
 
-          sqlpackage /Action:Publish /SourceFile:"$dacpac" /TargetConnectionString:"$conn"
+          # DropObjectsNotInSource: this database belongs to this project, so a table or
+          # column the model no longer has must actually go. Without it, an old NOT NULL
+          # column stays behind and every insert the API makes fails on it.
+          sqlpackage /Action:Publish /SourceFile:"$dacpac" /TargetConnectionString:"$conn" `
+              /p:DropObjectsNotInSource=true /p:BlockOnPossibleDataLoss=false
           if ($LASTEXITCODE -ne 0) { Write-Error 'Database deployment failed'; exit $LASTEXITCODE }
 
           Write-Host "[OK] Database up to date on ${{ env.SQL_SERVER }}" -ForegroundColor Green

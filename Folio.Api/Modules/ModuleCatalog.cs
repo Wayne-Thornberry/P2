@@ -31,8 +31,8 @@ public sealed class ModuleCatalog
     /// <summary>
     /// What the site needs to draw its home page, and nothing more.
     ///
-    /// Core is left out: signing in is the site's own front door, so offering it as one
-    /// of the apps would be the page linking to itself.
+    /// Core is left out: it is the list itself, so offering it as one of the apps would be
+    /// the page linking to itself.
     /// </summary>
     public IReadOnlyList<ModuleSummary> Summaries() =>
         Modules

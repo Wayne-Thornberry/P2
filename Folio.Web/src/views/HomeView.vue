@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
+import { RouterLink } from 'vue-router'
 import { api, ApiError } from '../shared'
 import { pathOf } from '../modules/registry'
 
@@ -15,8 +15,6 @@ interface ModuleSummary {
 interface Card extends ModuleSummary {
   path: string
 }
-
-const router = useRouter()
 
 const cards = ref<Card[]>([])
 const error = ref<string | null>(null)
@@ -34,12 +32,6 @@ onMounted(async () => {
       return path === undefined ? [] : [{ ...module, path }]
     })
   } catch (failure) {
-    if (failure instanceof ApiError && failure.isSignedOut) {
-      // The session went while the page was open: sign in again and come back here.
-      await router.replace({ name: 'login', query: { return: '/' } })
-      return
-    }
-
     error.value = failure instanceof ApiError ? failure.message : 'The site could not be reached.'
   } finally {
     loading.value = false

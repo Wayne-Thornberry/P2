@@ -45,8 +45,6 @@ public sealed class DatabaseMigrationTests : IDisposable
         Assert.All(
             new[]
             {
-                "core.Users",
-                "core.Sessions",
                 "folio.Settings",
                 "folio.Counters",
                 "folio.Accounts",
@@ -91,6 +89,36 @@ public sealed class DatabaseMigrationTests : IDisposable
         Assert.Equal("decimal", ColumnInfo("folio.Transactions", "Amount", "TYPE_NAME(c.system_type_id)"));
         Assert.Equal("18", ColumnInfo("folio.Transactions", "Amount", "c.precision"));
         Assert.Equal("4", ColumnInfo("folio.Transactions", "Amount", "c.scale"));
+    }
+
+    [DatabaseFact]
+    public void Nothing_is_keyed_on_a_user()
+    {
+        // There is no account in this project, so no table may grow a UserId column: the
+        // country is what separates one budget from another. A column that reappears here
+        // means the schema drifted back towards a multi-tenant shape nobody uses.
+        TestDatabase.Create(TestDatabase.Server, _database);
+
+        using var connection = new SqlConnection(ConnectionString);
+        connection.Open();
+
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT s.name + '.' + t.name
+            FROM sys.columns AS c
+            JOIN sys.tables AS t ON t.object_id = c.object_id
+            JOIN sys.schemas AS s ON s.schema_id = t.schema_id
+            WHERE c.name = 'UserId'
+            """;
+
+        var offenders = new List<string>();
+        using (var reader = command.ExecuteReader())
+        {
+            while (reader.Read())
+                offenders.Add(reader.GetString(0));
+        }
+
+        Assert.Empty(offenders);
     }
 
     public void Dispose() => TestDatabase.Drop(TestDatabase.Server, _database);

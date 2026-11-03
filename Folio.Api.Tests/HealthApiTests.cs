@@ -6,7 +6,7 @@ namespace Folio.Api.Tests;
 
 /// <summary>
 /// The health endpoint is what the deploy's smoke test asks, so it has to answer
-/// without a session and say whether the database is reachable.
+/// Whether the API is up and whether the database behind it is reachable.
 /// </summary>
 public sealed class HealthApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {

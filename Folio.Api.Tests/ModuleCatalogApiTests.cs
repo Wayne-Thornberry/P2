@@ -12,7 +12,7 @@ public sealed class ModuleCatalogApiTests(ApiFactory factory) : IClassFixture<Ap
     [DatabaseFact]
     public async Task The_catalog_lists_the_folio_module_with_its_site_path()
     {
-        var client = await factory.CreateSignedInClientAsync();
+        var client = factory.CreateClient();
 
         var modules = await client.GetFromJsonAsync<List<ModuleSummary>>("/api/core/modules");
 
@@ -24,7 +24,7 @@ public sealed class ModuleCatalogApiTests(ApiFactory factory) : IClassFixture<Ap
     [DatabaseFact]
     public async Task The_catalog_does_not_offer_the_portal_to_itself()
     {
-        var client = await factory.CreateSignedInClientAsync();
+        var client = factory.CreateClient();
 
         var modules = await client.GetFromJsonAsync<List<ModuleSummary>>("/api/core/modules");
 

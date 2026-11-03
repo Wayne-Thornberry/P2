@@ -13,22 +13,22 @@ The rules a change has to obey, and the handful that must never be broken, are i
                     ┌───────────────────────────────────────┐
   browser ─────────►│  http://box:5420       one IIS site   │
                     │                                       │
-                    │  /          the portal, and sign-in   │
+                    │  /          the portal                │
                     │  /folio     the budget                │
                     └──────────────┬────────────────────────┘
-                                   │  fetch, ******
+                                   │  fetch
                                    │  (cross-origin: the API allows it)
                     ┌──────────────▼────────────────────────┐
                     │  http://box:5423       one IIS site   │
                     │  Folio.Api                            │
-                    │    /api/core/...    account, modules  │
+                    │    /api/core/...    the module list   │
                     │    /api/folio/...   the budget        │
                     └──────────────┬────────────────────────┘
                                    │
                     ┌──────────────▼────────────────────────┐
                     │  SQL Server      database Folio       │
-                    │    core.Users    core.Sessions        │
                     │    folio.Transactions, folio.Budget…  │
+                    │    keyed on (Country, Id)             │
                     └───────────────────────────────────────┘
 ```
 
@@ -47,7 +47,7 @@ The rules a change has to obey, and the handful that must never be broken, are i
 **One site, modules inside it.** The portal at `/` lists the apps; each app is a route in
 the same Vue build, in its own folder with its own pages, state, styles and tests. The
 routes are lazy, so each app still ships as its own JavaScript chunk, while the shared
-parts — the API client, the session, the sign-in screen, the header — exist once.
+parts — the API client, the header — exist once.
 
 Folio is the first module, at `/folio`. It is one module rather than one per page because
 the budget, the accounts and the reports all read the same transactions: splitting them
@@ -76,19 +76,15 @@ the whole collection.
   look; a change is written to the browser immediately and sent to the API shortly after.
   A save that cannot reach the server is retried on the next change rather than lost.
 
-## Signing ind
+## No sign-in
 
-One account, one password, one site. The token is kept in `localStorage` and sent as a
-`Bearer` header; it is a row in `core.Sessions`, so a deploy (which recycles the app pool)
-does not sign anyone out, and only its SHA-256 is stored.
+There is no account, no password and no session. This is a budget on a private box: the
+site is open to whoever can reach it on the network, and the only thing separating one
+budget from another is the country it was kept for.
 
-`/account` replaces the password you know, given the current one, and signs out every other
-browser. The sign-in page's *Forgotten the password?* replaces one you don't, given the
-recovery code from configuration — no email, no reset table, nothing to expire. With no
-recovery code configured, that endpoint refuses and the only way in is the box.
-
-**The API refuses by default.** Everything under `/api` needs a session unless the endpoint
-says `.AllowAnonymous()`.
+**Every table is keyed on `(Country, Id)`.** There is no users table to key on, and the
+API's endpoints take a country rather than an identity. A test fails if a `UserId` column
+ever reappears.
 
 ## Running it locally
 
@@ -176,19 +172,17 @@ firewall rules, the database and its Windows grants — and then deploys on top 
 made. Every statement in the bootstrap is idempotent, so it runs on every deploy and repairs
 drift instead of failing on it.
 
-### Secrets and variables
+### Settings
 
 | Name | Kind | What it does |
 | --- | --- | --- |
-| `ACCOUNT_PASSWORD` | secret | The password the account is created with the first time the API meets an empty database. |
-| `RECOVERY_CODE` | secret | The word that lets a forgotten password be replaced from the sign-in page. With none set, reset refuses. |
 | `WEB_PUBLIC_ORIGIN` | variable | The origin browsers load the site from; the API's CORS allow-list. |
 | `SQL_SERVER` | variable | Optional. Defaults to `localhost` — the same box. |
 | `DB_NAME` | variable | Optional. Defaults to `Folio`. |
-| `ACCOUNT_USERNAME` | variable | Optional. Defaults to `wayne`. |
 
-Nothing secret lives in the repository. The deploy writes the connection string, the CORS
-origins and the two secrets into `appsettings.Production.json` on the box on every deploy.
+**There are no secrets.** With no account there is no password to store, so the repository
+and the Actions settings hold none. The deploy writes the connection string and the CORS
+origins into `appsettings.Production.json` on the box on every deploy.
 
 ### The box, once — not once per project
 

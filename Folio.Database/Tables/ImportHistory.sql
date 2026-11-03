@@ -2,7 +2,6 @@
 -- from and the user can see what they have already imported.
 CREATE TABLE [folio].[ImportHistory]
 (
-    [UserId]    INT            NOT NULL,
     [Country]   NVARCHAR (40)  NOT NULL,
     [Id]        INT            NOT NULL,
     [Date]      DATETIME2 (3)  NOT NULL,
@@ -11,6 +10,5 @@ CREATE TABLE [folio].[ImportHistory]
     [FileName]  NVARCHAR (260) NOT NULL,
     [RowCount]  INT            NOT NULL,
     [SortOrder] INT            NOT NULL,
-    CONSTRAINT [PK_ImportHistory] PRIMARY KEY CLUSTERED ([UserId], [Country], [Id]),
-    CONSTRAINT [FK_ImportHistory_Users] FOREIGN KEY ([UserId]) REFERENCES [core].[Users] ([Id]) ON DELETE CASCADE
+    CONSTRAINT [PK_ImportHistory] PRIMARY KEY CLUSTERED ([Country], [Id])
 );

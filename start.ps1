@@ -54,10 +54,6 @@ $siteUrl = 'http://127.0.0.1:5420'
 $apiUrl  = 'http://127.0.0.1:5421'
 $mockUrl = 'http://127.0.0.1:5490'
 
-# The mock's account. It applies to a server that saves nothing, so it is not a secret.
-$mockUsername = 'wayne'
-$mockPassword = 'mock'
-
 if (-not (Test-Path $webDir)) { throw "Not found: $webDir" }
 
 <#
@@ -74,7 +70,6 @@ function Read-JsonSettings {
 
 # ── which API ─────────────────────────────────────────────────────────────────────
 $connectionString = $null
-$signInNote       = "Account: $mockUsername / $mockPassword"
 
 if ($Api) {
     if (-not (Test-Path $devSettings)) {
@@ -94,9 +89,6 @@ connection string, or drop -Api to run against the mock instead:
     if (-not $connectionString) {
         throw "No ConnectionStrings:Default in $devSettings"
     }
-
-    $account    = if ($devConfig.Auth.SeedUsername) { $devConfig.Auth.SeedUsername } else { $mockUsername }
-    $signInNote = "Account: $account (the password its database was seeded with)"
 }
 
 # ── dependencies ──────────────────────────────────────────────────────────────────
@@ -202,8 +194,7 @@ try {
         Wait-ForUrl -Url "$apiUrl/api/health" -Name 'The API'
     } else {
         Start-Child -Name 'mock API' `
-            -FilePath 'node' -ArgumentList @('mocks\server.mjs') -WorkingDirectory $webDir `
-            -Environment @{ MOCK_PASSWORD = $mockPassword }
+            -FilePath 'node' -ArgumentList @('mocks\server.mjs') -WorkingDirectory $webDir
 
         Start-Child -Name 'site' -FilePath 'npm.cmd' -ArgumentList @('run', 'dev') -WorkingDirectory $webDir `
             -Environment @{ Folio_MOCK = '1' }
@@ -215,7 +206,6 @@ try {
 
     Write-Host ''
     Write-Host "  $siteUrl" -ForegroundColor Green
-    Write-Host "  $signInNote"
     if ($Api) {
         Write-Host "  API at $apiUrl"
     } else {

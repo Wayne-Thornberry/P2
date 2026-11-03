@@ -24,9 +24,9 @@ box. The site is a portal with one module on it so far — `folio`, the budget i
 4. **No SQL logins and no SQL passwords.** The API, the runner and the tests connect with
    Windows authentication, granted by the deploy's bootstrap step. If something fails with
    "login failed", the answer is a grant, never a credential.
-5. **The API refuses by default.** Everything under `/api` requires a session unless the
-   endpoint opts out with `.AllowAnonymous()`. Do not add `AllowAnonymous` to make a test
-   or a page simpler.
+5. **The API is open.** There is no sign-in: this is a budget on a private box, and an
+   account would only be a password in front of a door nobody else can reach. Do not
+   reintroduce sessions or a `UserId` — the data is keyed on `(Country, Id)`.
 6. **The API never creates a database object.** It reads and writes tables that a deploy
    already made. "Invalid object name" means the database has not been deployed.
 7. **`npm ci` in `Folio.Web`, never a workspace.** This tree lives on a network share

@@ -14,6 +14,9 @@ namespace Folio.Api.Modules.Folio;
 /// Reads are one request for the whole workspace; writes are one aggregate at a time,
 /// replaced in a transaction. That matches what the site holds in memory, so a change made
 /// in the browser is saved exactly as the app already thought of it.
+///
+/// Nothing here asks who is calling: this is a budget on a private box, and the country is
+/// what separates one budget from another.
 /// </summary>
 public sealed class FolioModule : IFolioModule
 {
@@ -56,52 +59,46 @@ public sealed class FolioModule : IFolioModule
 
     private static async Task<IResult> GetWorkspaceAsync(
         string? country,
-        HttpContext context,
         WorkspaceService workspace,
         CancellationToken cancellationToken)
     {
         if (Country(country) is not { } name)
             return ApiErrors.BadRequest("A country is needed: ?country=ireland.");
 
-        var user = context.GetUser();
-
-        return Results.Ok(await workspace.ReadAsync(user.Id, name, cancellationToken));
+        return Results.Ok(await workspace.ReadAsync(name, cancellationToken));
     }
 
     /// <summary>
-    /// Removes everything saved for one country. The account and its sessions stay: this
-    /// is the user emptying a budget, not deleting themselves.
+    /// Removes everything saved for one country, so a budget can start again without the
+    /// other country being touched.
     /// </summary>
     private static async Task<IResult> DeleteWorkspaceAsync(
         string? country,
-        HttpContext context,
         Data.FolioDbContext db,
         CancellationToken cancellationToken)
     {
         if (Country(country) is not { } name)
             return ApiErrors.BadRequest("A country is needed: ?country=ireland.");
 
-        var user = context.GetUser();
-
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
         // Children before parents, because the foreign keys say so.
-        await db.PlannerSimulationItems.Where(row => row.UserId == user.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.PlannerSimulations.Where(row => row.UserId == user.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.SavingsContributions.Where(row => row.UserId == user.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.BudgetAssignments.Where(row => row.UserId == user.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.Transactions.Where(row => row.UserId == user.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.UpcomingTransactions.Where(row => row.UserId == user.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.Accounts.Where(row => row.UserId == user.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.BudgetItems.Where(row => row.UserId == user.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.BudgetTemplateEntries.Where(row => row.UserId == user.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.SavingsGoals.Where(row => row.UserId == user.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.Loans.Where(row => row.UserId == user.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.SavingsRecords.Where(row => row.UserId == user.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.PlannerItems.Where(row => row.UserId == user.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.PlannerState.Where(row => row.UserId == user.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.ImportHistory.Where(row => row.UserId == user.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.Counters.Where(row => row.UserId == user.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.PlannerSimulationItems.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.PlannerSimulations.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.SavingsContributions.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.BudgetAssignments.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.Transactions.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.UpcomingTransactions.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.Accounts.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.BudgetItems.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.BudgetTemplateEntries.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.SavingsGoals.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.Loans.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.SavingsRecords.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.PlannerItems.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.PlannerState.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.ImportHistory.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.Counters.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
 
@@ -109,30 +106,25 @@ public sealed class FolioModule : IFolioModule
     }
 
     private static async Task<IResult> ListCountriesAsync(
-        HttpContext context,
         WorkspaceService workspace,
         CancellationToken cancellationToken) =>
-        Results.Ok(await workspace.ListCountriesAsync(context.GetUser().Id, cancellationToken));
+        Results.Ok(await workspace.ListCountriesAsync(cancellationToken));
 
     private static async Task<IResult> GetSettingsAsync(
-        HttpContext context,
         WorkspaceService workspace,
         CancellationToken cancellationToken)
     {
-        var user = context.GetUser();
-        var settings = await workspace.ReadSettingsAsync(user.Id, cancellationToken);
+        var settings = await workspace.ReadSettingsAsync(cancellationToken);
 
         return settings is null ? Results.NoContent() : Results.Ok(settings);
     }
 
     private static async Task<IResult> SaveSettingsAsync(
         SettingsBlob blob,
-        HttpContext context,
         WorkspaceService workspace,
         CancellationToken cancellationToken)
     {
-        var user = context.GetUser();
-        await workspace.SaveSettingsAsync(user.Id, blob, cancellationToken);
+        await workspace.SaveSettingsAsync(blob, cancellationToken);
 
         return Results.NoContent();
     }
@@ -140,134 +132,76 @@ public sealed class FolioModule : IFolioModule
     private static async Task<IResult> SaveAccountsAsync(
         string? country,
         AccountsBlob blob,
-        HttpContext context,
         WorkspaceService workspace,
-        CancellationToken cancellationToken)
-    {
-        if (Country(country) is not { } name)
-            return ApiErrors.BadRequest("A country is needed: ?country=ireland.");
-
-        await workspace.SaveAccountsAsync(context.GetUser().Id, name, blob, cancellationToken);
-
-        return Results.NoContent();
-    }
+        CancellationToken cancellationToken) =>
+        await SaveAsync(country, (name) => workspace.SaveAccountsAsync(name, blob, cancellationToken));
 
     private static async Task<IResult> SaveTransactionsAsync(
         string? country,
         TransactionsBlob blob,
-        HttpContext context,
         WorkspaceService workspace,
-        CancellationToken cancellationToken)
-    {
-        if (Country(country) is not { } name)
-            return ApiErrors.BadRequest("A country is needed: ?country=ireland.");
-
-        await workspace.SaveTransactionsAsync(context.GetUser().Id, name, blob, cancellationToken);
-
-        return Results.NoContent();
-    }
+        CancellationToken cancellationToken) =>
+        await SaveAsync(country, (name) => workspace.SaveTransactionsAsync(name, blob, cancellationToken));
 
     private static async Task<IResult> SaveUpcomingAsync(
         string? country,
         UpcomingBlob blob,
-        HttpContext context,
         WorkspaceService workspace,
-        CancellationToken cancellationToken)
-    {
-        if (Country(country) is not { } name)
-            return ApiErrors.BadRequest("A country is needed: ?country=ireland.");
-
-        await workspace.SaveUpcomingAsync(context.GetUser().Id, name, blob, cancellationToken);
-
-        return Results.NoContent();
-    }
+        CancellationToken cancellationToken) =>
+        await SaveAsync(country, (name) => workspace.SaveUpcomingAsync(name, blob, cancellationToken));
 
     private static async Task<IResult> SaveBudgetAsync(
         string? country,
         BudgetBlob blob,
-        HttpContext context,
         WorkspaceService workspace,
-        CancellationToken cancellationToken)
-    {
-        if (Country(country) is not { } name)
-            return ApiErrors.BadRequest("A country is needed: ?country=ireland.");
-
-        await workspace.SaveBudgetAsync(context.GetUser().Id, name, blob, cancellationToken);
-
-        return Results.NoContent();
-    }
+        CancellationToken cancellationToken) =>
+        await SaveAsync(country, (name) => workspace.SaveBudgetAsync(name, blob, cancellationToken));
 
     private static async Task<IResult> SaveTemplateAsync(
         string? country,
         TemplateBlob blob,
-        HttpContext context,
         WorkspaceService workspace,
-        CancellationToken cancellationToken)
-    {
-        if (Country(country) is not { } name)
-            return ApiErrors.BadRequest("A country is needed: ?country=ireland.");
-
-        await workspace.SaveTemplateAsync(context.GetUser().Id, name, blob, cancellationToken);
-
-        return Results.NoContent();
-    }
+        CancellationToken cancellationToken) =>
+        await SaveAsync(country, (name) => workspace.SaveTemplateAsync(name, blob, cancellationToken));
 
     private static async Task<IResult> SaveSavingsGoalsAsync(
         string? country,
         SavingsGoalsBlob blob,
-        HttpContext context,
         WorkspaceService workspace,
-        CancellationToken cancellationToken)
-    {
-        if (Country(country) is not { } name)
-            return ApiErrors.BadRequest("A country is needed: ?country=ireland.");
-
-        await workspace.SaveSavingsGoalsAsync(context.GetUser().Id, name, blob, cancellationToken);
-
-        return Results.NoContent();
-    }
+        CancellationToken cancellationToken) =>
+        await SaveAsync(country, (name) => workspace.SaveSavingsGoalsAsync(name, blob, cancellationToken));
 
     private static async Task<IResult> SaveFinanceAsync(
         string? country,
         FinanceBlob blob,
-        HttpContext context,
         WorkspaceService workspace,
-        CancellationToken cancellationToken)
-    {
-        if (Country(country) is not { } name)
-            return ApiErrors.BadRequest("A country is needed: ?country=ireland.");
-
-        await workspace.SaveFinanceAsync(context.GetUser().Id, name, blob, cancellationToken);
-
-        return Results.NoContent();
-    }
+        CancellationToken cancellationToken) =>
+        await SaveAsync(country, (name) => workspace.SaveFinanceAsync(name, blob, cancellationToken));
 
     private static async Task<IResult> SavePlannerAsync(
         string? country,
         PlannerBlob blob,
-        HttpContext context,
         WorkspaceService workspace,
-        CancellationToken cancellationToken)
-    {
-        if (Country(country) is not { } name)
-            return ApiErrors.BadRequest("A country is needed: ?country=ireland.");
-
-        await workspace.SavePlannerAsync(context.GetUser().Id, name, blob, cancellationToken);
-
-        return Results.NoContent();
-    }
+        CancellationToken cancellationToken) =>
+        await SaveAsync(country, (name) => workspace.SavePlannerAsync(name, blob, cancellationToken));
 
     private static async Task<IResult> SaveImportHistoryAsync(
         string? country,
         ImportHistoryBlob blob,
-        HttpContext context,
         WorkspaceService workspace,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken) =>
+        await SaveAsync(country, (name) => workspace.SaveImportHistoryAsync(name, blob, cancellationToken));
+
+    /// <summary>
+    /// The shape every collection save has: a country, or a refusal. One place rather than
+    /// ten copies of the same three lines.
+    /// </summary>
+    private static async Task<IResult> SaveAsync(string? country, Func<string, Task> save)
     {
         if (Country(country) is not { } name)
             return ApiErrors.BadRequest("A country is needed: ?country=ireland.");
 
-        await workspace.SaveImportHistoryAsync(context.GetUser().Id, name, blob, cancellationToken);
+        await save(name);
 
         return Results.NoContent();
     }
