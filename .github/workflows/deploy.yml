@@ -76,9 +76,9 @@ jobs:
         with:
           fetch-depth: 1
 
-      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      # ======================================================================
       #  Resolve what is being deployed
-      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      # ======================================================================
 
       - name: Resolve deploy type
         id: flags
@@ -98,14 +98,14 @@ jobs:
 
           Write-Host "deployType=$type  api=$doApi  sites=$doSites  db=$doDb"
 
-      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      # ======================================================================
       #  BOOTSTRAP  (the box, made true rather than assumed: the
       #  two folders, both app pools, both sites on the ports below,
       #  the firewall rules, the database and the two Windows
       #  grants. Every statement is idempotent, so this runs on
       #  every deploy -- it repairs drift instead of failing on it --
       #  and a project needs nothing on the box but its runner.)
-      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      # ======================================================================
 
       - name: Bootstrap the box
         shell: powershell
@@ -129,7 +129,7 @@ jobs:
 
           . "${{ github.workspace }}\scripts\lib.ps1"
 
-          # â”€â”€ the two folders
+          #  the two folders
           foreach ($path in @('${{ env.SITE_PATH }}', '${{ env.API_SITE_PATH }}')) {
               if (-not (Test-Path $path)) {
                   New-Item -ItemType Directory -Force -Path $path | Out-Null
@@ -137,7 +137,7 @@ jobs:
               }
           }
 
-          # â”€â”€ both app pools, with no managed runtime: an ASP.NET Core app brings its own,
+          #  both app pools, with no managed runtime: an ASP.NET Core app brings its own,
           # and a pool set to v4.0 would look for the .NET Framework and never start
           foreach ($pool in @('${{ env.SITE_APP_POOL }}', '${{ env.API_APP_POOL }}') | Select-Object -Unique) {
               if (-not (Test-Path "IIS:\AppPools\$pool")) {
@@ -147,7 +147,7 @@ jobs:
               Set-ItemProperty "IIS:\AppPools\$pool" -Name managedRuntimeVersion -Value ''
           }
 
-          # â”€â”€ both sites. The port and the folder are the two things every later step
+          #  both sites. The port and the folder are the two things every later step
           # assumes, so a site that already exists is moved onto the ones in this file
           # rather than trusted to still have them.
           $sites = @(
@@ -186,7 +186,7 @@ jobs:
               }
           }
 
-          # â”€â”€ the firewall: the browser is on another machine, and it calls both ports
+          #  the firewall: the browser is on another machine, and it calls both ports
           foreach ($port in @(${{ env.SITE_PORT }}, ${{ env.API_PORT }})) {
               $rule = "${{ env.SITE_NAME }} $port"
               if (-not (Get-NetFirewallRule -DisplayName $rule -ErrorAction SilentlyContinue)) {
@@ -195,7 +195,7 @@ jobs:
               }
           }
 
-          # â”€â”€ the database, and the two Windows identities that use it
+          #  the database, and the two Windows identities that use it
           #
           # No password exists anywhere: NT AUTHORITY\SYSTEM is the runner -- it deploys the
           # schema and runs the tests, and the tests each build and drop their own database,
@@ -253,10 +253,10 @@ jobs:
 
           Write-Host '[OK] The box has its folders, pools, sites, firewall rules, database and grants' -ForegroundColor Green
 
-      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      # ======================================================================
       #  TEST  (before anything is stopped or copied, so a failure
       #  leaves the running sites exactly as they were)
-      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      # ======================================================================
 
       - name: Test the API and the database
         if: steps.flags.outputs.doApi == 'True' || steps.flags.outputs.doDb == 'True'
@@ -360,9 +360,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { Pop-Location; Write-Error 'The site tests failed, so nothing was deployed.'; exit 1 }
           Pop-Location
 
-      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      # ======================================================================
       #  BUILD
-      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      # ======================================================================
 
       - name: Build the API
         if: steps.flags.outputs.doApi == 'True'
@@ -425,9 +425,9 @@ jobs:
 
           Write-Host '[OK] Site staged' -ForegroundColor Green
 
-      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      # ======================================================================
       #  STOP  (release file locks before copying anything)
-      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      # ======================================================================
 
       - name: Stop IIS app pools
         shell: powershell
@@ -439,9 +439,9 @@ jobs:
           if ('${{ steps.flags.outputs.doSites }}' -eq 'True') { Set-IISPoolState -Name '${{ env.SITE_APP_POOL }}' -State Stopped }
           if ('${{ steps.flags.outputs.doApi }}' -eq 'True') { Set-IISPoolState -Name '${{ env.API_APP_POOL }}' -State Stopped }
 
-      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      # ======================================================================
       #  DEPLOY
-      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      # ======================================================================
 
       - name: Deploy the site
         id: deploySite
@@ -528,10 +528,10 @@ jobs:
 
           Write-Host "[OK] API deployed to $dst" -ForegroundColor Green
 
-      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      # ======================================================================
       #  DATABASE  (the numbered migrations, then SqlPackage diffs the model
       #  against the live database and applies the difference)
-      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      # ======================================================================
 
       - name: Deploy the database
         id: deployDb
@@ -587,9 +587,9 @@ jobs:
 
           Write-Host "[OK] Database up to date on ${{ env.SQL_SERVER }}" -ForegroundColor Green
 
-      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      # ======================================================================
       #  START
-      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      # ======================================================================
 
       - name: Start IIS app pools
         # always(), so a failed deploy does not leave the site stopped: whatever went
@@ -713,9 +713,9 @@ jobs:
               exit 1
           }
 
-      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      # ======================================================================
       #  CLEANUP
-      # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      # ======================================================================
 
       - name: Cleanup
         if: always()

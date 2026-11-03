@@ -12,7 +12,7 @@
   Diagnostics   Show-SiteDiagnostics
 #>
 
-# â”€â”€ database â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+#  database 
 # Two things about a database, and they serve different places.
 #
 #   Invoke-FolioMigrations applies the numbered scripts to a database that already exists.
@@ -133,7 +133,7 @@ function Invoke-FolioMigrations {
     }
 }
 
-# â”€â”€ deploy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+#  deploy 
 # No credentials: the runner runs as NT AUTHORITY\SYSTEM and the bootstrap step granted it
 # db_owner on the database. A password is only needed when the database is somewhere this
 # box cannot reach as itself. Built with SqlConnectionStringBuilder, because a password
@@ -199,7 +199,7 @@ function Set-IISPoolState {
     Write-Host "[OK] $Name is $($State.ToLower())" -ForegroundColor Green
 }
 
-# â”€â”€ diagnostics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+#  diagnostics 
 # Printed after a smoke test has failed, for whoever is reading a red build log: what is
 # bound, whether the pool is running and as what, and what is actually in the folder.
 function Show-SiteDiagnostics {
