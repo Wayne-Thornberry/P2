@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { RouterLink, RouterView, useRoute } from 'vue-router'
+import { RouterView, useRoute } from 'vue-router'
 
 const route = useRoute()
 
@@ -10,14 +10,7 @@ const isApp = computed(() => route.path.startsWith('/folio'))
 
 <template>
   <div class="site">
-    <header class="masthead masthead--bar">
-      <div class="masthead__brand">
-        <RouterLink class="wordmark" to="/">Folio</RouterLink>
-        <p class="tagline">A private budget, kept on your own box</p>
-      </div>
-    </header>
-
-    <main class="content" :class="{ 'content--app': isApp }">
+    <main class="content" :class="isApp ? 'content--app' : 'content--portal'">
       <RouterView />
     </main>
   </div>
