@@ -79,19 +79,25 @@ describe('the workspace', () => {
   it('sends a changed collection once, after the changes settle', async () => {
     vi.useFakeTimers()
 
-    const calls = serve({ '/api/folio/transactions?country=ireland': undefined })
+    // A collection and a country no other test uses. The tests share one module instance
+    // (`isolate: false`), so a save another file left pending is still on its timer and can
+    // land in this test's fetch: what this test counts has to be its own.
+    const ours = (calls: Array<{ method: string; url: string }>) =>
+      calls.filter((call) => call.url.includes('country=atlantis'))
 
-    queueStoreSave('folio_transactions', 'ireland', { transactions: [{ id: 1 }] })
-    queueStoreSave('folio_transactions', 'ireland', { transactions: [{ id: 1 }, { id: 2 }] })
+    const calls = serve({ '/api/folio/import-history?country=atlantis': undefined })
 
-    expect(calls).toHaveLength(0)
+    queueStoreSave('folio_import_history', 'atlantis', { imports: [{ id: 1 }] })
+    queueStoreSave('folio_import_history', 'atlantis', { imports: [{ id: 1 }, { id: 2 }] })
+
+    expect(ours(calls)).toHaveLength(0)
 
     vi.advanceTimersByTime(500)
     await flushSaves()
 
-    const puts = calls.filter((call) => call.method === 'PUT')
+    const puts = ours(calls).filter((call) => call.method === 'PUT')
     expect(puts).toHaveLength(1)
-    expect(puts[0].body).toBe(JSON.stringify({ transactions: [{ id: 1 }, { id: 2 }] }))
+    expect(puts[0].body).toBe(JSON.stringify({ imports: [{ id: 1 }, { id: 2 }] }))
   })
 
   it('asks the server which countries have a budget', async () => {
