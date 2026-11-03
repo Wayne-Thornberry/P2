@@ -202,6 +202,11 @@ jobs:
           # so it needs dbcreator as well as db_owner -- and IIS APPPOOL\<ApiPool> is the API
           # while it is serving.
           #
+          # Each user is created only when the database has no principal for that login under
+          # *any* name. A guard by name alone is not enough: when the runner creates the
+          # database it owns it, so its SID is already mapped to dbo, and CREATE USER would
+          # fail with "The login already has an account under a different user name" (15023).
+          #
           # Creating a login needs a sysadmin once, and nothing can grant itself that. A box
           # whose runner is already a sysadmin needs no step by hand; see the README.
           $db = '${{ env.DB_NAME }}'
@@ -218,11 +223,11 @@ jobs:
               'GO'
               "USE [$db];"
               'GO'
-              "IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE [name] = N'NT AUTHORITY\SYSTEM') CREATE USER [NT AUTHORITY\SYSTEM] FOR LOGIN [NT AUTHORITY\SYSTEM];"
+              "IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE [name] = N'NT AUTHORITY\SYSTEM' OR [sid] = SUSER_SID(N'NT AUTHORITY\SYSTEM')) CREATE USER [NT AUTHORITY\SYSTEM] FOR LOGIN [NT AUTHORITY\SYSTEM];"
               'GO'
               "IF IS_ROLEMEMBER('db_owner', 'NT AUTHORITY\SYSTEM') <> 1 ALTER ROLE [db_owner] ADD MEMBER [NT AUTHORITY\SYSTEM];"
               'GO'
-              "IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE [name] = N'IIS APPPOOL\$pool') CREATE USER [IIS APPPOOL\$pool] FOR LOGIN [IIS APPPOOL\$pool];"
+              "IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE [name] = N'IIS APPPOOL\$pool' OR [sid] = SUSER_SID(N'IIS APPPOOL\$pool')) CREATE USER [IIS APPPOOL\$pool] FOR LOGIN [IIS APPPOOL\$pool];"
               'GO'
               "IF IS_ROLEMEMBER('db_owner', 'IIS APPPOOL\$pool') <> 1 ALTER ROLE [db_owner] ADD MEMBER [IIS APPPOOL\$pool];"
               'GO'
