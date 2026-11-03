@@ -173,7 +173,7 @@ function New-DeployConnectionString {
 #
 # The guard tests the SID as well as the name: when the runner creates the database it owns
 # it, so its SID is already mapped to dbo and CREATE USER would fail with 15023.
-function Grant-StarterDatabaseAccess {
+function Grant-FolioDatabaseAccess {
     param(
         [Parameter(Mandatory = $true)][string]$Server,
         [Parameter(Mandatory = $true)][string]$Database,
