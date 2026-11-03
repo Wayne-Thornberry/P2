@@ -82,8 +82,8 @@ describe('the workspace', () => {
     // A collection and a country no other test uses. The tests share one module instance
     // (`isolate: false`), so a save another file left pending is still on its timer and can
     // land in this test's fetch: what this test counts has to be its own.
-    const ours = (calls: Array<{ method: string; url: string }>) =>
-      calls.filter((call) => call.url.includes('country=atlantis'))
+    type Call = { method: string; url: string; body: unknown }
+    const ours = (calls: Call[]) => calls.filter((call) => call.url.includes('country=atlantis'))
 
     const calls = serve({ '/api/folio/import-history?country=atlantis': undefined })
 
