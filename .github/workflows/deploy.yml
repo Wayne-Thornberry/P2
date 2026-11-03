@@ -57,8 +57,9 @@ env:
   # what a move to HTTPS needs while both bindings are live.
   WEB_PUBLIC_ORIGIN: ${{ vars.WEB_PUBLIC_ORIGIN || 'http://localhost:5420' }}
 
-  # SQL Server. localhost means the same box. The database is created once by hand; a
-  # deploy only ever upgrades it, so a deployment login never needs CREATE DATABASE.
+  # SQL Server. localhost means the same box. The bootstrap step creates the database if
+  # it is missing and grants the two Windows identities that use it, so no deployment
+  # login ever needs CREATE DATABASE.
   SQL_SERVER: ${{ vars.SQL_SERVER || 'localhost' }}
   DB_NAME: ${{ vars.DB_NAME || 'Folio' }}
 
@@ -660,9 +661,9 @@ jobs:
           Write-Host '=== Checking the site answers ===' -ForegroundColor Cyan
 
           # The root serves the app, and a deep link proves the rewrite rule is in place:
-          # /login is served by index.html rather than looked up as a file, which is what
+          # /folio is served by index.html rather than looked up as a file, which is what
           # makes every other route work too.
-          $paths = @('/', '/login')
+          $paths = @('/', '/folio')
 
           $failed = $false
 
