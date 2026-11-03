@@ -18,10 +18,14 @@ const PORT = 5420
 /** Where the API listens while developing. */
 const API_PORT = Number(process.env.Folio_API_PORT ?? 5421)
 
-/** The fake API used with `start.ps1 -Mock` or `npm run mock`. */
+/** The fake API, which is what a local run uses unless start.ps1 -Api is given. */
 const MOCK_PORT = Number(process.env.MOCK_PORT ?? 5490)
 
-const useMock = process.env.Folio_MOCK === '1'
+/**
+ * The mock is the default: a local run has no database, so `/api` goes to the fake API
+ * unless start.ps1 -Api says otherwise (Folio_MOCK=0).
+ */
+const useMock = process.env.Folio_MOCK !== '0'
 const apiTarget = `http://127.0.0.1:${useMock ? MOCK_PORT : API_PORT}`
 
 // One socket to the API, reused, rather than a new one per request.
@@ -45,12 +49,17 @@ export default defineConfig({
     environment: 'happy-dom',
     globals: true,
     setupFiles: ['src/modules/folio/__tests__/setup.ts'],
-    include: ['src/**/*.test.ts', 'src/**/__tests__/**/*.{test,spec}.ts'],
+    include: ['src/**/*.test.ts', 'src/**/__tests__/**/*.{test,spec}.ts', 'mocks/**/*.test.mjs'],
     coverage: {
       provider: 'v8',
       include: ['src/modules/folio/utils/**', 'src/modules/folio/stores/**', 'src/shared/**'],
       reporter: ['text', 'lcov'],
     },
+
+    // The app is one lazy chunk of several hundred components, and this tree lives on a
+    // network share: loading it on first navigation can take seconds when the suite is
+    // running other files beside it.
+    testTimeout: 20000,
 
     // Threads rather than forked processes, and only a couple of them: this repository
     // lives on a network share, where starting a worker costs the best part of a minute

@@ -92,30 +92,45 @@ says `.AllowAnonymous()`.
 
 ## Running it locally
 
-Requirements: .NET 8 SDK, Node 22+, SQL Server Express LocalDB (or a SQL Server to point
-at), and PowerShell. No Java, and no `sqlpackage` — that is only installed on the box, by
-the deploy.
+A local run has **no database**. The site talks to its own mock API, which serves a
+complete example budget from memory: the budget, three months of transactions, four
+accounts, two savings goals, a loan, a planner scenario and an import history. Changes are
+live and interactive, and vanish when you stop it.
+
+Requirements: Node 22+ and PowerShell. That is all — no SQL Server, no LocalDB, and no
+.NET SDK unless you use `-Api`.
 
 ```powershell
-.\start.ps1            # LocalDB, migrated, with the real API  → http://localhost:5420
-.\start.ps1 -Rebuild   # the same, but drop the database and rebuild it from the model
-.\start.ps1 -Mock      # no API, no database: the site's own fake API
-.\start.ps1 -Dev       # a shared database from appsettings.Development.json
+.\start.ps1            # the site and the mock API  → http://127.0.0.1:5420
+.\start.ps1 -Api       # the real API, against a database you configured
 ```
 
-Two processes, whatever the number of apps: the API and the site. The first run creates
-the LocalDB instance and the database, starts both, and prints the account it seeded.
+Two processes, whatever the number of apps: an API (mock or real) and the site. It signs
+you in as `wayne` / `mock` and opens the browser.
+
+`-Api` is for the rarer case of running the real API: it reads
+`Folio.Api\appsettings.Development.json` (gitignored — copy the `.example`) and expects a
+database that has **already been deployed**, because applying the schema is the deploy's
+job. Without a database to point at, leave it off.
 
 | | Port | |
 | --- | --- | --- |
-| Site | 5420 | `http://localhost:5420` |
-| API (development) | 5421 | what the dev server proxies `/api` to |
+| Site | 5420 | `http://127.0.0.1:5420` |
+| Mock API | 5490 | the default; `npm --prefix Folio.Web run mock` runs it alone |
+| API (development) | 5421 | what the dev server proxies `/api` to with `-Api` |
 | API (deployed) | 5423 | baked in at build time, and the API's IIS binding |
-| Mock API | 5490 | only with `-Mock` |
 
 A port is changed where it is used: the site's and the dev proxy's in
 [vite.config.ts](Folio.Web/vite.config.ts), the deployed pair in
 [deploy.yml](.github/workflows/deploy.yml), and the local pair in [start.ps1](start.ps1).
+
+### The mock
+
+[Folio.Web/mocks/server.mjs](Folio.Web/mocks/server.mjs) answers the same paths as the API
+with the same shapes, including the `{ "error": "…" }` body a refusal carries; the data it
+serves comes from [seed.mjs](Folio.Web/mocks/seed.mjs) beside it. Because the site cannot
+tell the two apart, everything you can do against a deployed API you can do locally with no
+database at all.
 
 ## Tests
 
@@ -129,10 +144,16 @@ npm --prefix Folio.Web run build                        # types and the bundle
 
 The API tests build their own throwaway database from the model scripts and then apply the
 migrations, which is what proves a migration still lands a database where the model says it
-should be. They **skip** when no SQL Server is reachable; `Folio_REQUIRE_DATABASE_TESTS=1`
-turns that skip into a failure, which is what the deploy sets.
+should be. They **skip** when no SQL Server is reachable — which is the normal local case,
+since a local run has no database — and `Folio_REQUIRE_DATABASE_TESTS=1` turns that skip
+into a failure, which is what the deploy sets.
 
 ## Deploying it
+
+> **The deploy needs a SQL Server.** Its bootstrap step creates the database, and the API
+> reads it, so a box without one cannot finish a deploy. Nothing in this repository
+> installs one. Until a database exists — on the box, or reachable from it and named by the
+> `SQL_SERVER` variable — a local run is the mock and the deploy stays parked.
 
 Everything runs on the server itself: the runner builds in place and deploys to the folders
 IIS is already serving. Two IIS sites, created and kept true by the deploy's bootstrap step:

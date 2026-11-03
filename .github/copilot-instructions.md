@@ -13,6 +13,10 @@ it before changing anything. In short:
 - **The API never creates a schema object.** "Invalid object name" means the database has
   not been deployed.
 - **`npm ci` inside `Folio.Web`.** No npm workspaces — this tree cannot create symlinks.
+- **A local run has no database.** `.\start.ps1` serves the site from the mock in
+  `Folio.Web/mocks`, whose example budget lives in `mocks/seed.mjs`. Anything the site can
+  do against a deployed API it must still do against that mock, so keep the two in step.
+  `-Api` is the only path that touches a real database.
 - **A collection is saved whole.** The site keeps each of Folio's nine collections as one
   aggregate and `PUT`s it to `/api/folio/<collection>?country=<id>`; the API replaces the
   rows for that user and country inside a transaction. A new field has to be added on both

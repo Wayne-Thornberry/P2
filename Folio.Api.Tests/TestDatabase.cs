@@ -23,9 +23,10 @@ internal static class TestDatabase
     /// <summary>
     /// Where test databases are created.
     ///
-    /// The default is the LocalDB instance <c>start.ps1</c> creates, because that is the
-    /// one a laptop has. The deploy overrides it with a server whose account may create
-    /// databases.
+    /// A local run has no database, so on a laptop these tests skip; the default names an
+    /// instance nobody is expected to have, and <c>Folio_TEST_SQL_SERVER</c> points the
+    /// suite at a server that does. The deploy sets it, because there a database is
+    /// certainly reachable.
     /// </summary>
     public static readonly string Server =
         Environment.GetEnvironmentVariable("Folio_TEST_SQL_SERVER") is { Length: > 0 } configured
@@ -305,8 +306,8 @@ internal static class TestDatabase
 
         return $"No SQL Server at '{server}'. Every test class builds its own throwaway database there and "
             + "drops it again, so the account the tests run as needs CREATE DATABASE -- the dbcreator server "
-            + "role. On a laptop, 'sqllocaldb create Folio' makes the instance these tests expect; point "
-            + "Folio_TEST_SQL_SERVER somewhere else to use a different server. Set Folio_REQUIRE_DATABASE_TESTS=1 "
-            + "to make this a failure rather than a skip, which is what the deploy does.";
+            + "role. A local run has no database at all, which makes this a skip rather than a problem: point "
+            + "Folio_TEST_SQL_SERVER at a server that has one to run them. Set Folio_REQUIRE_DATABASE_TESTS=1 "
+            + "to make this a failure instead, which is what the deploy does.";
     }
 }

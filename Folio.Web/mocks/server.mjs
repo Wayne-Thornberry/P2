@@ -1,8 +1,8 @@
 // A fake API for the whole site, so the front end can be worked on with no SQL Server,
 // no .NET and no database. Everything lives in memory and is thrown away on exit.
 //
-//   npm run mock            (from Folio.Web)
-//   .\start.ps1 -Mock
+//   .\start.ps1            (the default: mock API, no database)
+//   npm run mock           (the mock alone, if you are running vite yourself)
 //
 // It answers the same paths the real API does, with the same shapes, including the
 // `{ "error": "..." }` body a refusal carries. One handler per module, so a module
@@ -10,6 +10,7 @@
 
 import http from 'node:http'
 import { randomUUID } from 'node:crypto'
+import { seedSettings, seedWorkspace } from './seed.mjs'
 
 const PORT = Number(process.env.MOCK_PORT ?? 5490)
 const PASSWORD = process.env.MOCK_PASSWORD ?? 'mock'
@@ -26,8 +27,9 @@ const modules = [
 ]
 
 // ── the folio module's data ────────────────────────────────────────────────────────────
-// One object per collection, keyed by country, exactly as the real API keeps them.
-// Nothing is saved between runs: this is for looking at the site, not for keeping a budget.
+// Seed with a complete example budget so the app opens on something real rather than the
+// first-run screen. Writes land in these same objects, so the site is fully interactive;
+// they vanish when the process stops, which is the point of a mock.
 
 const COLLECTIONS = {
   folio_accounts: 'accounts',
@@ -41,8 +43,8 @@ const COLLECTIONS = {
   folio_import_history: 'import-history',
 }
 
-const workspace = new Map()
-const settings = new Map()
+const workspace = new Map([['ireland', seedWorkspace('ireland')]])
+const settings = new Map([[account.id, seedSettings()]])
 
 function countryWorkspace(country) {
   if (!workspace.has(country)) workspace.set(country, {})

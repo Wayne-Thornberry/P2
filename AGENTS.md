@@ -83,6 +83,9 @@ Nothing in `start.ps1`, the build, the workflow or the deploy changes when an ap
 ## Commands
 
 ```powershell
+.\start.ps1                                             # the site and the mock API
+.\start.ps1 -Api                                        # the real API (needs a database)
+
 dotnet build Folio.sln
 dotnet test Folio.Api.Tests\Folio.Api.Tests.csproj
 dotnet build Folio.Database\Folio.Database.sqlproj        # the model, to a .dacpac
@@ -91,10 +94,16 @@ npm --prefix Folio.Web test
 npm --prefix Folio.Web run build
 ```
 
+**A local run has no database.** The default `.\start.ps1` serves the site from the mock in
+`Folio.Web/mocks`, which holds a full example budget in memory; that is how the app is
+exercised day to day. `-Api` is only for pointing the real API at a database that has
+already been deployed.
+
 API tests that need SQL build a throwaway database of their own from the model scripts and
-the migrations, then drop it. They **skip** when no SQL Server is reachable and are only
-allowed to pass quietly in that case; `Folio_REQUIRE_DATABASE_TESTS=1` turns a skip into a
-failure, and `Folio_TEST_SQL_SERVER` points them at a server other than `(localdb)\Folio`.
+the migrations, then drop it. They **skip** when no SQL Server is reachable — the normal
+local case, since a local run has no database. `Folio_REQUIRE_DATABASE_TESTS=1` turns a
+skip into a failure, which is what the deploy sets, and `Folio_TEST_SQL_SERVER` points
+them at a server.
 
 ## Style
 

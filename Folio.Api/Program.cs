@@ -11,7 +11,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 var connectionString = builder.Configuration.GetConnectionString("Default")
     ?? throw new InvalidOperationException(
-        "ConnectionStrings:Default is not configured, so there is no database to serve from.");
+        "ConnectionStrings:Default is not configured, so there is no database to serve from. "
+        + "A local run has no database: the site talks to the mock in Folio.Web\\mocks, started by start.ps1. "
+        + "To run this API instead, put a connection string in appsettings.Development.json and use start.ps1 -Api.");
 
 // SQL Server is the real database. The app never creates the schema: the numbered
 // scripts in Folio.Database do, and the deploy applies them before starting this app.

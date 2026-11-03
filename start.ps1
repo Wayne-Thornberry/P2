@@ -1,32 +1,27 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Builds and starts the site for local development in one window.
+  Starts the site for local development in one window.
 
 .DESCRIPTION
-  Starts the API and the site's dev server together, waits until both answer, and opens
-  the browser. Press Ctrl+C to stop everything.
+  A local run has no database. By default the site talks to its own mock API
+  (Folio.Web\mocks\server.mjs), which serves a complete example budget from memory: the
+  budget, three months of transactions, accounts, goals, a loan, the planner and an import
+  history. Nothing is written to disk, nothing is installed, and a change survives only
+  until the process stops.
 
-    .\start.ps1            LocalDB, migrated, with the real API
-    .\start.ps1 -Rebuild   the same, but the database is dropped and rebuilt first
-    .\start.ps1 -Dev       a shared database, read and written as it is
-    .\start.ps1 -Mock      no API and no database: the site's own fake API
+    .\start.ps1          the site and the mock API -- no database, no .NET build
+    .\start.ps1 -Api     the real API, against a database you configured
 
-  Two processes, whatever the number of apps: the API and the site. Every app is a
-  route inside the one site, so adding one costs nothing here.
+  Press Ctrl+C to stop everything.
 
-.PARAMETER Rebuild
-  Drop the LocalDB database and build it again from Folio.Database's model scripts.
-  Discards whatever was in it, which is the point. Not valid with -Dev or -Mock.
+.PARAMETER Api
+  Run the real API instead of the mock, using ConnectionStrings:Default from
+  Folio.Api\appsettings.Development.json. That file is gitignored: copy
+  appsettings.Development.example.json to it and fill in the connection string.
 
-.PARAMETER Dev
-  Use ConnectionStrings:Default from Folio.Api\appsettings.Development.json -- the
-  shared box, read and written as it is. That file is gitignored because the box needs
-  a login; copy appsettings.Development.example.json to it and fill it in.
-
-.PARAMETER Mock
-  Run against the site's fake API (Folio.Web\mocks\server.mjs): no database work, no API
-  build, and nothing the browser does is saved.
+  This expects a database that has already been deployed -- applying the schema is the
+  deploy's job, not a local run's. If there is no database to point at, leave this off.
 
 .PARAMETER SkipInstall
   Do not run npm install when Folio.Web\node_modules is missing.
@@ -38,47 +33,32 @@
   .\start.ps1
 
 .EXAMPLE
-  .\start.ps1 -Rebuild
-
-.EXAMPLE
-  .\start.ps1 -Mock
+  .\start.ps1 -Api -NoBrowser
 #>
 [CmdletBinding()]
 param(
-    [switch]$Rebuild,
-    [switch]$Dev,
-    [switch]$Mock,
+    [switch]$Api,
     [switch]$SkipInstall,
     [switch]$NoBrowser
 )
 
 $ErrorActionPreference = 'Stop'
 
-if ($Rebuild -and ($Dev -or $Mock)) {
-    throw '-Rebuild only applies to the LocalDB database, so it cannot be combined with -Dev or -Mock.'
-}
-
 $root = $PSScriptRoot
 
-$apiProject   = Join-Path $root 'Folio.Api\Folio.Api.csproj'
-$databaseDir  = Join-Path $root 'Folio.Database'
-$webDir       = Join-Path $root 'Folio.Web'
-$baseSettings = Join-Path $root 'Folio.Api\appsettings.json'
-$devSettings  = Join-Path $root 'Folio.Api\appsettings.Development.json'
+$apiProject  = Join-Path $root 'Folio.Api\Folio.Api.csproj'
+$webDir      = Join-Path $root 'Folio.Web'
+$devSettings = Join-Path $root 'Folio.Api\appsettings.Development.json'
 
-$siteUrl      = 'http://localhost:5420'
-$apiUrl       = 'http://127.0.0.1:5421'
+$siteUrl = 'http://127.0.0.1:5420'
+$apiUrl  = 'http://127.0.0.1:5421'
+$mockUrl = 'http://127.0.0.1:5490'
 
-# The password the LocalDB account is created with, the mock's, and the recovery code that
-# lets a forgotten password be replaced from the sign-in page. They only ever apply to a
-# throwaway local database and to a server that saves nothing, so none is a secret.
-$localPassword = 'folio-dev'
-$mockPassword  = 'mock'
-$localRecovery = 'folio-recovery'
+# The mock's account. It applies to a server that saves nothing, so it is not a secret.
+$mockUsername = 'wayne'
+$mockPassword = 'mock'
 
-foreach ($path in @($apiProject, $webDir, $baseSettings)) {
-    if (-not (Test-Path $path)) { throw "Not found: $path" }
-}
+if (-not (Test-Path $webDir)) { throw "Not found: $webDir" }
 
 <#
   The API's configuration reader allows // comments, so its settings files use them to
@@ -92,40 +72,31 @@ function Read-JsonSettings {
     return ($lines -join "`n" | ConvertFrom-Json)
 }
 
-# ── which database ────────────────────────────────────────────────────────────────
+# ── which API ─────────────────────────────────────────────────────────────────────
 $connectionString = $null
+$signInNote       = "Account: $mockUsername / $mockPassword"
 
-if (-not $Mock) {
-    $settingsFile = if ($Dev) { $devSettings } else { $baseSettings }
+if ($Api) {
+    if (-not (Test-Path $devSettings)) {
+        throw @"
+Not found: $devSettings
 
-    if (-not (Test-Path $settingsFile)) {
-        throw "Not found: $settingsFile`nCopy appsettings.Development.example.json to appsettings.Development.json and fill in the connection string."
+-Api runs the real API, which needs a database. Copy the example and fill in its
+connection string, or drop -Api to run against the mock instead:
+
+  Copy-Item Folio.Api\appsettings.Development.example.json Folio.Api\appsettings.Development.json
+"@
     }
 
-    $connectionString = (Read-JsonSettings -Path $settingsFile).ConnectionStrings.Default
-    if (-not $connectionString) { throw "No ConnectionStrings:Default in $settingsFile" }
+    $devConfig        = Read-JsonSettings -Path $devSettings
+    $connectionString = $devConfig.ConnectionStrings.Default
 
-    # A LocalDB instance exists once, per user, and has to be started before anything
-    # can connect to it.
-    if ($connectionString -match '\(localdb\)\\(\w+)') {
-        $instance = $Matches[1]
-        $sqllocaldb = (Get-Command sqllocaldb -ErrorAction SilentlyContinue).Source
-        if (-not $sqllocaldb) {
-            $sqllocaldb = Get-ChildItem 'C:\Program Files\Microsoft SQL Server\*\Tools\Binn\SqlLocalDB.exe' -ErrorAction SilentlyContinue |
-                Sort-Object FullName | Select-Object -Last 1 -ExpandProperty FullName
-        }
-        if (-not $sqllocaldb) { throw 'LocalDB is not installed. Install SQL Server Express LocalDB, or use -Dev with a real server.' }
-
-        if (@(& $sqllocaldb info | ForEach-Object { $_.Trim() }) -notcontains $instance) {
-            Write-Host "Creating the LocalDB instance '$instance'..." -ForegroundColor Cyan
-            & $sqllocaldb create $instance -s | Out-Null
-        } else {
-            $state = & $sqllocaldb info $instance | Select-String -Pattern '^State:'
-            if (-not $state -or $state.ToString() -notmatch 'Running') {
-                & $sqllocaldb start $instance | Out-Null
-            }
-        }
+    if (-not $connectionString) {
+        throw "No ConnectionStrings:Default in $devSettings"
     }
+
+    $account    = if ($devConfig.Auth.SeedUsername) { $devConfig.Auth.SeedUsername } else { $mockUsername }
+    $signInNote = "Account: $account (the password its database was seeded with)"
 }
 
 # ── dependencies ──────────────────────────────────────────────────────────────────
@@ -142,29 +113,10 @@ if (-not (Test-Path (Join-Path $webDir 'node_modules'))) {
 }
 
 # ── build ─────────────────────────────────────────────────────────────────────────
-if (-not $Mock) {
+if ($Api) {
     Write-Host '=== Building the API ===' -ForegroundColor Cyan
     dotnet build $apiProject -v quiet --nologo
     if ($LASTEXITCODE -ne 0) { throw 'The API did not build.' }
-
-    if ($Rebuild) {
-        Write-Host '=== Rebuilding the database from the model scripts (its data is discarded) ===' -ForegroundColor Cyan
-        . (Join-Path $root 'scripts\lib.ps1')
-        Initialize-FolioDatabase -ConnectionString $connectionString -ScriptsRoot $databaseDir -Rebuild
-    } else {
-        . (Join-Path $root 'scripts\lib.ps1')
-
-        # A first run has no database at all, so it is built from the model. After that
-        # only the numbered migrations need applying: they are what an older database
-        # gains a new column or table from.
-        if (Test-FolioDatabaseExists -ConnectionString $connectionString) {
-            Write-Host '=== Applying database migrations ===' -ForegroundColor Cyan
-            Invoke-FolioMigrations -ConnectionString $connectionString -MigrationsDir (Join-Path $databaseDir 'Scripts\Migrations')
-        } else {
-            Write-Host '=== Creating the database from the model scripts ===' -ForegroundColor Cyan
-            Initialize-FolioDatabase -ConnectionString $connectionString -ScriptsRoot $databaseDir
-        }
-    }
 }
 
 # ── start everything ──────────────────────────────────────────────────────────────
@@ -233,15 +185,7 @@ function Stop-Tree {
 }
 
 try {
-    if ($Mock) {
-        Start-Child -Name 'mock API' `
-            -FilePath 'node' -ArgumentList @('mocks\server.mjs') -WorkingDirectory $webDir `
-            -Environment @{ MOCK_PASSWORD = $mockPassword }
-
-        Start-Child -Name 'site' `
-            -FilePath 'npm.cmd' -ArgumentList @('run', 'dev') -WorkingDirectory $webDir `
-            -Environment @{ Folio_MOCK = '1' }
-    } else {
+    if ($Api) {
         Start-Child -Name 'API' `
             -FilePath 'dotnet' `
             -ArgumentList @('run', '--project', $apiProject, '--no-build') `
@@ -249,29 +193,33 @@ try {
             -Environment @{
                 ASPNETCORE_URLS            = $apiUrl
                 ConnectionStrings__Default = $connectionString
-                Auth__SeedPassword         = $(if ($Dev) { '' } else { $localPassword })
-                Auth__RecoveryCode         = $(if ($Dev) { '' } else { $localRecovery })
             }
 
-        Start-Child -Name 'site' -FilePath 'npm.cmd' -ArgumentList @('run', 'dev') -WorkingDirectory $webDir
+        # The dev server proxies /api to the real API rather than the mock.
+        Start-Child -Name 'site' -FilePath 'npm.cmd' -ArgumentList @('run', 'dev') -WorkingDirectory $webDir `
+            -Environment @{ Folio_MOCK = '0' }
+
+        Wait-ForUrl -Url "$apiUrl/api/health" -Name 'The API'
+    } else {
+        Start-Child -Name 'mock API' `
+            -FilePath 'node' -ArgumentList @('mocks\server.mjs') -WorkingDirectory $webDir `
+            -Environment @{ MOCK_PASSWORD = $mockPassword }
+
+        Start-Child -Name 'site' -FilePath 'npm.cmd' -ArgumentList @('run', 'dev') -WorkingDirectory $webDir `
+            -Environment @{ Folio_MOCK = '1' }
+
+        Wait-ForUrl -Url "$mockUrl/api/health" -Name 'The mock API'
     }
 
-    if (-not $Mock) { Wait-ForUrl -Url "$apiUrl/api/health" -Name 'The API' }
     Wait-ForUrl -Url "$siteUrl/" -Name 'The site'
 
-    $account = (Read-JsonSettings -Path $baseSettings).Auth.SeedUsername
     Write-Host ''
     Write-Host "  $siteUrl" -ForegroundColor Green
-    if ($Mock) {
-        Write-Host "  Mock mode: nothing is saved. Account: wayne / $mockPassword" -ForegroundColor Yellow
+    Write-Host "  $signInNote"
+    if ($Api) {
+        Write-Host "  API at $apiUrl"
     } else {
-        Write-Host "  API at $apiUrl   Account: $account / $(if ($Dev) { 'as configured' } else { $localPassword })"
-        if (-not $Dev) {
-            Write-Host "  Forgotten-password code: $localRecovery" -ForegroundColor DarkGray
-            if (-not $Rebuild) {
-                Write-Host '  (password and code were set when the database was empty: use -Rebuild to start over)' -ForegroundColor DarkGray
-            }
-        }
+        Write-Host '  Mock mode: a full example budget, held in memory. Nothing is saved when this stops.' -ForegroundColor Yellow
     }
     Write-Host ''
     Write-Host 'Press Ctrl+C to stop.' -ForegroundColor DarkGray
