@@ -76,7 +76,7 @@ the whole collection.
   look; a change is written to the browser immediately and sent to the API shortly after.
   A save that cannot reach the server is retried on the next change rather than lost.
 
-## Signing in
+## Signing ind
 
 One account, one password, one site. The token is kept in `localStorage` and sent as a
 `Bearer` header; it is a row in `core.Sessions`, so a deploy (which recycles the app pool)
