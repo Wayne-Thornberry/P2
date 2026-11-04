@@ -47,6 +47,8 @@ public sealed class FolioModule : IFolioModule
         api.MapGet("/dashboard", GetDashboardAsync);
         api.MapGet("/finance/summary", GetFinanceAsync);
 
+        api.MapPost("/demo", GenerateDemoAsync);
+
         api.MapGet("/settings", GetSettingsAsync);
         api.MapPut("/settings", SaveSettingsAsync);
 
@@ -131,6 +133,38 @@ public sealed class FolioModule : IFolioModule
             return ApiErrors.BadRequest("A country is needed: ?country=ireland.");
 
         return Results.Ok(await finance.ReadAsync(name, cancellationToken));
+    }
+
+    /// <summary>
+    /// Replaces the budget for one country with a year of plausible demo data.
+    ///
+    /// It replaces rather than adds: "fill this box with something to look at" said twice
+    /// should not leave two years of salaries behind. The planner and the import history
+    /// are left alone — they are a record of what someone did, not part of the budget the
+    /// demo describes.
+    /// </summary>
+    private static async Task<IResult> GenerateDemoAsync(
+        string? country,
+        DemoRequest request,
+        WorkspaceService workspace,
+        CancellationToken cancellationToken)
+    {
+        if (Country(country) is not { } name)
+            return ApiErrors.BadRequest("A country is needed: ?country=ireland.");
+
+        if (DemoData.Refusal(request) is { } refusal)
+            return ApiErrors.BadRequest(refusal);
+
+        var demo = DemoData.Generate(request, Random.Shared);
+
+        await workspace.SaveAccountsAsync(name, demo.Accounts, cancellationToken);
+        await workspace.SaveTransactionsAsync(name, demo.Transactions, cancellationToken);
+        await workspace.SaveBudgetAsync(name, demo.Budget, cancellationToken);
+        await workspace.SaveTemplateAsync(name, demo.Template, cancellationToken);
+        await workspace.SaveSavingsGoalsAsync(name, demo.SavingsGoals, cancellationToken);
+        await workspace.SaveFinanceAsync(name, demo.Finance, cancellationToken);
+
+        return Results.Ok(demo.Result);
     }
 
     /// <summary>A yyyy-mm query value, or null when it was not given; false when it is not a month.</summary>

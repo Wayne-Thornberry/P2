@@ -96,9 +96,16 @@ The site holds the data; the **API answers the questions about it**.
   account is worth by now. [FinanceService](Folio.Api/Modules/Folio/FinanceService.cs) holds
   the amortisation and compounding, in `double` and rounded the way the browser rounded it,
   so a projection that lands a penny away from the Finance page's own chart cannot happen.
+- **The demo budget is the API's.** `POST /api/folio/demo?country=<id>` replaces a country's
+  budget with a year of plausible spending for one of three people, and answers with what it
+  made. [DemoData](Folio.Api/Modules/Folio/DemoData.cs) holds the rules — which accounts a
+  persona has, how often a bill is paid, how much of the budget is really spent — so the
+  shape of a stranger's finances is no longer part of the download, and a box with an empty
+  database has something to look at.
 - **The page renders what it is given.** [useHealthScore](Folio.Web/src/modules/folio/composables/useHealthScore.ts),
-  [useDashboard](Folio.Web/src/modules/folio/composables/useDashboard.ts) and
-  [useFinance](Folio.Web/src/modules/folio/composables/useFinance.ts) ask once for the whole
+  [useDashboard](Folio.Web/src/modules/folio/composables/useDashboard.ts),
+  [useFinance](Folio.Web/src/modules/folio/composables/useFinance.ts) and
+  [useDemoData](Folio.Web/src/modules/folio/composables/useDemoData.ts) ask once for the whole
   app, and ask again when a save lands — `workspace.ts` counts those — so an edit shows the
   figure after it rather than before.
 - **The month is part of the question.** The budget a month is measured against is the one
@@ -107,8 +114,8 @@ The site holds the data; the **API answers the questions about it**.
   budget they measure.
 
 The rest of the arithmetic — the planner's projections, the Finance page's charts, the CSV
-adapters, the demo budget — is still in TypeScript, and is being moved into the API in that
-order. When it lands, a rule lives in one place: the module's service class.
+adapters — is still in TypeScript, and is being moved into the API in that order. When it
+lands, a rule lives in one place: the module's service class.
 
 ## No sign-in
 

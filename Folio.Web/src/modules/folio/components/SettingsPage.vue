@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useBudgetStore } from '../stores/budgetStore'
 import { useTransactionStore } from '../stores/transactionStore'
@@ -12,8 +12,8 @@ import { deleteWorkspace } from '../workspace'
 import { getCountryById } from '../data/countries'
 import { useConfirm } from '../composables/useConfirm'
 import DemoDataDialog from './DemoDataDialog.vue'
-import { generateDemoData } from '../utils/demoDataGenerator'
-import type { DemoConfig, DemoResult } from '../utils/demoDataGenerator'
+import { generateDemoData } from '../composables/useDemoData'
+import type { DemoConfig, DemoResult } from '../composables/useDemoData'
 
 const settings       = useSettingsStore()
 const budgetStore    = useBudgetStore()
@@ -100,9 +100,10 @@ function _flashMsg(r: ReturnType<typeof ref<string>>, text: string): void {
 const showDemoDialog  = ref(false)
 const msgDemoResult   = ref('')
 
-function handleDemoGenerate(config: DemoConfig): void {
-  showDemoDialog.value = false
-  const result: DemoResult = generateDemoData(config)
+/** Where the summary waits while the page reloads to show the budget it describes. */
+const DEMO_SUMMARY_KEY = 'folio:demo-summary'
+
+function _describeDemo(result: DemoResult): string {
   const parts: string[] = []
   if (result.accountsCreated)       parts.push(`${result.accountsCreated} accounts`)
   if (result.budgetMonths)          parts.push(`${result.budgetMonths} budget months`)
@@ -110,8 +111,31 @@ function handleDemoGenerate(config: DemoConfig): void {
   if (result.goalsCreated)          parts.push(`${result.goalsCreated} savings goals`)
   if (result.loansCreated)          parts.push(`${result.loansCreated} loans`)
   if (result.financeSavingsCreated) parts.push(`${result.financeSavingsCreated} finance savings`)
-  _flashMsg(msgDemoResult, parts.length > 0 ? `Generated: ${parts.join(', ')}.` : 'No data generated.')
+  return parts.length > 0 ? `Generated: ${parts.join(', ')}.` : 'No data generated.'
 }
+
+async function handleDemoGenerate(config: DemoConfig): Promise<void> {
+  showDemoDialog.value = false
+  msgDemoResult.value = 'Generating demo data…'
+
+  try {
+    const result = await generateDemoData(config)
+
+    // The stores are read once, at startup, so the new budget only appears after a reload.
+    // The summary waits for the page that comes back rather than flashing on this one.
+    sessionStorage.setItem(DEMO_SUMMARY_KEY, _describeDemo(result))
+    window.location.reload()
+  } catch (error) {
+    _flashMsg(msgDemoResult, error instanceof Error ? error.message : 'The demo data could not be generated.')
+  }
+}
+
+onMounted(() => {
+  const summary = sessionStorage.getItem(DEMO_SUMMARY_KEY)
+  if (!summary) return
+  sessionStorage.removeItem(DEMO_SUMMARY_KEY)
+  _flashMsg(msgDemoResult, summary)
+})
 
 // ── 1. Generate Items ─────────────────────────────────────────
 function generateItems(): void {

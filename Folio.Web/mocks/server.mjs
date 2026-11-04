@@ -13,6 +13,7 @@
 
 import http from 'node:http'
 import { seedSettings, seedWorkspace } from './seed.mjs'
+import { demoRefusal, demoWorkspace } from './demo.mjs'
 
 const PORT = Number(process.env.MOCK_PORT ?? 5490)
 
@@ -571,6 +572,34 @@ async function folioModule(request, response, route, url) {
     }
 
     json(response, 200, financeSummary(country))
+    return true
+  }
+
+  if (route === 'POST /api/folio/demo') {
+    if (!country) {
+      json(response, 400, { error: 'A country is needed: ?country=ireland.' })
+      return true
+    }
+
+    const body = await readJson(request)
+    if (!body) {
+      json(response, 400, { error: 'That request could not be read.' })
+      return true
+    }
+
+    const refusal = demoRefusal(body)
+    if (refusal) {
+      json(response, 400, { error: refusal })
+      return true
+    }
+
+    const { collections, result } = demoWorkspace(body)
+
+    // Replaces the six budget collections and leaves the planner and the import history
+    // alone, as the API does.
+    workspace.set(country, { ...countryWorkspace(country), ...collections })
+
+    json(response, 200, result)
     return true
   }
 

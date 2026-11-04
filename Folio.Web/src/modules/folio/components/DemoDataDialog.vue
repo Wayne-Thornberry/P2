@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import type { DemoPersona, DemoConfig } from '../utils/demoDataGenerator'
+import type { DemoPersona, DemoConfig } from '../composables/useDemoData'
 
 const emit = defineEmits<{
   (e: 'close'): void
