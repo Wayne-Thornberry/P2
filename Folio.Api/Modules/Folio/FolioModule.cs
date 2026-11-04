@@ -30,10 +30,6 @@ public sealed class FolioModule : IFolioModule
 
     public string Name => ModuleName;
 
-    public string Title => "Folio";
-
-    public string Description => "The budget: accounts, transactions, envelopes, goals, reports and the calculator.";
-
     public void AddServices(IServiceCollection services, IConfiguration configuration) =>
         services.AddScoped<WorkspaceService>();
 

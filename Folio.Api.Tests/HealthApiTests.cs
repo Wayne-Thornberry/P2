@@ -1,17 +1,17 @@
 using System.Net;
 using System.Net.Http.Json;
-using Folio.Api.Modules.Core;
+using Folio.Api.Http;
 
 namespace Folio.Api.Tests;
 
 /// <summary>
-/// The health endpoint is what the deploy's smoke test asks, so it has to answer
-/// Whether the API is up and whether the database behind it is reachable.
+/// The health endpoint is what the deploy's smoke test asks, so it has to answer on its
+/// own: whether the API is up and whether the database behind it is reachable.
 /// </summary>
 public sealed class HealthApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     [DatabaseFact]
-    public async Task Health_answers_without_a_token_and_reports_the_database()
+    public async Task Health_answers_and_reports_the_database()
     {
         var client = factory.CreateClient();
 

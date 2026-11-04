@@ -13,7 +13,7 @@ public sealed class ModuleCatalog
 {
     private ModuleCatalog(IReadOnlyList<IFolioModule> modules) => Modules = modules;
 
-    /// <summary>The modules, in name order, which is the order the portal lists them.</summary>
+    /// <summary>The modules, in name order.</summary>
     public IReadOnlyList<IFolioModule> Modules { get; }
 
     public static ModuleCatalog Discover()
@@ -27,22 +27,4 @@ public sealed class ModuleCatalog
 
         return new ModuleCatalog(modules);
     }
-
-    /// <summary>
-    /// What the site needs to draw its home page, and nothing more.
-    ///
-    /// Core is left out: it is the list itself, so offering it as one of the apps would be
-    /// the page linking to itself.
-    /// </summary>
-    public IReadOnlyList<ModuleSummary> Summaries() =>
-        Modules
-            .Where(module => module.Name != Core.CoreModule.ModuleName)
-            .Select(module => new ModuleSummary(module.Name, module.Title, module.Description))
-            .ToList();
 }
-
-/// <summary>
-/// A module as the home page sees it. The address is the site's business, not the
-/// API's: the page serves a module at the route named after it.
-/// </summary>
-public sealed record ModuleSummary(string Name, string Title, string Description);

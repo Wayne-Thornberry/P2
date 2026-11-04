@@ -8,7 +8,7 @@ import { defineConfig } from 'vitest/config'
 const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }
 
 /**
- * The site is the root of everything: the portal at /, and Folio at /folio.
+ * The site is the root of everything: Folio at /folio, and / redirects to it.
  *
  * One origin, one dev server, one build. A module is a folder under src/modules, and its
  * page is loaded on arrival, so it still ships as its own chunk.

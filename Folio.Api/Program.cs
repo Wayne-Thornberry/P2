@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using Folio.Api.Data;
 using Folio.Api.Http;
 using Folio.Api.Modules;
-using Folio.Api.Modules.Core;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,11 +29,10 @@ builder.Services.AddSingleton(catalog);
 foreach (var module in catalog.Modules)
     module.AddServices(builder.Services, builder.Configuration);
 
-// The portal and its modules are one origin, and the API is another, so the browser
-// needs CORS. In development the portal is on a loopback address; in production it is
-// whatever the site is reached by, which the deploy writes into
-// Cors:AllowedOrigins. Loopback and private addresses are always allowed because a
-// home server is reached by all of them at different times.
+// The site and the API are one origin apart, so the browser needs CORS. In development
+// the site is on a loopback address; in production it is whatever the site is reached by,
+// which the deploy writes into Cors:AllowedOrigins. Loopback and private addresses are
+// always allowed because a home server is reached by all of them at different times.
 var configuredOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 
 static bool IsPrivateHost(string host) =>

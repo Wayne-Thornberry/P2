@@ -26,7 +26,7 @@ concurrency:
 # Two IIS sites, created and kept true by the bootstrap step below, on the ports this
 # file's env: block fixes:
 #
-#   Folio     the web site: the portal at /, a module at /<name>
+#   Folio     the web site: the app at /<name>, and / redirects to it
 #   FolioApi  the API, on its own port, so the browser calls it directly
 #
 # The browser is served everything from the web site's origin, and calls the API on

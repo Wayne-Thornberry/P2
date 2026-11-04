@@ -18,8 +18,8 @@ src/modules/
 
 ## What a module is
 
-- **A route** named after the API module, so the home page can find its title and
-  description. `registry.ts` holds the one line that adds it.
+- **A route** named after the API module, so the two halves of one app agree on its
+  name. `registry.ts` holds the one line that adds it.
 - **Its own folder** under `src/modules`, loaded lazily: it ships as its own chunk.
 - **Its own state**, in Pinia setup stores. Nothing outside the folder reads it, and it
   reads nothing outside it except `src/shared`.
@@ -41,4 +41,5 @@ Nothing in `start.ps1`, the build or the deploy changes when a module is added.
 The budget, the accounts, the reports and the calculator all read the same transactions,
 so they are one app with its own navigation inside it rather than four modules passing the
 same rows between each other. A second app — a different subject entirely — belongs in its
-own folder beside `folio/`.
+own folder beside `folio/`, and the root of the site would then need a way to choose
+between them: there is no page listing the apps today, because there is one app.

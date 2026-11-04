@@ -7,7 +7,7 @@ long version, and the *why* of each rule, is in [README.md](README.md).
 ([Folio.Api](Folio.Api)), one SQL Server database as an SSDT project
 ([Folio.Database](Folio.Database)), one Vue + TypeScript site holding the app
 ([Folio.Web](Folio.Web)), tests for both sides, and a deploy to IIS on a single Windows
-box. The site is a portal with one module on it so far — `folio`, the budget itself.
+box. The site is the budget itself, on one module — `folio` — with no page in front of it.
 
 ## The rules that are not negotiable
 
@@ -32,7 +32,7 @@ box. The site is a portal with one module on it so far — `folio`, the budget i
 7. **`npm ci` in `Folio.Web`, never a workspace.** This tree lives on a network share
    that cannot create the symlinks npm workspaces need. One project, one `node_modules`.
 8. **A module's name is used twice**: `/api/<name>` on the API and `/<name>` on the site.
-   The home page matches the two by name, so they must be equal.
+   The two are one app seen from both sides, so they must be equal.
 9. **Every table in the `folio` schema is keyed on `(UserId, Country, Id)`.** One person
    can keep a budget for more than one country, and each is a separate set of rows.
 
@@ -69,12 +69,12 @@ and writes it, the TypeScript type in the module, and a test.
 1. **Database** — a schema (`Schemas/`), its tables (`Tables/`), and the same thing again
    as the next numbered migration for databases that already exist.
 2. **API** — a folder under `Folio.Api/Modules`, a class implementing
-   [IFolioModule](Folio.Api/Modules/IFolioModule.cs) with `Name`, `Title`, `Description`
-   and `Map`, and the entities mapped in `FolioDbContext`. The catalog finds it by
-   reflection; nothing registers it.
-3. **Site** — a folder under [src/modules](Folio.Web/src/modules) with its page, plus one
-   line in `src/modules/registry.ts`. The recipe is in
-   [src/modules/README.md](Folio.Web/src/modules/README.md).
+   [IFolioModule](Folio.Api/Modules/IFolioModule.cs) with `Name` and `Map`, and the
+   entities mapped in `FolioDbContext`. The catalog finds it by reflection; nothing
+   registers it.
+3. **Site** — a folder under [src/modules](Folio.Web/src/modules) with its page, an
+   `index.ts` exporting its route, and a line in `src/modules/registry.ts`. The recipe is
+   in [src/modules/README.md](Folio.Web/src/modules/README.md).
 4. **Tests** — a class in `Folio.Api.Tests` for the endpoints, a `*.test.ts` beside the
    site's logic. Both are expected, not optional.
 

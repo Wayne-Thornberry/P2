@@ -1,13 +1,12 @@
 using Folio.Api.Data;
 
-namespace Folio.Api.Modules.Core;
+namespace Folio.Api.Http;
 
 /// <summary>
 /// Whether the API can serve anything at all: it is up, but everything it does needs
 /// the database, so this says whether that is reachable.
 ///
-/// Open to the world on purpose. It is what the deploy's smoke test asks, and it
-/// says nothing about the data.
+/// It is what the deploy's smoke test asks, and it says nothing about the data.
 /// </summary>
 internal static class HealthEndpoints
 {

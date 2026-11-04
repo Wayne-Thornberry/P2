@@ -16,14 +16,6 @@ import { seedSettings, seedWorkspace } from './seed.mjs'
 
 const PORT = Number(process.env.MOCK_PORT ?? 5490)
 
-const modules = [
-  {
-    name: 'folio',
-    title: 'Folio',
-    description: 'The budget: accounts, transactions, envelopes, goals, reports and the calculator.',
-  },
-]
-
 // ── the folio module's data ────────────────────────────────────────────────────────────
 // Seed with a complete example budget so the app opens on something real rather than the
 // first-run screen. Writes land in these same objects, so the site is fully interactive;
@@ -161,8 +153,6 @@ const server = http.createServer(async (request, response) => {
   const route = `${request.method} ${url.pathname.replace(/\/+$/, '') || '/'}`
 
   if (route === 'GET /api/health') return json(response, 200, { status: 'ok', database: 'ok' })
-
-  if (route === 'GET /api/core/modules') return json(response, 200, modules)
 
   for (const handler of moduleHandlers) {
     if (await handler(request, response, route, url)) return

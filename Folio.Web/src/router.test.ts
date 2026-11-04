@@ -3,12 +3,13 @@ import { createMemoryHistory } from 'vue-router'
 import { createFolioRouter } from './router'
 
 describe('the site router', () => {
-  it('serves the portal at the root', async () => {
+  it('opens the site on its app, with no menu in between', async () => {
     const router = createFolioRouter(createMemoryHistory())
 
     await router.push('/')
 
-    expect(router.currentRoute.value.name).toBe('home')
+    expect(router.currentRoute.value.name).toBe('folio')
+    expect(router.currentRoute.value.path).toBe('/folio')
   })
 
   it('serves a module at its own path', async () => {
@@ -19,12 +20,12 @@ describe('the site router', () => {
     expect(router.currentRoute.value.name).toBe('folio')
   })
 
-  it('sends an address with no page home rather than nowhere', async () => {
+  it('sends an address with no page to the app rather than nowhere', async () => {
     const router = createFolioRouter(createMemoryHistory())
 
     await router.push('/no-such-app')
 
-    expect(router.currentRoute.value.name).toBe('home')
+    expect(router.currentRoute.value.name).toBe('folio')
   })
 
   it('has no sign-in page, because there is no sign-in', () => {

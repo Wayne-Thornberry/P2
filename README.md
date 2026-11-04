@@ -13,7 +13,7 @@ The rules a change has to obey, and the handful that must never be broken, are i
                     ┌───────────────────────────────────────┐
   browser ─────────►│  http://box:5420       one IIS site   │
                     │                                       │
-                    │  /          the portal                │
+                    │  /          redirects to /folio       │
                     │  /folio     the budget                │
                     └──────────────┬────────────────────────┘
                                    │  fetch
@@ -21,7 +21,7 @@ The rules a change has to obey, and the handful that must never be broken, are i
                     ┌──────────────▼────────────────────────┐
                     │  http://box:5423       one IIS site   │
                     │  Folio.Api                            │
-                    │    /api/core/...    the module list   │
+                    │    /api/health      is it there?      │
                     │    /api/folio/...   the budget        │
                     └──────────────┬────────────────────────┘
                                    │
@@ -44,15 +44,15 @@ The rules a change has to obey, and the handful that must never be broken, are i
 | [start.ps1](start.ps1) | Runs the whole thing locally in one window. |
 | [.github/workflows](.github/workflows) | `ci.yml` on a branch or a pull request, `deploy.yml` on `main` and by hand, `release.yml` for tags. |
 
-**One site, modules inside it.** The portal at `/` lists the apps; each app is a route in
-the same Vue build, in its own folder with its own pages, state, styles and tests. The
-routes are lazy, so each app still ships as its own JavaScript chunk, while the shared
-parts — the API client, the header — exist once.
+**One site, one app, a folder per module.** There is no page in front of the budget: `/`
+redirects to `/folio`, so opening the site is opening the budget. The route is lazy, so the
+app ships as its own JavaScript chunk, while the shared parts — the API client, the styles
+— exist once.
 
-Folio is the first module, at `/folio`. It is one module rather than one per page because
-the budget, the accounts and the reports all read the same transactions: splitting them
-would only mean passing the same rows between modules. Inside it, the sidebar is the app's
-own navigation.
+A module is one folder with its own pages, state, styles and tests, and the site's route for
+it is named after the API's. A second app would be another folder and another line in
+[registry.ts](Folio.Web/src/modules/registry.ts); it would also need a way to be chosen,
+which is why there is no listing today — there is one app.
 
 ## The data
 

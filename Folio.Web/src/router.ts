@@ -1,8 +1,10 @@
 import { createRouter, createWebHistory, type Router, type RouterHistory, type RouteRecordRaw } from 'vue-router'
-import { modules } from './modules/registry'
+import { home, modules } from './modules/registry'
 
 export const routes: RouteRecordRaw[] = [
-  { path: '/', name: 'home', component: () => import('./views/HomeView.vue') },
+  // The site opens on its one app, so the bare address is the budget rather than a menu
+  // with one thing on it.
+  { path: '/', redirect: home.path },
 
   // One route per module, each loaded on arrival.
   ...modules,
