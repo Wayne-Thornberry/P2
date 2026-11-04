@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Folio.Api.Data;
 using Folio.Api.Http;
@@ -33,19 +32,10 @@ builder.Services.AddSingleton(catalog);
 foreach (var module in catalog.Modules)
     module.AddServices(builder.Services, builder.Configuration);
 
-// The site and the API are one origin apart, so the browser needs CORS. In development
-// the site is on a loopback address; in production it is whatever the site is reached by,
-// which the deploy writes into Cors:AllowedOrigins. Loopback and private addresses are
-// always allowed because a home server is reached by all of them at different times.
+// The site and the API are one origin apart, so the browser needs CORS. Which origins are
+// allowed is a rule of its own (Http/Origins.cs): the one the deploy names, and any
+// private address, because a home server is reached by all of them at different times.
 var configuredOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
-
-static bool IsPrivateHost(string host) =>
-    host is "localhost" or "127.0.0.1" or "::1"
-    || host.StartsWith("192.168.", StringComparison.Ordinal)
-    || host.StartsWith("10.", StringComparison.Ordinal)
-    || (host.StartsWith("172.", StringComparison.Ordinal)
-        && int.TryParse(host.Split('.')[1], out var second)
-        && second is >= 16 and <= 31);
 
 builder.Services.AddCors(options =>
 {
@@ -53,9 +43,7 @@ builder.Services.AddCors(options =>
     {
         // Nothing here rides on a cookie the browser would send by itself, so the origin
         // may be allowed without credentials.
-        policy.SetIsOriginAllowed(origin =>
-                  configuredOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase)
-                  || (Uri.TryCreate(origin, UriKind.Absolute, out var uri) && IsPrivateHost(uri.Host)))
+        policy.SetIsOriginAllowed(origin => Origins.IsAllowed(origin, configuredOrigins))
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
@@ -69,23 +57,7 @@ app.UseRouting();
 app.UseCors();
 
 // Anything a module throws still has to answer in the shape the client reads.
-// Without this the browser gets a bare 500 it cannot parse and the reason never
-// reaches the log.
-app.UseExceptionHandler(errorApp => errorApp.Run(async context =>
-{
-    var error = context.Features.Get<IExceptionHandlerFeature>()?.Error;
-
-    context.RequestServices
-        .GetRequiredService<ILoggerFactory>()
-        .CreateLogger("Folio.Unhandled")
-        .LogError(error, "Unhandled exception answering {Method} {Path}.",
-            context.Request.Method, context.Request.Path);
-
-    // A throw here is a bug: say so, and keep the detail in the log rather than on
-    // the wire.
-    context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-    await context.Response.WriteAsJsonAsync(new ErrorBody("Something went wrong. Nothing was changed."));
-}));
+app.UseFolioErrors();
 
 app.MapGet("/api/health", HealthEndpoints.GetAsync);
 

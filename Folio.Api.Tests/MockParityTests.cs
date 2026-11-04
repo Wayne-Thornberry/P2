@@ -89,7 +89,7 @@ public sealed class MockParityTests(ApiFactory factory) : IClassFixture<ApiFacto
               "nextLoanId": 2,
               "nextSavId": 2
             }
-            """);
+            """)!;
 
         var put = await _mock.PutAsync("/api/folio/finance?country=ireland", finance);
         put.EnsureSuccessStatusCode();

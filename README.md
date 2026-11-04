@@ -206,7 +206,11 @@ IIS is already serving. Two IIS sites, created and kept true by the deploy's boo
 1. **On GitHub**: create the repository and register a runner for it, installed as
    `NT AUTHORITY\SYSTEM` (Settings → Actions → Runners → New self-hosted runner).
 2. **Set `WEB_PUBLIC_ORIGIN`** to where browsers load the site from, e.g.
-   `http://<box>:5420`. The API allows that origin through CORS.
+   `http://<box>:5420`. The API allows that origin through CORS. Anything on the home
+   network — `localhost`, `127.0.0.1`, `[::1]`, `10.*`, `192.168.*`, `172.16-31.*` — is
+   allowed without being named, because a box is reached by all of them at different times;
+   the rule is in [Origins.cs](Folio.Api/Http/Origins.cs) and its tests say exactly which
+   addresses it means.
 
 Push, and run *Deploy to Production* once by hand. That first run bootstraps the box —
 folders, app pools, both sites on the ports in [deploy.yml](.github/workflows/deploy.yml),
