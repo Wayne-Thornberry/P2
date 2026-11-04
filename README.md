@@ -178,6 +178,14 @@ should be. They **skip** when no SQL Server is reachable — which is the normal
 since a local run has no database — and `Folio_REQUIRE_DATABASE_TESTS=1` turns that skip
 into a failure, which is what the deploy sets.
 
+**The mock is held to the API's answers.** `MockParityTests` starts `Folio.Web/mocks/server.mjs`
+as a child process, reads its example budget, writes it into a real database through the
+same endpoints the site uses, and then asks both sides the same question: the workspace, the
+health score, the dashboard and the finance summary have to agree, field for field. Without
+it, every sum the API works out is written twice and the mock's copy is the one nobody
+notices drifting — the site would look right all day and be wrong on the box. Those tests
+need node as well as SQL Server, and skip when either is missing.
+
 ## Deploying it
 
 > **The deploy needs a SQL Server.** Its bootstrap step creates the database, and the API
