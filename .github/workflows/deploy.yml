@@ -1049,6 +1049,38 @@ jobs:
               }
           }
 
+          # The statement reader runs in a pdf.js worker that ships as a .mjs module, and
+          # IIS serves nothing whose extension it has no MIME map for: the file is there,
+          # the request is a 404, and the import fails in the browser with "Setting up fake
+          # worker failed". Nothing else notices, because every other asset is a .js.
+          $workers = @(Get-ChildItem -Path (Join-Path '${{ env.SITE_PATH }}' 'assets') -Filter 'pdf.worker.min-*.mjs' -ErrorAction SilentlyContinue)
+
+          if ($workers.Count -eq 0) {
+              Write-Host '[SKIPPED] no pdf.js worker in this build' -ForegroundColor Yellow
+          } else {
+              $url = '${{ env.SITE_URL }}' + '/assets/' + $workers[0].Name
+              $served = $false
+
+              try {
+                  $res = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 10
+                  $type = $res.Headers['Content-Type']
+
+                  if ($res.StatusCode -eq 200 -and $type -match 'javascript') {
+                      Write-Host "[OK] $url ($type)" -ForegroundColor Green
+                      $served = $true
+                  } else {
+                      Write-Host "[FAILED] $url answered $($res.StatusCode) as '$type'" -ForegroundColor Red
+                  }
+              } catch {
+                  Write-Host "[FAILED] $url : $($_.Exception.Message)" -ForegroundColor Red
+              }
+
+              if (-not $served) {
+                  Write-Host '  web.config must map .mjs to a JavaScript MIME type.' -ForegroundColor Yellow
+                  $failed = $true
+              }
+          }
+
           if ($failed) {
               Show-SiteDiagnostics -SiteName '${{ env.SITE_NAME }}' -PoolName '${{ env.SITE_APP_POOL }}' `
                   -Port ${{ env.SITE_PORT }} -SitePath '${{ env.SITE_PATH }}'
