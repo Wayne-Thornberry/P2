@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
+using Folio.Api.Auth;
 using Folio.Api.Http;
 
 namespace Folio.Api.Modules.Folio;
@@ -206,6 +207,7 @@ public sealed class FolioModule : IFolioModule
     /// </summary>
     private static async Task<IResult> DeleteWorkspaceAsync(
         string? country,
+        CurrentUser me,
         Data.FolioDbContext db,
         CancellationToken cancellationToken)
     {
@@ -215,22 +217,22 @@ public sealed class FolioModule : IFolioModule
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
         // Children before parents, because the foreign keys say so.
-        await db.PlannerSimulationItems.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.PlannerSimulations.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.SavingsContributions.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.BudgetAssignments.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.Transactions.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.UpcomingTransactions.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.Accounts.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.BudgetItems.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.BudgetTemplateEntries.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.SavingsGoals.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.Loans.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.SavingsRecords.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.PlannerItems.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.PlannerState.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.ImportHistory.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
-        await db.Counters.Where(row => row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.PlannerSimulationItems.Where(row => row.UserId == me.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.PlannerSimulations.Where(row => row.UserId == me.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.SavingsContributions.Where(row => row.UserId == me.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.BudgetAssignments.Where(row => row.UserId == me.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.Transactions.Where(row => row.UserId == me.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.UpcomingTransactions.Where(row => row.UserId == me.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.Accounts.Where(row => row.UserId == me.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.BudgetItems.Where(row => row.UserId == me.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.BudgetTemplateEntries.Where(row => row.UserId == me.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.SavingsGoals.Where(row => row.UserId == me.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.Loans.Where(row => row.UserId == me.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.SavingsRecords.Where(row => row.UserId == me.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.PlannerItems.Where(row => row.UserId == me.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.PlannerState.Where(row => row.UserId == me.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.ImportHistory.Where(row => row.UserId == me.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
+        await db.Counters.Where(row => row.UserId == me.Id && row.Country == name).ExecuteDeleteAsync(cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
 

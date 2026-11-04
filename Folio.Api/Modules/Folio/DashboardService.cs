@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Folio.Api.Auth;
 using Folio.Api.Data;
 
 namespace Folio.Api.Modules.Folio;
@@ -11,7 +12,7 @@ namespace Folio.Api.Modules.Folio;
 /// a spending line is. Those rules are now in <see cref="Compute"/>, which takes rows and
 /// dates and nothing else, so they can be checked without a database or a clock.
 /// </summary>
-public sealed class DashboardService(FolioDbContext db, TimeProvider clock)
+public sealed class DashboardService(FolioDbContext db, CurrentUser me, TimeProvider clock)
 {
     /// <summary>How many spending lines, budget lines and transactions the page has room for.</summary>
     public const int TopSpendingCount = 5;
@@ -24,17 +25,17 @@ public sealed class DashboardService(FolioDbContext db, TimeProvider clock)
         DateOnly? budgetMonth,
         CancellationToken cancellationToken)
     {
-        var settings = await db.Settings.AsNoTracking().FirstOrDefaultAsync(cancellationToken);
+        var settings = await db.Settings.AsNoTracking().FirstOrDefaultAsync(row => row.UserId == me.Id, cancellationToken);
         var startDay = settings is null ? 1 : (int)settings.BillableMonthStart;
 
         var transactions = await db.Transactions
             .AsNoTracking()
-            .Where(row => row.Country == country)
+            .Where(row => row.UserId == me.Id && row.Country == country)
             .ToListAsync(cancellationToken);
 
         var accounts = await db.Accounts
             .AsNoTracking()
-            .Where(row => row.Country == country)
+            .Where(row => row.UserId == me.Id && row.Country == country)
             .OrderBy(row => row.SortOrder)
             .ThenBy(row => row.Id)
             .ToListAsync(cancellationToken);
@@ -43,8 +44,8 @@ public sealed class DashboardService(FolioDbContext db, TimeProvider clock)
         var shown = month ?? FirstOf(today.Year, today.Month);
         var budgeted = budgetMonth ?? FirstOf(today.Year, today.Month);
 
-        var lines = await Assignments.ReadAsync(db, country, budgeted, cancellationToken);
-        var names = await Assignments.NamesAsync(db, country, cancellationToken);
+        var lines = await Assignments.ReadAsync(db, me.Id, country, budgeted, cancellationToken);
+        var names = await Assignments.NamesAsync(db, me.Id, country, cancellationToken);
 
         return Compute(transactions, accounts, lines, names, startDay, shown, budgeted);
     }

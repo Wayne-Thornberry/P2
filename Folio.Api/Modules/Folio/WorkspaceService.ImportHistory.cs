@@ -10,7 +10,7 @@ public sealed partial class WorkspaceService
     private async Task<ImportHistoryBlob?> ReadImportHistoryAsync(string country, CancellationToken cancellationToken)
     {
         var rows = await db.ImportHistory.AsNoTracking()
-            .Where(row => row.Country == country)
+            .Where(row => row.UserId == me.Id && row.Country == country)
             .OrderBy(row => row.SortOrder)
             .ToListAsync(cancellationToken);
 
@@ -31,6 +31,7 @@ public sealed partial class WorkspaceService
         var rows = (blob.Imports ?? [])
             .Select((import, index) => new ImportRecord
             {
+                UserId = me.Id,
                 Country = country,
                 Id = import.Id,
                 Date = UtcInput(import.Date),
@@ -43,7 +44,7 @@ public sealed partial class WorkspaceService
             .ToList();
 
         await ReplaceAsync(
-            db.ImportHistory.Where(row => row.Country == country),
+            db.ImportHistory.Where(row => row.UserId == me.Id && row.Country == country),
             rows,
             cancellationToken);
 

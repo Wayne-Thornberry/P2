@@ -28,7 +28,7 @@ The rules a change has to obey, and the handful that must never be broken, are i
                     ┌──────────────▼────────────────────────┐
                     │  SQL Server      database Folio       │
                     │    folio.Transactions, folio.Budget…  │
-                    │    keyed on (Country, Id)             │
+                    │    keyed on (UserId, Country, Id)     │
                     └───────────────────────────────────────┘
 ```
 
@@ -39,9 +39,10 @@ The rules a change has to obey, and the handful that must never be broken, are i
 | [Folio.Api](Folio.Api) | The one backend. An area per module under `/api/<module>`, plus `/api/health`. |
 | [Folio.Database](Folio.Database) | The schema as an SSDT project: `Schemas/`, `Types/`, `Tables/` are the model, `Scripts/Migrations/` is its numbered history. |
 | [Folio.Api.Tests](Folio.Api.Tests) | xUnit. Each test class builds its own throwaway SQL Server database from the same scripts. |
-| [Folio.Web](Folio.Web) | The site. One Vue app; a folder per module under [src/modules](Folio.Web/src/modules). |
-| [scripts](scripts) | `lib.ps1`, the functions `start.ps1` and the deploy share. Nothing there is run directly. |
-| [start.ps1](start.ps1) | Runs the whole thing locally in one window. |
+| [Folio.Api/Auth](Folio.Api/Auth) | Accounts: the rules, the hashing, the session, and the filter every budget endpoint sits behind. |
+| [Folio.Web](Folio.Web) | The site. One Vue app; a folder per module under [src/modules](Folio.Web/src/modules), and the sign-in under [src/auth](Folio.Web/src/auth). |
+| [start.ps1](start.ps1) | Runs the whole thing locally in one window, and owns the local database: it builds it from the model scripts and applies the migrations. |
+| [setup.ps1](setup.ps1) | Prepares the box for its first deploy: both sites, both pools, the firewall, the database and its grants, and the runner. Run once, on the server, elevated. |
 | [.github/workflows](.github/workflows) | `ci.yml` on a branch or a pull request, `deploy.yml` on `main` and by hand, `release.yml` for tags. |
 
 **One site, one app, a folder per module.** There is no page in front of the budget: `/`
@@ -68,9 +69,9 @@ the whole collection.
   contributions in `folio.SavingsContributions`, and so on. The model is in
   [Tables](Folio.Database/Tables) and the mapping in
   [FolioDbContext](Folio.Api/Data/FolioDbContext.cs).
-- **Country is part of the key.** Every table is keyed on `(Country, Id)`, so the budget
-  for Ireland and the budget for Sweden are separate sets of rows and switching country
-  switches which ones are loaded.
+- **Country is part of the key.** Every table is keyed on `(UserId, Country, Id)`, so the
+  budget for Ireland and the budget for Sweden are separate sets of rows, inside an account
+  that is separate again from the next person's.
 - **The browser keeps a copy.** [workspace.ts](Folio.Web/src/modules/folio/workspace.ts)
   fetches the saved workspace before the app starts and puts it where the stores already
   look; a change is written to the browser immediately and sent to the API shortly after.
@@ -128,60 +129,102 @@ adapters — is still in TypeScript, and is being moved into the API in that ord
 lands, a rule lives in one place: the module's service class. (The statement reader went
 first: there was nothing to migrate, and it is the format the PDFs arrive in.)
 
-## No sign-in
+## Accounts
 
-There is no account, no password and no session. This is a budget on a private box: the
-site is open to whoever can reach it on the network, and the only thing separating one
-budget from another is the country it was kept for.
+The budget is somebody's, so there is a sign-in in front of it. `auth.Users` holds one row
+per person who may sign in, `auth.Sessions` one per browser that has, and every table in
+`folio` carries the account that owns the row — so two people on the same box keep two
+budgets, and neither can read the other's.
 
-**Every table is keyed on `(Country, Id)`.** There is no users table to key on, and the
-API's endpoints take a country rather than an identity. A test fails if a `UserId` column
-ever reappears.
+- **The first account is made from the page.** A box with no accounts has nobody who could
+  be handed a password by the box, so the site offers to make the first one; it takes up the
+  placeholder row the migration created, which already owns whatever was saved before
+  accounts existed. It can only be done once.
+- **Every other account is made on the box**, which is deliberate — there is no sign-up
+  screen:
+  ```powershell
+  dotnet run --project Folio.Api -- --add-user margaret
+  ```
+  It prints a one-time password and stores only its hash. Until that password has been
+  replaced, the account opens nothing but the account page.
+- **A PIN is the way back in.** Six digits, set from the account page, replaces a forgotten
+  password. Wrong ones are counted, and the fifth buys a five-minute wait.
+- **The cookie cannot be read by a script.** It is HttpOnly, holds a random token, and the
+  table keeps only the token's SHA-256 — so a copy of the table is not a set of working
+  sessions. Changing a password signs every other browser out.
+
+The rules are [AccountRules](Folio.Api/Auth/AccountRules.cs) and
+[SecretHasher](Folio.Api/Auth/SecretHasher.cs) on the API; the site's copy in
+[rules.ts](Folio.Web/src/auth/rules.ts) only lets a form say what is wrong without a round
+trip.
 
 ## Running it locally
 
-A local run has **no database**. The site talks to its own mock API, which serves a
-complete example budget from memory: the budget, three months of transactions, four
-accounts, two savings goals, a loan, a planner scenario and an import history. Changes are
-live and interactive, and vanish when you stop it. A statement PDF can be dropped on the
-page here too — the mock applies the same reading rules as
-[BankStatement](Folio.Api/Modules/Folio/BankStatement.cs), so the import that works locally
-is the import that works on the box.
-
-Requirements: Node 22+ and PowerShell. That is all — no SQL Server, no LocalDB, and no
-.NET SDK unless you use `-Api`.
+Requirements: .NET 8 SDK, Node 22+, SQL Server Express LocalDB (or a SQL Server to point
+at), and PowerShell. No Java, and no `sqlpackage` — that is only installed on the box, by
+the deploy.
 
 ```powershell
-.\start.ps1            # the site and the mock API  → http://127.0.0.1:5420
-.\start.ps1 -Api       # the real API, against a database you configured
+.\start.ps1            # LocalDB, with the real API  → http://127.0.0.1:5420
+.\start.ps1 -Rebuild   # the same, but drop the database and rebuild it from the model
+.\start.ps1 -Mock      # no API, no database: the site's own fake API
+.\start.ps1 -Dev       # a shared database from appsettings.Development.json
 ```
 
-Two processes, whatever the number of apps: an API (mock or real) and the site. It signs
-you in as `wayne` / `mock` and opens the browser.
+The first run creates the LocalDB instance `Folio` and builds the database from the model
+scripts. After that a run only applies `Scripts/Migrations`, so a new migration reaches your
+database; `-Rebuild` is how you start over. Two processes start: the API and the site — one
+each, however many apps there are.
 
-`-Api` is for the rarer case of running the real API: it reads
-`Folio.Api\appsettings.Development.json` (gitignored — copy the `.example`) and expects a
-database that has **already been deployed**, because applying the schema is the deploy's
-job. Without a database to point at, leave it off.
+`-Dev` reads `ConnectionStrings:Default` from `Folio.Api\appsettings.Development.json`,
+which is gitignored because a real box needs a login. Copy
+[appsettings.Development.example.json](Folio.Api/appsettings.Development.example.json) and
+fill it in. Nothing else has to be pointed anywhere.
 
-| | Port | |
-| --- | --- | --- |
-| Site | 5420 | `http://127.0.0.1:5420` |
-| Mock API | 5490 | the default; `npm --prefix Folio.Web run mock` runs it alone |
-| API (development) | 5421 | what the dev server proxies `/api` to with `-Api` |
-| API (deployed) | 5423 | baked in at build time, and the API's IIS binding |
+### The ports
+
+| Port | What |
+| --- | --- |
+| 5420 | The site's dev server, and the site's port in IIS |
+| 5421 | The API while developing |
+| 5423 | The API in IIS (baked into the build as `VITE_API_PORT`) |
+| 5490 | The site's fake API (`-Mock`, or `npm run mock`) |
 
 A port is changed where it is used: the site's and the dev proxy's in
 [vite.config.ts](Folio.Web/vite.config.ts), the deployed pair in
 [deploy.yml](.github/workflows/deploy.yml), and the local pair in [start.ps1](start.ps1).
 
+### Without the launcher
+
+```powershell
+npm --prefix Folio.Web install
+npm --prefix Folio.Web test
+npm --prefix Folio.Web build
+
+dotnet build Folio.Database\Folio.Database.sqlproj -c Release    # the model, to a .dacpac
+dotnet test Folio.Api.Tests\Folio.Api.Tests.csproj
+```
+
+Everything else can be run directly. The exception is the local database: it is built from
+the model scripts by `start.ps1`, which is also the only thing that knows which of the four
+modes you asked for, so a laptop's database comes from `.\start.ps1` (`-Rebuild` throws it
+away and builds it again). The box's database is `setup.ps1` and `sqlpackage`.
+
 ### The mock
 
-[Folio.Web/mocks/server.mjs](Folio.Web/mocks/server.mjs) answers the same paths as the API
-with the same shapes, including the `{ "error": "…" }` body a refusal carries; the data it
-serves comes from [seed.mjs](Folio.Web/mocks/seed.mjs) beside it. Because the site cannot
-tell the two apart, everything you can do against a deployed API you can do locally with no
-database at all.
+`.\start.ps1 -Mock` starts [Folio.Web/mocks/server.mjs](Folio.Web/mocks/server.mjs), which
+answers the same paths as the API with the same shapes, including the
+`{ "error": "…" }` body a refusal carries; the data it serves comes from
+[seed.mjs](Folio.Web/mocks/seed.mjs) beside it. It holds a complete example budget in
+memory — three months of transactions, four accounts, two savings goals, a loan, a planner
+scenario and an import history — and signs you in as `wayne` / `mock`. Changes are live and
+vanish when you stop it.
+
+Because the site cannot tell the two apart, everything you can do against the real API you
+can do here with no database at all. A statement PDF can be dropped on the page in this
+mode too: the mock applies the same reading rules as
+[BankStatement](Folio.Api/Modules/Folio/BankStatement.cs), so the import that works locally
+is the import that works on the box.
 
 ## Tests
 
@@ -195,9 +238,9 @@ npm --prefix Folio.Web run build                        # types and the bundle
 
 The API tests build their own throwaway database from the model scripts and then apply the
 migrations, which is what proves a migration still lands a database where the model says it
-should be. They **skip** when no SQL Server is reachable — which is the normal local case,
-since a local run has no database — and `Folio_REQUIRE_DATABASE_TESTS=1` turns that skip
-into a failure, which is what the deploy sets.
+should be. They **skip** when no SQL Server is reachable — a laptop without LocalDB, or one
+whose `Folio_TEST_SQL_SERVER` points at nothing — and `Folio_REQUIRE_DATABASE_TESTS=1` turns
+that skip into a failure, which is what the deploy sets.
 
 **The mock is held to the API's answers.** `MockParityTests` starts `Folio.Web/mocks/server.mjs`
 as a child process, reads its example budget, writes it into a real database through the
@@ -209,13 +252,27 @@ need node as well as SQL Server, and skip when either is missing.
 
 ## Deploying it
 
-> **The deploy needs a SQL Server.** Its bootstrap step creates the database, and the API
-> reads it, so a box without one cannot finish a deploy. Nothing in this repository
-> installs one. Until a database exists — on the box, or reachable from it and named by the
-> `SQL_SERVER` variable — a local run is the mock and the deploy stays parked.
+Two workflows matter:
 
-Everything runs on the server itself: the runner builds in place and deploys to the folders
-IIS is already serving. Two IIS sites, created and kept true by the deploy's bootstrap step:
+- **`ci.yml`** — on pull requests, and on pushes to any branch but `main`: a push to `main`
+  is the deploy's business, and the deploy runs both of these jobs itself. Builds the
+  database model and runs the API tests on Windows, tests and builds the site on Ubuntu.
+  Database tests run when a SQL Server is available and are reported as skipped when not.
+- **`deploy.yml`** — on push to `main`, or by hand with a `deployType` of `full`,
+  `apiOnly`, `sitesOnly` or `dbOnly`. Runs on a **self-hosted runner on the box**, which
+  builds in place and copies into the folders IIS already serves — `C:\Program
+  Files\FolioWeb` and `C:\Program Files\FolioApi`. Nothing is shipped between machines.
+
+Order of a deploy: check the box is set up (a site, a pool, a folder or the database that is
+not there means [setup.ps1](setup.ps1) has never run, so the deploy says that instead of
+copying into a folder nothing serves) → run the tests, before anything is stopped, so a
+failure leaves the running sites alone → build the API, the model and the site → stop the
+app pools → copy the site → copy the API and write its `appsettings.Production.json` →
+apply the migrations and publish the model with `sqlpackage` → start the pools → smoke-test
+the API's `/api/health` and the site's `/` → clean up.
+
+Nothing is created by the deploy. The two IIS sites it publishes onto, and the database the
+API reads, are made once by [setup.ps1](setup.ps1):
 
 | Site | Serves | Port |
 | --- | --- | --- |
@@ -224,8 +281,11 @@ IIS is already serving. Two IIS sites, created and kept true by the deploy's boo
 
 ### A new project in two steps
 
-1. **On GitHub**: create the repository and register a runner for it, installed as
-   `NT AUTHORITY\SYSTEM` (Settings → Actions → Runners → New self-hosted runner).
+1. **On the box**, elevated, in a clone of the repository: `.\setup.ps1`. It asks for the
+   repository and a registration token from Settings → Actions → Runners → New self-hosted
+   runner, and makes the folders, both app pools, both sites, the firewall rules, the
+   database and its Windows grants. `.\setup.ps1 -Check` reports what is missing and changes
+   nothing, which is the thing to run when a deploy says something is not there.
 2. **Set `WEB_PUBLIC_ORIGIN`** to where browsers load the site from, e.g.
    `http://<box>:5420`. The API allows that origin through CORS. Anything on the home
    network — `localhost`, `127.0.0.1`, `[::1]`, `10.*`, `192.168.*`, `172.16-31.*` — is
@@ -233,11 +293,8 @@ IIS is already serving. Two IIS sites, created and kept true by the deploy's boo
    the rule is in [Origins.cs](Folio.Api/Http/Origins.cs) and its tests say exactly which
    addresses it means.
 
-Push, and run *Deploy to Production* once by hand. That first run bootstraps the box —
-folders, app pools, both sites on the ports in [deploy.yml](.github/workflows/deploy.yml),
-firewall rules, the database and its Windows grants — and then deploys on top of what it
-made. Every statement in the bootstrap is idempotent, so it runs on every deploy and repairs
-drift instead of failing on it.
+Push, and run *Deploy to Production* once by hand. The box is already made; the deploy
+publishes onto it.
 
 ### Settings
 
@@ -254,19 +311,19 @@ origins into `appsettings.Production.json` on the box on every deploy.
 ### The box, once — not once per project
 
 IIS and the ASP.NET Core hosting bundle, SQL Server, and a runner. The deploy installs
-`sqlpackage` itself if it is missing, and creates the database and grants the runner and
-the API's app pool what they need in Windows terms — no SQL login, no password.
+`sqlpackage` itself if it is missing; [setup.ps1](setup.ps1) makes the database and grants
+the runner and the API's app pool what they need in Windows terms — no SQL login, no
+password.
 
-The grants are made twice on purpose: once by the bootstrap step when the database is
-created, and again straight after every publish. `sqlpackage` runs with
-`DropObjectsNotInSource`, which is what actually drops a column the model no longer has —
-and it drops a database user the project does not describe too, which is both of them.
-Without the second pass the API loses its own user and answers 503 on a database that is
-perfectly there.
+The grants are made twice on purpose: once by `setup.ps1` when the database is created, and
+again straight after every publish. `sqlpackage` runs with `DropObjectsNotInSource`, which is
+what actually drops a column the model no longer has — and it drops a database user the
+project does not describe too, which is both of them. Without the second pass the API loses
+its own user and answers 503 on a database that is perfectly there.
 
-The one thing that needs a sysadmin once is creating those logins: the runner account has
-to be a sysadmin for that first bootstrap. See the failure message the bootstrap prints if
-it is not.
+Creating a login needs a sysadmin, and nothing can promote itself: `setup.ps1` has to run as
+an account that is one on the instance — usually the account that installed SQL Server. It
+then makes the runner a `dbcreator` itself, so the tests can build their own databases.
 
 ## Licence
 

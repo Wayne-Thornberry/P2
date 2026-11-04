@@ -1,6 +1,12 @@
--- The one schema this project keeps its data in.
+-- The two schemas this project keeps its data in.
 --
--- There is no core schema and no users table: this is a budget on a private box, used by
--- one person, so there is nobody to sign in as and nothing to separate rows by.
+-- folio is the budget: whoever is signed in has their own rows in every one of its
+-- tables, keyed on (UserId, Country, Id).
+--
+-- auth is who is asking, kept apart because it is a different question -- dropping or
+-- restoring the budget's tables leaves the accounts alone, and the other way round.
 CREATE SCHEMA [folio] AUTHORIZATION [dbo];
+GO
+
+CREATE SCHEMA [auth] AUTHORIZATION [dbo];
 GO

@@ -92,11 +92,11 @@ public sealed class DatabaseMigrationTests : IDisposable
     }
 
     [DatabaseFact]
-    public void Nothing_is_keyed_on_a_user()
+    public void Every_table_of_a_budget_is_keyed_on_the_account_that_owns_it()
     {
-        // There is no account in this project, so no table may grow a UserId column: the
-        // country is what separates one budget from another. A column that reappears here
-        // means the schema drifted back towards a multi-tenant shape nobody uses.
+        // The other way round from how this project used to be: a row now belongs to the
+        // account that saved it, and the country only separates one budget from another.
+        // A folio table without a UserId would be a table every account could read.
         TestDatabase.Create(TestDatabase.Server, _database);
 
         using var connection = new SqlConnection(ConnectionString);
@@ -105,10 +105,13 @@ public sealed class DatabaseMigrationTests : IDisposable
         using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT s.name + '.' + t.name
-            FROM sys.columns AS c
-            JOIN sys.tables AS t ON t.object_id = c.object_id
+            FROM sys.tables AS t
             JOIN sys.schemas AS s ON s.schema_id = t.schema_id
-            WHERE c.name = 'UserId'
+            WHERE s.name = N'folio'
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM sys.columns AS c
+                  WHERE c.object_id = t.object_id AND c.name = N'UserId')
             """;
 
         var offenders = new List<string>();

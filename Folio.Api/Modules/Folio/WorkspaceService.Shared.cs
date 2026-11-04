@@ -29,7 +29,7 @@ public sealed partial class WorkspaceService
     private async Task<int?> ReadCounterAsync(string country, string name, CancellationToken cancellationToken)
     {
         var row = await db.Counters.AsNoTracking()
-            .FirstOrDefaultAsync(counter => counter.Country == country && counter.Name == name, cancellationToken);
+            .FirstOrDefaultAsync(counter => counter.UserId == me.Id && counter.Country == country && counter.Name == name, cancellationToken);
 
         return row?.Value;
     }
@@ -40,10 +40,10 @@ public sealed partial class WorkspaceService
             return;
 
         var row = await db.Counters.FirstOrDefaultAsync(
-            counter => counter.Country == country && counter.Name == name, cancellationToken);
+            counter => counter.UserId == me.Id && counter.Country == country && counter.Name == name, cancellationToken);
 
         if (row is null)
-            db.Counters.Add(new Counter { Country = country, Name = name, Value = next });
+            db.Counters.Add(new Counter { UserId = me.Id, Country = country, Name = name, Value = next });
         else
             row.Value = next;
 

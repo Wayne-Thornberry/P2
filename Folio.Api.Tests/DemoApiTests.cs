@@ -29,7 +29,7 @@ public sealed class DemoApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [DatabaseFact]
     public async Task A_demo_budget_is_written_and_read_back_as_one_workspace()
     {
-        var client = factory.CreateClient();
+        var client = await factory.CreateSignedInClientAsync();
 
         var summary = await PostAsync(client, Quarterly());
         var workspace = await client.GetFromJsonAsync<JsonElement>($"/api/folio/workspace?country={Country}");
@@ -50,7 +50,7 @@ public sealed class DemoApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [DatabaseFact]
     public async Task Asking_twice_replaces_the_budget_rather_than_doubling_it()
     {
-        var client = factory.CreateClient();
+        var client = await factory.CreateSignedInClientAsync();
 
         var first = await PostAsync(client, Quarterly());
         var second = await PostAsync(client, Quarterly("saver"));
@@ -65,7 +65,7 @@ public sealed class DemoApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [DatabaseFact]
     public async Task An_impossible_request_is_refused_in_the_APIs_own_words()
     {
-        var client = factory.CreateClient();
+        var client = await factory.CreateSignedInClientAsync();
 
         var refused = await client.PostAsJsonAsync(
             $"/api/folio/demo?country={Country}",
@@ -90,7 +90,7 @@ public sealed class DemoApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [DatabaseFact]
     public async Task Without_a_country_there_is_nothing_to_fill()
     {
-        var client = factory.CreateClient();
+        var client = await factory.CreateSignedInClientAsync();
 
         var refused = await client.PostAsJsonAsync("/api/folio/demo", Quarterly());
 

@@ -3,6 +3,7 @@
 -- of the user's Accounts.
 CREATE TABLE [folio].[SavingsRecords]
 (
+    [UserId]          INT            NOT NULL,
     [Country]         NVARCHAR (40)  NOT NULL,
     [Id]              INT            NOT NULL,
     [Name]            NVARCHAR (100) NOT NULL,
@@ -15,6 +16,7 @@ CREATE TABLE [folio].[SavingsRecords]
     [CreatedAt]       DATETIME2 (3)  NOT NULL,
     [Archived]        BIT            NOT NULL,
     [SortOrder]       INT            NOT NULL,
-    CONSTRAINT [PK_SavingsRecords] PRIMARY KEY CLUSTERED ([Country], [Id]),
-    CONSTRAINT [CK_SavingsRecords_CompoundFreq] CHECK ([CompoundFreq] IN ('monthly', 'quarterly', 'annually'))
+    CONSTRAINT [PK_SavingsRecords] PRIMARY KEY CLUSTERED ([UserId], [Country], [Id]),
+    CONSTRAINT [CK_SavingsRecords_CompoundFreq] CHECK ([CompoundFreq] IN ('monthly', 'quarterly', 'annually')),
+    CONSTRAINT [FK_SavingsRecords_AuthUsers] FOREIGN KEY ([UserId]) REFERENCES [auth].[Users] ([Id])
 );

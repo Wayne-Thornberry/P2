@@ -8,8 +8,8 @@
 // `{ "error": "..." }` body a refusal carries. One handler per module, so a module
 // still owns its own fake data -- it just does not own a process.
 //
-// There is no sign-in here either, because there is none in the real API: the box is
-// private and the site is open on it.
+// Signing in is faked too, because the site is behind it: one account, one cookie, and
+// the same 401 when it is missing.
 
 import http from 'node:http'
 import { seedSettings, seedWorkspace } from './seed.mjs'
@@ -17,6 +17,31 @@ import { demoRefusal, demoWorkspace } from './demo.mjs'
 import { readStatement, statementRefusal } from './statement.mjs'
 
 const PORT = Number(process.env.MOCK_PORT ?? 5490)
+
+// One account, because the fake API has one budget. The real one has an auth.Users table
+// and a session per browser; this has a name, a password and a cookie with a fixed value.
+const USERNAME = 'wayne'
+const PASSWORD = process.env.MOCK_PASSWORD ?? 'mock'
+const COOKIE = 'folio_session'
+const TOKEN = 'mock-session'
+
+const signedInCookie = `${COOKIE}=${TOKEN}; HttpOnly; Path=/; SameSite=Lax`
+
+function hasSession(request) {
+  return (request.headers.cookie ?? '').split(';').some((part) => part.trim() === `${COOKIE}=${TOKEN}`)
+}
+
+function accountState(request) {
+  const signedIn = hasSession(request)
+
+  return {
+    needsFirstAccount: false,
+    signedIn,
+    username: signedIn ? USERNAME : null,
+    mustChangePassword: false,
+    hasPin: true,
+  }
+}
 
 // ── the folio module's data ────────────────────────────────────────────────────────────
 // Seed with a complete example budget so the app opens on something real rather than the
@@ -43,12 +68,13 @@ function countryWorkspace(country) {
   return workspace.get(country)
 }
 
-function json(response, status, body) {
+function json(response, status, body, headers = {}) {
   const payload = body === undefined ? '' : JSON.stringify(body)
   response.writeHead(status, {
     'Content-Type': 'application/json',
     'Cache-Control': 'no-store',
     'Content-Length': Buffer.byteLength(payload),
+    ...headers,
   })
   response.end(payload)
 }
@@ -657,6 +683,51 @@ const server = http.createServer(async (request, response) => {
 
   if (route === 'GET /api/health') return json(response, 200, { status: 'ok', database: 'ok' })
 
+  if (route === 'GET /api/auth/state') return json(response, 200, accountState(request))
+
+  if (route === 'POST /api/auth/signin') {
+    const body = await readJson(request)
+
+    if (body?.username !== USERNAME || body?.password !== PASSWORD) {
+      return json(response, 401, { error: 'That username and password do not match an account.' }, {
+        // The sign-in that failed says nothing about the one that did not happen.
+      })
+    }
+
+    return json(response, 200, { ...accountState(request), signedIn: true, username: USERNAME }, {
+      'Set-Cookie': signedInCookie,
+    })
+  }
+
+  if (route === 'POST /api/auth/signout') {
+    response.writeHead(204, { 'Set-Cookie': `${COOKIE}=; HttpOnly; Path=/; Max-Age=0` }).end()
+    return
+  }
+
+  // Everything below here is somebody's budget, so it wants the cookie the sign-in left.
+  if (!hasSession(request)) return json(response, 401, { error: 'Sign in first.' })
+
+  if (route === 'GET /api/auth/me') return json(response, 200, accountState(request))
+
+  if (route === 'POST /api/auth/claim') {
+    return json(response, 400, { error: 'This site already has an account. Sign in instead.' })
+  }
+
+  if (route === 'POST /api/auth/password' || route === 'POST /api/auth/pin') {
+    // The fake API has no passwords to compare, so it takes the form at its word.
+    return json(response, 200, accountState(request))
+  }
+
+  if (route === 'POST /api/auth/reset') {
+    const body = await readJson(request)
+
+    return body?.pin === '000000'
+      ? json(response, 401, { error: 'That username and PIN do not match an account.' })
+      : json(response, 200, { ...accountState(request), signedIn: true, username: USERNAME }, {
+          'Set-Cookie': signedInCookie,
+        })
+  }
+
   for (const handler of moduleHandlers) {
     if (await handler(request, response, route, url)) return
   }
@@ -665,5 +736,5 @@ const server = http.createServer(async (request, response) => {
 })
 
 server.listen(PORT, '127.0.0.1', () => {
-  console.log(`Mock API on http://127.0.0.1:${PORT}, serving the example budget for 'ireland'`)
+  console.log(`Mock API on http://127.0.0.1:${PORT}, serving the example budget for 'ireland' (sign in as '${USERNAME}' / '${PASSWORD}')`)
 })

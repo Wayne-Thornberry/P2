@@ -10,7 +10,7 @@ public sealed partial class WorkspaceService
     private async Task<UpcomingBlob?> ReadUpcomingAsync(string country, CancellationToken cancellationToken)
     {
         var rows = await db.UpcomingTransactions.AsNoTracking()
-            .Where(row => row.Country == country)
+            .Where(row => row.UserId == me.Id && row.Country == country)
             .OrderBy(row => row.SortOrder)
             .ToListAsync(cancellationToken);
 
@@ -39,6 +39,7 @@ public sealed partial class WorkspaceService
         var rows = (blob.Items ?? [])
             .Select((item, index) => new UpcomingTransactionRow
             {
+                UserId = me.Id,
                 Country = country,
                 Id = item.Id,
                 Title = Text(item.Title, "Planned", 200),
@@ -55,7 +56,7 @@ public sealed partial class WorkspaceService
             .ToList();
 
         await ReplaceAsync(
-            db.UpcomingTransactions.Where(row => row.Country == country),
+            db.UpcomingTransactions.Where(row => row.UserId == me.Id && row.Country == country),
             rows,
             cancellationToken);
 

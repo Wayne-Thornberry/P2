@@ -25,7 +25,7 @@ public sealed class HealthScoreApiTests(ApiFactory factory) : IClassFixture<ApiF
     public async Task A_saved_budget_is_scored_by_the_api()
     {
         const string scored = "scotland";
-        var client = factory.CreateClient();
+        var client = await factory.CreateSignedInClientAsync();
 
         var thisMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
 
@@ -78,7 +78,7 @@ public sealed class HealthScoreApiTests(ApiFactory factory) : IClassFixture<ApiF
     [DatabaseFact]
     public async Task A_month_that_is_not_a_month_is_refused()
     {
-        var client = factory.CreateClient();
+        var client = await factory.CreateSignedInClientAsync();
 
         var response = await client.GetAsync("/api/folio/health?country=ireland&month=last-tuesday");
 

@@ -52,7 +52,7 @@ public sealed class StatementApiTests(ApiFactory factory) : IClassFixture<ApiFac
     [DatabaseFact]
     public async Task A_statement_is_read_into_transactions()
     {
-        var client = factory.CreateClient();
+        var client = await factory.CreateSignedInClientAsync();
 
         var response = await client.PostAsJsonAsync("/api/folio/import/statement", Statement());
         response.EnsureSuccessStatusCode();
@@ -78,7 +78,7 @@ public sealed class StatementApiTests(ApiFactory factory) : IClassFixture<ApiFac
     [DatabaseFact]
     public async Task A_statement_from_another_bank_is_refused_in_the_APIs_own_words()
     {
-        var client = factory.CreateClient();
+        var client = await factory.CreateSignedInClientAsync();
 
         var refused = await client.PostAsJsonAsync("/api/folio/import/statement", new
         {

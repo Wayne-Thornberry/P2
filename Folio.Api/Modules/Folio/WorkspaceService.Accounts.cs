@@ -10,7 +10,7 @@ public sealed partial class WorkspaceService
     private async Task<AccountsBlob?> ReadAccountsAsync(string country, CancellationToken cancellationToken)
     {
         var rows = await db.Accounts.AsNoTracking()
-            .Where(row => row.Country == country)
+            .Where(row => row.UserId == me.Id && row.Country == country)
             .OrderBy(row => row.SortOrder)
             .ToListAsync(cancellationToken);
 
@@ -30,6 +30,7 @@ public sealed partial class WorkspaceService
             .Where(account => !string.IsNullOrWhiteSpace(account.Id))
             .Select((account, index) => new Account
             {
+                UserId = me.Id,
                 Country = country,
                 Id = account.Id.Trim(),
                 Name = Text(account.Name, account.Id, 100),
@@ -42,7 +43,7 @@ public sealed partial class WorkspaceService
             .ToList();
 
         await ReplaceAsync(
-            db.Accounts.Where(row => row.Country == country),
+            db.Accounts.Where(row => row.UserId == me.Id && row.Country == country),
             rows,
             cancellationToken);
 

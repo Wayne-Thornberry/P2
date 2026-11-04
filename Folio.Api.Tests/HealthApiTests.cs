@@ -24,4 +24,16 @@ public sealed class HealthApiTests(ApiFactory factory) : IClassFixture<ApiFactor
         Assert.Equal("ok", body!.Status);
         Assert.Equal("ok", body.Database);
     }
+
+    [DatabaseFact]
+    public async Task The_answer_is_not_to_be_kept()
+    {
+        // Nothing between the box and the browser may keep an answer: what the API works
+        // out changes when a button is pressed, and a cached one describes a budget that
+        // has moved on.
+        var response = await factory.CreateClient().GetAsync("/api/health");
+
+        Assert.True(response.Headers.CacheControl?.NoStore);
+        Assert.True(response.Headers.CacheControl?.NoCache);
+    }
 }

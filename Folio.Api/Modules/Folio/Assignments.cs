@@ -17,6 +17,7 @@ internal static class Assignments
 
     public static async Task<List<BudgetLine>> ReadAsync(
         FolioDbContext db,
+        int userId,
         string country,
         DateOnly month,
         CancellationToken cancellationToken)
@@ -27,7 +28,7 @@ internal static class Assignments
 
             var lines = await db.BudgetAssignments
                 .AsNoTracking()
-                .Where(row => row.Country == country && row.Year == at.Year && row.Month == at.Month)
+                .Where(row => row.UserId == userId && row.Country == country && row.Year == at.Year && row.Month == at.Month)
                 .Select(row => new BudgetLine(row.ItemId, row.Assigned))
                 .ToListAsync(cancellationToken);
 
@@ -41,11 +42,12 @@ internal static class Assignments
     /// <summary>The name a budget item goes by, by id, for the lines above.</summary>
     public static async Task<Dictionary<int, string>> NamesAsync(
         FolioDbContext db,
+        int userId,
         string country,
         CancellationToken cancellationToken) =>
         await db.BudgetItems
             .AsNoTracking()
-            .Where(row => row.Country == country)
+            .Where(row => row.UserId == userId && row.Country == country)
             .ToDictionaryAsync(row => row.Id, row => row.Name, cancellationToken);
 }
 

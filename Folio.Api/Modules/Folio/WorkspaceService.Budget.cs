@@ -10,12 +10,12 @@ public sealed partial class WorkspaceService
     private async Task<BudgetBlob?> ReadBudgetAsync(string country, CancellationToken cancellationToken)
     {
         var items = await db.BudgetItems.AsNoTracking()
-            .Where(row => row.Country == country)
+            .Where(row => row.UserId == me.Id && row.Country == country)
             .OrderBy(row => row.SortOrder)
             .ToListAsync(cancellationToken);
 
         var assignments = await db.BudgetAssignments.AsNoTracking()
-            .Where(row => row.Country == country)
+            .Where(row => row.UserId == me.Id && row.Country == country)
             .OrderBy(row => row.Year).ThenBy(row => row.Month).ThenBy(row => row.ItemId)
             .ToListAsync(cancellationToken);
 
@@ -49,6 +49,7 @@ public sealed partial class WorkspaceService
         var items = (blob.GlobalItems ?? [])
             .Select((item, index) => new BudgetItem
             {
+                UserId = me.Id,
                 Country = country,
                 Id = item.Id,
                 Name = Text(item.Name, "Item", 100),
@@ -72,6 +73,7 @@ public sealed partial class WorkspaceService
                 {
                     assignments.Add(new BudgetAssignment
                     {
+                        UserId = me.Id,
                         Country = country,
                         Year = year,
                         Month = month,
@@ -85,8 +87,8 @@ public sealed partial class WorkspaceService
 
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
-        await db.BudgetAssignments.Where(row => row.Country == country).ExecuteDeleteAsync(cancellationToken);
-        await ReplaceAsync(db.BudgetItems.Where(row => row.Country == country), items, cancellationToken);
+        await db.BudgetAssignments.Where(row => row.UserId == me.Id && row.Country == country).ExecuteDeleteAsync(cancellationToken);
+        await ReplaceAsync(db.BudgetItems.Where(row => row.UserId == me.Id && row.Country == country), items, cancellationToken);
 
         db.BudgetAssignments.AddRange(assignments);
         await db.SaveChangesAsync(cancellationToken);

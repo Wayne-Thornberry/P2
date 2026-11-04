@@ -9,6 +9,10 @@ long version, and the *why* of each rule, is in [README.md](README.md).
 ([Folio.Web](Folio.Web)), tests for both sides, and a deploy to IIS on a single Windows
 box. The site is the budget itself, on one module — `folio` — with no page in front of it.
 
+**Run it** with `.\start.ps1` (`-Mock` for no API, `-Rebuild` to rebuild the database from
+the model). It builds, migrates and starts both processes; the site then asks you to sign
+in, and offers to make the first account if the box has none.
+
 ## The rules that are not negotiable
 
 1. **A deployed migration is history.** Scripts in `Folio.Database/Scripts/Migrations`
@@ -22,19 +26,22 @@ box. The site is the budget itself, on one module — `folio` — with no page i
    only for what a diff cannot express: moving or filling data. Do not create a table in
    a migration.
 4. **No SQL logins and no SQL passwords.** The API, the runner and the tests connect with
-   Windows authentication, granted by the deploy's bootstrap step. If something fails with
+   Windows authentication, granted once by [setup.ps1](setup.ps1). If something fails with
    "login failed", the answer is a grant, never a credential.
-5. **The API is open.** There is no sign-in: this is a budget on a private box, and an
-   account would only be a password in front of a door nobody else can reach. Do not
-   reintroduce sessions or a `UserId` — the data is keyed on `(Country, Id)`.
+5. **Every row belongs to an account.** The API has accounts: `auth.Users` says who may sign
+   in, `auth.Sessions` remembers which browser has, and every table in the `folio` schema
+   carries the `UserId` that owns the row. Nothing is read or written without one, and an
+   endpoint added to the module group is behind the sign-in by not having said otherwise.
+   Do not add a folio query that does not filter on the account.
 6. **The API never creates a database object.** It reads and writes tables that a deploy
    already made. "Invalid object name" means the database has not been deployed.
 7. **`npm ci` in `Folio.Web`, never a workspace.** This tree lives on a network share
    that cannot create the symlinks npm workspaces need. One project, one `node_modules`.
 8. **A module's name is used twice**: `/api/<name>` on the API and `/<name>` on the site.
    The two are one app seen from both sides, so they must be equal.
-9. **Every table in the `folio` schema is keyed on `(Country, Id)`.** One person can keep a
-   budget for more than one country, and each is a separate set of rows.
+9. **Every row of a budget is keyed on `(UserId, Country, Id)`.** An account has its own
+   budget, and one person may keep one for more than one country; each country is a separate
+   set of rows inside that account rather than a tagged pile.
 10. **A rule lives on the server.** What makes a row valid, what a number means, what the
     page is shown belongs to the module's service class and the endpoints it feeds. The
     site displays what comes back and formats it. A rule kept in both places drifts, and
@@ -42,7 +49,7 @@ box. The site is the budget itself, on one module — `folio` — with no page i
 
 ## The data
 
-Folio keeps nine collections per country, and the site holds each of them as one
+Folio keeps nine collections per country per account, and the site holds each of them as one
 aggregate — the shape its stores already had when they lived in `localStorage`:
 
 | Collection | Table(s) in `folio` |
@@ -58,15 +65,38 @@ aggregate — the shape its stores already had when they lived in `localStorage`
 | `folio_import_history` | `ImportHistory` |
 
 `GET /api/folio/workspace?country=<id>` reads them all; `PUT /api/folio/<collection>` replaces
-one inside a transaction. Settings are one row per user (`folio.Settings`) and have their
-own GET and PUT. The site's [workspace.ts](Folio.Web/src/modules/folio/workspace.ts) is the
-only file that knows the browser's copy is a cache: it primes it before the app starts and
-sends a collection back once the user has stopped changing it.
+one inside a transaction. Neither asks who is calling: the session cookie says whose budget
+it is, and the services filter on it. Settings are one row per account (`folio.Settings`) and
+have their own GET and PUT. The site's
+[workspace.ts](Folio.Web/src/modules/folio/workspace.ts) is the only file that knows the
+browser's copy is a cache: it primes it before the app starts and sends a collection back
+once the user has stopped changing it.
 
 **Adding a field** means: a column in `Tables/`, a property on the row class and the mapping
 in [FolioDbContext](Folio.Api/Data/FolioDbContext.cs), the member on the collection's
 DTO, the code in [WorkspaceService](Folio.Api/Modules/Folio/WorkspaceService.cs) that reads
-and writes it, the TypeScript type in the module, and a test.
+and writes it — including the `UserId` every query filters on — the TypeScript type in the
+module, and a test.
+
+## Accounts
+
+`auth.Users` is one person who may sign in; `auth.Sessions` is one browser that has. The
+password is a PBKDF2 hash and its own salt, never the password, and the session cookie holds
+a random token whose SHA-256 is what the table keeps — so a copy of the table is not a set
+of working sessions.
+
+- **The first account is made from the page** (`POST /api/auth/claim`), because a box with
+  no accounts has nobody who could be handed a password by the box. It takes up the
+  placeholder row the migration made, which already owns whatever was saved before accounts
+  existed. It can only happen once.
+- **Every other account is made on the box**, with
+  `dotnet run --project Folio.Api -- --add-user <name>`. That prints a one-time password and
+  stores only its hash; the account answers 403 to everything except changing that password
+  until it has been replaced.
+- **A PIN is the way back in** when a password is forgotten. Six digits is guessable, so
+  wrong ones are counted and the fifth buys a wait.
+- The rules are in [AccountRules](Folio.Api/Auth/AccountRules.cs); the site's copy in
+  [rules.ts](Folio.Web/src/auth/rules.ts) only lets a form say what is wrong sooner.
 
 ## Adding an app
 
@@ -82,13 +112,16 @@ and writes it, the TypeScript type in the module, and a test.
 4. **Tests** — a class in `Folio.Api.Tests` for the endpoints, a `*.test.ts` beside the
    site's logic. Both are expected, not optional.
 
-Nothing in `start.ps1`, the build, the workflow or the deploy changes when an app is added.
+Nothing in `start.ps1`, `setup.ps1`, the build, the workflow or the deploy changes when an
+app is added: an app lives inside the schema and the site the project already has.
 
 ## Commands
 
 ```powershell
-.\start.ps1                                             # the site and the mock API
-.\start.ps1 -Api                                        # the real API (needs a database)
+.\start.ps1                                             # LocalDB, migrated, with the real API
+.\start.ps1 -Rebuild                                    # the same, database dropped first
+.\start.ps1 -Dev                                        # a shared database, read and written
+.\start.ps1 -Mock                                       # no API and no database: the fake one
 
 dotnet build Folio.sln
 dotnet test Folio.Api.Tests\Folio.Api.Tests.csproj
@@ -98,16 +131,17 @@ npm --prefix Folio.Web test
 npm --prefix Folio.Web run build
 ```
 
-**A local run has no database.** The default `.\start.ps1` serves the site from the mock in
-`Folio.Web/mocks`, which holds a full example budget in memory; that is how the app is
-exercised day to day. `-Api` is only for pointing the real API at a database that has
-already been deployed.
+**The site can talk to two APIs.** `.\start.ps1` builds a LocalDB database from the model
+and serves the real API against it; `-Mock` serves the fake API in `Folio.Web/mocks`
+instead, which holds a full example budget in memory and saves nothing. Anything the site
+can do against the real API it must still do against that mock — `MockParityTests` fails
+when the two drift, and it compares the workspace, the health score, the dashboard and the
+finance summary field by field.
 
 API tests that need SQL build a throwaway database of their own from the model scripts and
-the migrations, then drop it. They **skip** when no SQL Server is reachable — the normal
-local case, since a local run has no database. `Folio_REQUIRE_DATABASE_TESTS=1` turns a
-skip into a failure, which is what the deploy sets, and `Folio_TEST_SQL_SERVER` points
-them at a server.
+the migrations, then drop it. They **skip** when no SQL Server is reachable.
+`Folio_REQUIRE_DATABASE_TESTS=1` turns a skip into a failure, which is what the deploy
+sets, and `Folio_TEST_SQL_SERVER` points them at a server.
 
 ## Style
 

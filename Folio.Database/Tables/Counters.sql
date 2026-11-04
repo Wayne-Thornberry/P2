@@ -6,8 +6,10 @@
 -- or a deploy never hands out an id that is already in use.
 CREATE TABLE [folio].[Counters]
 (
+    [UserId]  INT           NOT NULL,
     [Country] NVARCHAR (40) NOT NULL,
     [Name]    VARCHAR (40) NOT NULL,
     [Value]   INT          NOT NULL,
-    CONSTRAINT [PK_Counters] PRIMARY KEY CLUSTERED ([Country], [Name])
+    CONSTRAINT [PK_Counters] PRIMARY KEY CLUSTERED ([UserId], [Country], [Name]),
+    CONSTRAINT [FK_Counters_AuthUsers] FOREIGN KEY ([UserId]) REFERENCES [auth].[Users] ([Id])
 );

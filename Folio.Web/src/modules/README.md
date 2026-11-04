@@ -3,6 +3,10 @@
 One folder per app. The site's router turns a folder into a route, and the API knows the
 same app by name under `/api/<name>`.
 
+Every module's route is behind the sign-in — the router sends a visitor who is not signed in
+to `/signin`, remembering where they were going. A module never asks who is asking: the API
+knows, from the session cookie, and answers with that account's rows.
+
 ```
 src/modules/
   registry.ts        one line per module: which route, which folder

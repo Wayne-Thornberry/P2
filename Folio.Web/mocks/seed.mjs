@@ -3,7 +3,7 @@
 // It is shaped exactly as the real API answers -- the same collection names, the same
 // field names, the same id counters -- so the site cannot tell the difference and the
 // stores hydrate from it unchanged. Everything here is invented; nothing is read from a
-// database, because a local run has no database.
+// database, because the mock is what a run serves when it is asked for `-Mock`.
 //
 // The dates are relative to today, so the budget is always for the current month and the
 // last two, and the app never opens on an empty period.

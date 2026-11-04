@@ -9,6 +9,10 @@ public static class ApiErrors
 {
     public static IResult BadRequest(string message) => Of(message, StatusCodes.Status400BadRequest);
 
+    public static IResult Unauthorized(string message) => Of(message, StatusCodes.Status401Unauthorized);
+
+    public static IResult Forbidden(string message) => Of(message, StatusCodes.Status403Forbidden);
+
     public static IResult Of(string message, int statusCode) =>
         Results.Json(new ErrorBody(message), statusCode: statusCode);
 }

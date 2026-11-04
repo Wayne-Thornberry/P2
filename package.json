@@ -1,0 +1,15 @@
+{
+  "name": "Folio",
+  "private": true,
+  "version": "1.26.0",
+  "description": "Folio, a private budget on your own box.",
+  "scripts": {
+    "ci": "npm --prefix Folio.Web ci",
+    "install:web": "npm --prefix Folio.Web install",
+    "test": "npm --prefix Folio.Web test",
+    "build": "npm --prefix Folio.Web build"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

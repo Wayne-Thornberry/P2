@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Folio.Api.Auth;
 using Folio.Api.Data;
 
 namespace Folio.Api.Modules.Folio;
@@ -12,24 +13,24 @@ namespace Folio.Api.Modules.Folio;
 /// (<see cref="Compute"/>) over rows and a date: a test can hand it a fixed day and check
 /// the score without a database or a clock.
 /// </summary>
-public sealed class HealthService(FolioDbContext db, TimeProvider clock)
+public sealed class HealthService(FolioDbContext db, CurrentUser me, TimeProvider clock)
 {
     /// <summary>Completed months the score looks at. The current one is still being lived.</summary>
     public const int WindowMonths = 6;
 
     public async Task<HealthReport> ReadAsync(string country, DateOnly? viewed, CancellationToken cancellationToken)
     {
-        var settings = await db.Settings.AsNoTracking().FirstOrDefaultAsync(cancellationToken);
+        var settings = await db.Settings.AsNoTracking().FirstOrDefaultAsync(row => row.UserId == me.Id, cancellationToken);
         var startDay = settings is null ? 1 : settings.BillableMonthStart;
 
         var transactions = await db.Transactions
             .AsNoTracking()
-            .Where(row => row.Country == country)
+            .Where(row => row.UserId == me.Id && row.Country == country)
             .ToListAsync(cancellationToken);
 
         var today = DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
         var month = viewed ?? FirstOf(BillableMonth(today, startDay));
-        var lines = await Assignments.ReadAsync(db, country, month, cancellationToken);
+        var lines = await Assignments.ReadAsync(db, me.Id, country, month, cancellationToken);
 
         return Compute(transactions, lines, startDay, today, month);
     }

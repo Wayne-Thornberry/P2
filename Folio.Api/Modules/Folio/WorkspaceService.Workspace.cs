@@ -31,9 +31,9 @@ public sealed partial class WorkspaceService
     /// </summary>
     public async Task<IReadOnlyList<string>> ListCountriesAsync(CancellationToken cancellationToken)
     {
-        var fromCounters = db.Counters.Select(row => row.Country);
-        var fromAccounts = db.Accounts.Select(row => row.Country);
-        var fromTransactions = db.Transactions.Select(row => row.Country);
+        var fromCounters = db.Counters.Where(row => row.UserId == me.Id).Select(row => row.Country);
+        var fromAccounts = db.Accounts.Where(row => row.UserId == me.Id).Select(row => row.Country);
+        var fromTransactions = db.Transactions.Where(row => row.UserId == me.Id).Select(row => row.Country);
 
         return await fromCounters
             .Union(fromAccounts)

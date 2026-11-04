@@ -4,6 +4,7 @@
 -- the sum of them, and a list inside a column could not be summed or reported on.
 CREATE TABLE [folio].[SavingsGoals]
 (
+    [UserId]          INT            NOT NULL,
     [Country]         NVARCHAR (40)  NOT NULL,
     [Id]              INT            NOT NULL,
     [Name]            NVARCHAR (100) NOT NULL,
@@ -14,5 +15,6 @@ CREATE TABLE [folio].[SavingsGoals]
     [CreatedAt]       DATETIME2 (3)  NOT NULL,
     [Archived]        BIT            NOT NULL,
     [SortOrder]       INT            NOT NULL,
-    CONSTRAINT [PK_SavingsGoals] PRIMARY KEY CLUSTERED ([Country], [Id])
+    CONSTRAINT [PK_SavingsGoals] PRIMARY KEY CLUSTERED ([UserId], [Country], [Id]),
+    CONSTRAINT [FK_SavingsGoals_AuthUsers] FOREIGN KEY ([UserId]) REFERENCES [auth].[Users] ([Id])
 );

@@ -109,6 +109,16 @@ const bottomItems = [
         <i :class="['pi', item.icon, 'text-[0.75rem] shrink-0']" />
         {{ item.label }}
       </a>
+
+      <!-- Who is signed in, and the way to the account page: it is a route of its own, not
+           a page inside the budget. -->
+      <RouterLink
+        to="/account"
+        class="flex items-center gap-2.5 px-4 py-[0.42rem] text-[0.8rem] font-semibold transition-colors text-zinc-500 dark:text-zinc-400 hover:bg-zinc-300 dark:hover:bg-zinc-700 hover:text-zinc-800 dark:hover:text-zinc-100"
+      >
+        <i class="pi pi-user text-[0.75rem] shrink-0" />
+        Account
+      </RouterLink>
     </div>
 
   </aside>

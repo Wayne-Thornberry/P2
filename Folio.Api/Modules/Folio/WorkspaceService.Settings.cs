@@ -9,7 +9,7 @@ public sealed partial class WorkspaceService
 
     public async Task<SettingsBlob?> ReadSettingsAsync(CancellationToken cancellationToken)
     {
-        var row = await db.Settings.AsNoTracking().FirstOrDefaultAsync(cancellationToken);
+        var row = await db.Settings.AsNoTracking().FirstOrDefaultAsync(row => row.UserId == me.Id, cancellationToken);
 
         return row is null
             ? null
@@ -26,11 +26,11 @@ public sealed partial class WorkspaceService
 
     public async Task SaveSettingsAsync(SettingsBlob blob, CancellationToken cancellationToken)
     {
-        var row = await db.Settings.FirstOrDefaultAsync(cancellationToken);
+        var row = await db.Settings.FirstOrDefaultAsync(row => row.UserId == me.Id, cancellationToken);
 
         if (row is null)
         {
-            row = new Settings();
+            row = new Settings { UserId = me.Id };
             db.Settings.Add(row);
         }
 

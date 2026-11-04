@@ -18,14 +18,10 @@ const PORT = 5420
 /** Where the API listens while developing. */
 const API_PORT = Number(process.env.Folio_API_PORT ?? 5421)
 
-/** The fake API, which is what a local run uses unless start.ps1 -Api is given. */
+/** The fake API used with `start.ps1 -Mock` or `npm run mock`. */
 const MOCK_PORT = Number(process.env.MOCK_PORT ?? 5490)
 
-/**
- * The mock is the default: a local run has no database, so `/api` goes to the fake API
- * unless start.ps1 -Api says otherwise (Folio_MOCK=0).
- */
-const useMock = process.env.Folio_MOCK !== '0'
+const useMock = process.env.Folio_MOCK === '1'
 const apiTarget = `http://127.0.0.1:${useMock ? MOCK_PORT : API_PORT}`
 
 // One socket to the API, reused, rather than a new one per request.

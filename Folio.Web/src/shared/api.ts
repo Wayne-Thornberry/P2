@@ -17,17 +17,32 @@ export class ApiError extends Error {
 }
 
 /**
+ * What to do when the API says nobody is signed in.
+ *
+ * The session is a cookie the page cannot read, so the only way to notice it has gone is
+ * for a request to be refused. The shell registers what happens next -- it cannot be
+ * imported here without a circle.
+ */
+let unauthorized: (() => void) | null = null
+
+export function whenUnauthorized(handler: () => void) {
+  unauthorized = handler
+}
+
+/**
  * A request to the API.
  *
- * There is no session and no token: the API is open on a private box, so a request is
- * just a request.
+ * The session is an HttpOnly cookie: the page never sees it, and `credentials: 'include'`
+ * is what lets the browser attach it to a call to the API's own port.
  */
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
 
   if (init.body !== undefined) headers.set('Content-Type', 'application/json')
 
-  const response = await fetch(apiUrl(path), { ...init, headers })
+  const response = await fetch(apiUrl(path), { ...init, headers, credentials: 'include' })
+
+  if (response.status === 401 && !path.startsWith('/api/auth/')) unauthorized?.()
 
   if (!response.ok) throw new ApiError(response.status, await errorMessage(response))
 

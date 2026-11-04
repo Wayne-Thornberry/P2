@@ -3,9 +3,11 @@
 -- assigned to it is per month (BudgetAssignments).
 CREATE TABLE [folio].[BudgetItems]
 (
+    [UserId]    INT            NOT NULL,
     [Country]   NVARCHAR (40)  NOT NULL,
     [Id]        INT            NOT NULL,
     [Name]      NVARCHAR (100) NOT NULL,
     [SortOrder] INT            NOT NULL,
-    CONSTRAINT [PK_BudgetItems] PRIMARY KEY CLUSTERED ([Country], [Id])
+    CONSTRAINT [PK_BudgetItems] PRIMARY KEY CLUSTERED ([UserId], [Country], [Id]),
+    CONSTRAINT [FK_BudgetItems_AuthUsers] FOREIGN KEY ([UserId]) REFERENCES [auth].[Users] ([Id])
 );

@@ -12,8 +12,8 @@ namespace Folio.Api.Tests;
 /// on top, which is what proves they still land a database where the model says it
 /// should be.
 ///
-/// This is the same work <c>scripts\Database.ps1</c> does for a developer's machine, in
-/// C# rather than PowerShell because the tests are where it has to happen.
+/// This is the same work <c>start.ps1</c> does for a developer's machine, in C# rather than
+/// PowerShell because the tests are where it has to happen.
 /// </summary>
 internal static class TestDatabase
 {
@@ -23,10 +23,9 @@ internal static class TestDatabase
     /// <summary>
     /// Where test databases are created.
     ///
-    /// A local run has no database, so on a laptop these tests skip; the default names an
-    /// instance nobody is expected to have, and <c>Folio_TEST_SQL_SERVER</c> points the
-    /// suite at a server that does. The deploy sets it, because there a database is
-    /// certainly reachable.
+    /// The default is the LocalDB instance <c>start.ps1</c> creates, because that is the
+    /// one a laptop has. The deploy overrides it with a server whose account may create
+    /// databases.
     /// </summary>
     public static readonly string Server =
         Environment.GetEnvironmentVariable("Folio_TEST_SQL_SERVER") is { Length: > 0 } configured
@@ -96,9 +95,29 @@ internal static class TestDatabase
         ApplyMigrations(connection);
     }
 
-    public static void Drop(string server, string database)
+    /// <summary>
+    /// Creates the database and nothing in it, for the tests that write a shape of their
+    /// own into it first -- the one a database had before the accounts migration ran.
+    /// </summary>
+    public static void CreateEmpty(string server, string database) =>
+        CreateDatabase(ConnectionString(server, database), database);
+
+    /// <summary>Runs a script of several batches, the way the deploy runs one.</summary>
+    public static void RunScript(string connectionString, string script)
     {
-        // The app's pooled connections keep a handle on the database, and a database
+        using var connection = Open(connectionString);
+
+        foreach (var batch in Batches(script))
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = batch;
+            command.CommandTimeout = 300;
+            command.ExecuteNonQuery();
+        }
+    }
+
+    public static void Drop(string server, string database)
+    {        // The app's pooled connections keep a handle on the database, and a database
         // cannot be dropped while one is open.
         SqlConnection.ClearAllPools();
 
@@ -257,7 +276,7 @@ internal static class TestDatabase
             throw new InvalidOperationException(
                 $"SQL Server at '{new SqlConnectionStringBuilder(connectionString).DataSource}' refused the test "
                 + $"connection: {ex.Message.Trim()} The tests build their own databases, so the account they run "
-                + "as has to be able to connect and to create one. On the box, scripts\\bootstrap.ps1 grants the "
+                + "as has to be able to connect and to create one. On the box, setup.ps1 grants the "
                 + "runner exactly that; anywhere else, grant dbcreator by hand. Nothing was tested.",
                 ex);
         }
@@ -306,8 +325,8 @@ internal static class TestDatabase
 
         return $"No SQL Server at '{server}'. Every test class builds its own throwaway database there and "
             + "drops it again, so the account the tests run as needs CREATE DATABASE -- the dbcreator server "
-            + "role. A local run has no database at all, which makes this a skip rather than a problem: point "
-            + "Folio_TEST_SQL_SERVER at a server that has one to run them. Set Folio_REQUIRE_DATABASE_TESTS=1 "
-            + "to make this a failure instead, which is what the deploy does.";
+            + "role. On a laptop, 'sqllocaldb create Folio' makes the instance these tests expect; point "
+            + "Folio_TEST_SQL_SERVER somewhere else to use a different server. Set Folio_REQUIRE_DATABASE_TESTS=1 "
+            + "to make this a failure rather than a skip, which is what the deploy does.";
     }
 }

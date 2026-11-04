@@ -3,6 +3,7 @@
 -- as a negative amount.
 CREATE TABLE [folio].[Transactions]
 (
+    [UserId]    INT            NOT NULL,
     [Country]   NVARCHAR (40)  NOT NULL,
     [Id]        INT            NOT NULL,
     [Name]      NVARCHAR (200) NOT NULL,
@@ -17,15 +18,16 @@ CREATE TABLE [folio].[Transactions]
     [Locked]    BIT            NULL,
     [Recurring] BIT            NULL,
     [SortOrder] INT            NOT NULL,
-    CONSTRAINT [PK_Transactions] PRIMARY KEY CLUSTERED ([Country], [Id]),
-    CONSTRAINT [CK_Transactions_Type] CHECK ([Type] IN ('in', 'out'))
+    CONSTRAINT [PK_Transactions] PRIMARY KEY CLUSTERED ([UserId], [Country], [Id]),
+    CONSTRAINT [CK_Transactions_Type] CHECK ([Type] IN ('in', 'out')),
+    CONSTRAINT [FK_Transactions_AuthUsers] FOREIGN KEY ([UserId]) REFERENCES [auth].[Users] ([Id])
 );
 GO
 
 -- The log is read a month at a time and filtered by account, which is what these cover.
 CREATE NONCLUSTERED INDEX [IX_Transactions_Country_Date]
-    ON [folio].[Transactions] ([Country], [Date] DESC);
+    ON [folio].[Transactions] ([UserId], [Country], [Date] DESC);
 GO
 
 CREATE NONCLUSTERED INDEX [IX_Transactions_Country_AccountId]
-    ON [folio].[Transactions] ([Country], [AccountId]);
+    ON [folio].[Transactions] ([UserId], [Country], [AccountId]);

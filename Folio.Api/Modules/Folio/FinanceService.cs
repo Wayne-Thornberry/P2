@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Folio.Api.Auth;
 using Folio.Api.Data;
 
 namespace Folio.Api.Modules.Folio;
@@ -16,27 +17,27 @@ namespace Folio.Api.Modules.Folio;
 /// that lands a penny away from the one the Finance page draws would be worse than no
 /// projection at all; the money is rounded to cents at every step the browser rounded it.
 /// </summary>
-public sealed class FinanceService(FolioDbContext db, TimeProvider clock)
+public sealed class FinanceService(FolioDbContext db, CurrentUser me, TimeProvider clock)
 {
     public async Task<FinanceSummary> ReadAsync(string country, CancellationToken cancellationToken)
     {
         var loans = await db.Loans
             .AsNoTracking()
-            .Where(row => row.Country == country)
+            .Where(row => row.UserId == me.Id && row.Country == country)
             .OrderBy(row => row.SortOrder)
             .ThenBy(row => row.Id)
             .ToListAsync(cancellationToken);
 
         var savings = await db.SavingsRecords
             .AsNoTracking()
-            .Where(row => row.Country == country)
+            .Where(row => row.UserId == me.Id && row.Country == country)
             .OrderBy(row => row.SortOrder)
             .ThenBy(row => row.Id)
             .ToListAsync(cancellationToken);
 
         var transactions = await db.Transactions
             .AsNoTracking()
-            .Where(row => row.Country == country && row.AccountId != null)
+            .Where(row => row.UserId == me.Id && row.Country == country && row.AccountId != null)
             .ToListAsync(cancellationToken);
 
         return Compute(loans, savings, transactions, DateOnly.FromDateTime(clock.GetLocalNow().DateTime));

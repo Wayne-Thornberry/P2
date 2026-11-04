@@ -20,7 +20,7 @@ public sealed class FolioApiTests(ApiFactory factory) : IClassFixture<ApiFactory
     [DatabaseFact]
     public async Task A_country_that_has_never_been_used_answers_with_nothing_saved()
     {
-        var client = factory.CreateClient();
+        var client = await factory.CreateSignedInClientAsync();
 
         var response = await client.GetAsync(Workspace("nowhere"));
 
@@ -36,7 +36,7 @@ public sealed class FolioApiTests(ApiFactory factory) : IClassFixture<ApiFactory
     [DatabaseFact]
     public async Task Transactions_are_saved_and_come_back_in_order()
     {
-        var client = factory.CreateClient();
+        var client = await factory.CreateSignedInClientAsync();
 
         var saved = new
         {
@@ -92,7 +92,7 @@ public sealed class FolioApiTests(ApiFactory factory) : IClassFixture<ApiFactory
     [DatabaseFact]
     public async Task Saving_a_collection_again_replaces_what_was_there()
     {
-        var client = factory.CreateClient();
+        var client = await factory.CreateSignedInClientAsync();
 
         await client.PutAsJsonAsync($"/api/folio/accounts?country={Country}", new
         {
@@ -116,7 +116,7 @@ public sealed class FolioApiTests(ApiFactory factory) : IClassFixture<ApiFactory
     [DatabaseFact]
     public async Task Two_countries_do_not_see_each_others_data()
     {
-        var client = factory.CreateClient();
+        var client = await factory.CreateSignedInClientAsync();
 
         await client.PutAsJsonAsync("/api/folio/transactions?country=ireland", new
         {
@@ -131,7 +131,7 @@ public sealed class FolioApiTests(ApiFactory factory) : IClassFixture<ApiFactory
     [DatabaseFact]
     public async Task The_budget_keeps_its_months()
     {
-        var client = factory.CreateClient();
+        var client = await factory.CreateSignedInClientAsync();
 
         await client.PutAsJsonAsync($"/api/folio/budget?country={Country}", new
         {
@@ -159,7 +159,7 @@ public sealed class FolioApiTests(ApiFactory factory) : IClassFixture<ApiFactory
     [DatabaseFact]
     public async Task Settings_are_saved_without_knowing_a_country()
     {
-        var client = factory.CreateClient();
+        var client = await factory.CreateSignedInClientAsync();
 
         var settings = new
         {
@@ -187,7 +187,7 @@ public sealed class FolioApiTests(ApiFactory factory) : IClassFixture<ApiFactory
     [DatabaseFact]
     public async Task Deleting_a_workspace_leaves_nothing_behind()
     {
-        var client = factory.CreateClient();
+        var client = await factory.CreateSignedInClientAsync();
 
         await client.PutAsJsonAsync($"/api/folio/accounts?country={Country}", new
         {
@@ -205,7 +205,7 @@ public sealed class FolioApiTests(ApiFactory factory) : IClassFixture<ApiFactory
     [DatabaseFact]
     public async Task The_countries_that_have_data_are_listed_once_each()
     {
-        var client = factory.CreateClient();
+        var client = await factory.CreateSignedInClientAsync();
 
         await client.PutAsJsonAsync("/api/folio/accounts?country=ireland", new
         {
@@ -236,7 +236,7 @@ public sealed class FolioApiTests(ApiFactory factory) : IClassFixture<ApiFactory
     [DatabaseFact]
     public async Task A_country_is_required()
     {
-        var client = factory.CreateClient();
+        var client = await factory.CreateSignedInClientAsync();
 
         var response = await client.GetAsync("/api/folio/workspace");
 
@@ -246,7 +246,7 @@ public sealed class FolioApiTests(ApiFactory factory) : IClassFixture<ApiFactory
     [DatabaseFact]
     public async Task Two_countries_can_be_written_at_once()
     {
-        var client = factory.CreateClient();
+        var client = await factory.CreateSignedInClientAsync();
 
         await client.PutAsJsonAsync("/api/folio/accounts?country=ireland", new
         {

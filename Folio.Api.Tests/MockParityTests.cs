@@ -12,8 +12,9 @@ namespace Folio.Api.Tests;
 ///
 /// Every sum the API works out -- the health score, the dashboard, the finance summary --
 /// is written twice: once in C# and once in <c>Folio.Web/mocks/server.mjs</c>, because a
-/// local run has no database. Two implementations of one rule drift, and the mock's is the
-/// one nobody notices: the site looks right all day and is wrong on the box.
+/// local run can serve the site from the mock instead of the database. Two implementations
+/// of one rule drift, and the mock's is the one nobody notices: the site looks right all
+/// day and is wrong on the box.
 ///
 /// So the mock is the fixture. Its own workspace is read out of it, written into a real
 /// database, and then the same questions are asked of both. A change to one side that the
@@ -42,7 +43,7 @@ public sealed class MockParityTests(ApiFactory factory) : IClassFixture<ApiFacto
     [MockParityFact]
     public async Task The_health_score_is_the_same_on_both_sides()
     {
-        var api = factory.CreateClient();
+        var api = await factory.CreateSignedInClientAsync();
         await SeedAsync(api);
 
         var month = ThisMonth();
@@ -56,7 +57,7 @@ public sealed class MockParityTests(ApiFactory factory) : IClassFixture<ApiFacto
     [MockParityFact]
     public async Task The_dashboard_is_the_same_on_both_sides()
     {
-        var api = factory.CreateClient();
+        var api = await factory.CreateSignedInClientAsync();
         await SeedAsync(api);
 
         var month = ThisMonth();
@@ -70,7 +71,7 @@ public sealed class MockParityTests(ApiFactory factory) : IClassFixture<ApiFacto
     [MockParityFact]
     public async Task The_finance_summary_is_the_same_on_both_sides()
     {
-        var api = factory.CreateClient();
+        var api = await factory.CreateSignedInClientAsync();
 
         // The example budget has no loans or savings, so one of each goes in first: an
         // empty list would agree with an empty list and prove nothing about the
@@ -109,7 +110,7 @@ public sealed class MockParityTests(ApiFactory factory) : IClassFixture<ApiFacto
     [MockParityFact]
     public async Task The_workspace_survives_the_round_trip_unchanged()
     {
-        var api = factory.CreateClient();
+        var api = await factory.CreateSignedInClientAsync();
         await SeedAsync(api);
 
         var expected = await _mock.GetAsync("/api/folio/workspace?country=ireland");
@@ -269,6 +270,11 @@ public sealed class MockParityTests(ApiFactory factory) : IClassFixture<ApiFacto
     /// </summary>
     private sealed class NodeMock : IDisposable
     {
+        /// <summary>The one account the fake API has, and the password this test gives it.</summary>
+        public const string Username = "wayne";
+
+        public const string Password = "mock-parity-password";
+
         private readonly Process _process;
         private readonly HttpClient _client;
 
@@ -286,13 +292,22 @@ public sealed class MockParityTests(ApiFactory factory) : IClassFixture<ApiFacto
             };
 
             start.Environment["MOCK_PORT"] = port.ToString(CultureInfo.InvariantCulture);
+            start.Environment["MOCK_PASSWORD"] = Password;
 
             _process = Process.Start(start)
                 ?? throw new InvalidOperationException("The mock could not be started: is node installed?");
 
-            _client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}"), Timeout = TimeSpan.FromSeconds(30) };
+            // The cookie the mock hands out on signing in is the whole of what a signed-in
+            // client is, so the handler keeps it for every request that follows.
+            _client = new HttpClient(
+                new HttpClientHandler { CookieContainer = new System.Net.CookieContainer() })
+            {
+                BaseAddress = new Uri($"http://127.0.0.1:{port}"),
+                Timeout = TimeSpan.FromSeconds(30),
+            };
 
             WaitUntilAnswering();
+            SignIn();
         }
 
         public async Task<JsonNode?> GetAsync(string path)
@@ -308,6 +323,19 @@ public sealed class MockParityTests(ApiFactory factory) : IClassFixture<ApiFacto
         /// <summary>Writes a collection into the mock, as the site does.</summary>
         public Task<HttpResponseMessage> PutAsync(string path, JsonNode body) =>
             _client.PutAsJsonAsync(path, body);
+
+        /// <summary>Signs in, so the requests that follow are somebody's.</summary>
+        private void SignIn()
+        {
+            using var response = _client
+                .PostAsJsonAsync("/api/auth/signin", new { username = Username, password = Password })
+                .GetAwaiter()
+                .GetResult();
+
+            var body = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+
+            Assert.True(response.IsSuccessStatusCode, $"The mock refused the sign-in: {(int)response.StatusCode} {body}");
+        }
 
         /// <summary>Where Folio.Web is, and a port nothing else has taken.</summary>
         private static (string Web, int Port) Locate()

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Folio.Api.Auth;
 using Folio.Api.Data;
 
 namespace Folio.Api.Modules.Folio;
@@ -27,6 +28,6 @@ namespace Folio.Api.Modules.Folio;
 ///   WorkspaceService.ImportHistory.cs   what was imported, and when
 ///   WorkspaceService.Shared.cs          the helpers every one of them uses
 /// </summary>
-public sealed partial class WorkspaceService(FolioDbContext db)
+public sealed partial class WorkspaceService(FolioDbContext db, CurrentUser me)
 {
 }

@@ -10,7 +10,7 @@ public sealed partial class WorkspaceService
     private async Task<TemplateBlob?> ReadTemplateAsync(string country, CancellationToken cancellationToken)
     {
         var rows = await db.BudgetTemplateEntries.AsNoTracking()
-            .Where(row => row.Country == country)
+            .Where(row => row.UserId == me.Id && row.Country == country)
             .OrderBy(row => row.SortOrder)
             .ToListAsync(cancellationToken);
 
@@ -24,6 +24,7 @@ public sealed partial class WorkspaceService
         var rows = (blob.Entries ?? [])
             .Select((entry, index) => new BudgetTemplateEntry
             {
+                UserId = me.Id,
                 Country = country,
                 ItemId = entry.ItemId,
                 Assigned = entry.Assigned,
@@ -33,7 +34,7 @@ public sealed partial class WorkspaceService
             .ToList();
 
         await ReplaceAsync(
-            db.BudgetTemplateEntries.Where(row => row.Country == country),
+            db.BudgetTemplateEntries.Where(row => row.UserId == me.Id && row.Country == country),
             rows,
             cancellationToken);
     }

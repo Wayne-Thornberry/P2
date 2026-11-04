@@ -1,6 +1,23 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMemoryHistory } from 'vue-router'
 import { createFolioRouter } from './router'
+
+// The site asks the API who is asking before it shows anything, and primes the budget from
+// it. Neither is what this file is about: the shape of the routes and the way in are.
+const session = vi.hoisted(() => ({ signedIn: true, changing: false }))
+
+vi.mock('./auth/session', () => ({
+  load: async () => ({}),
+  isSignedIn: () => session.signedIn,
+  mustChangePassword: () => session.changing,
+}))
+
+vi.mock('./modules/folio/workspace', () => ({ loadWorkspace: async () => {} }))
+
+beforeEach(() => {
+  session.signedIn = true
+  session.changing = false
+})
 
 describe('the site router', () => {
   it('opens the site on its app, with no menu in between', async () => {
@@ -28,10 +45,32 @@ describe('the site router', () => {
     expect(router.currentRoute.value.name).toBe('folio')
   })
 
-  it('has no sign-in page, because there is no sign-in', () => {
+  it('sends a visitor who is not signed in to the way in, remembering the page', async () => {
+    session.signedIn = false
+
     const router = createFolioRouter(createMemoryHistory())
 
-    expect(router.hasRoute('login')).toBe(false)
-    expect(router.hasRoute('account')).toBe(false)
+    await router.push('/folio')
+
+    expect(router.currentRoute.value.name).toBe('signin')
+    expect(router.currentRoute.value.query.next).toBe('/folio')
+  })
+
+  it('lets a signed-in visitor stay out of the sign-in page', async () => {
+    const router = createFolioRouter(createMemoryHistory())
+
+    await router.push('/signin')
+
+    expect(router.currentRoute.value.name).toBe('folio')
+  })
+
+  it('opens the account page and nothing else while a handed-over password stands', async () => {
+    session.changing = true
+
+    const router = createFolioRouter(createMemoryHistory())
+
+    await router.push('/folio')
+
+    expect(router.currentRoute.value.name).toBe('account')
   })
 })

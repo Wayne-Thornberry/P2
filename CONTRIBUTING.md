@@ -7,8 +7,9 @@ Thanks for your interest in contributing! Here's how to get involved.
 ## Getting Started
 
 1. **Fork** the repository and clone your fork locally.
-2. Start everything with `.\start.ps1` — the site and its mock API. No database, no .NET
-   build: a local run serves a complete example budget from memory.
+2. Start everything with `.\start.ps1` — the site and the real API, against a LocalDB
+   database built from the model on the first run. `.\start.ps1 -Mock` skips both and
+   serves a complete example budget from memory instead.
 3. Make your changes on a new branch: `git checkout -b feat/your-feature-name`
 
 ---

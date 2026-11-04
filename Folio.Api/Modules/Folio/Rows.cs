@@ -17,6 +17,7 @@ public interface ICountryScoped
 
 public sealed class Account : ICountryScoped
 {
+    public int UserId { get; set; }
     public string Country { get; set; } = "";
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
@@ -29,6 +30,7 @@ public sealed class Account : ICountryScoped
 
 public sealed class TransactionRow : ICountryScoped
 {
+    public int UserId { get; set; }
     public string Country { get; set; } = "";
     public int Id { get; set; }
     public string Name { get; set; } = "";
@@ -47,6 +49,7 @@ public sealed class TransactionRow : ICountryScoped
 
 public sealed class UpcomingTransactionRow : ICountryScoped
 {
+    public int UserId { get; set; }
     public string Country { get; set; } = "";
     public int Id { get; set; }
     public string Title { get; set; } = "";
@@ -63,6 +66,7 @@ public sealed class UpcomingTransactionRow : ICountryScoped
 
 public sealed class BudgetItem : ICountryScoped
 {
+    public int UserId { get; set; }
     public string Country { get; set; } = "";
     public int Id { get; set; }
     public string Name { get; set; } = "";
@@ -71,6 +75,7 @@ public sealed class BudgetItem : ICountryScoped
 
 public sealed class BudgetAssignment : ICountryScoped
 {
+    public int UserId { get; set; }
     public string Country { get; set; } = "";
     public short Year { get; set; }
     public byte Month { get; set; }
@@ -81,6 +86,7 @@ public sealed class BudgetAssignment : ICountryScoped
 
 public sealed class BudgetTemplateEntry : ICountryScoped
 {
+    public int UserId { get; set; }
     public string Country { get; set; } = "";
     public int ItemId { get; set; }
     public decimal Assigned { get; set; }
@@ -90,6 +96,7 @@ public sealed class BudgetTemplateEntry : ICountryScoped
 
 public sealed class SavingsGoal : ICountryScoped
 {
+    public int UserId { get; set; }
     public string Country { get; set; } = "";
     public int Id { get; set; }
     public string Name { get; set; } = "";
@@ -104,6 +111,7 @@ public sealed class SavingsGoal : ICountryScoped
 
 public sealed class SavingsContribution : ICountryScoped
 {
+    public int UserId { get; set; }
     public string Country { get; set; } = "";
     public int Id { get; set; }
     public int GoalId { get; set; }
@@ -115,6 +123,7 @@ public sealed class SavingsContribution : ICountryScoped
 
 public sealed class Loan : ICountryScoped
 {
+    public int UserId { get; set; }
     public string Country { get; set; } = "";
     public int Id { get; set; }
     public string Name { get; set; } = "";
@@ -131,6 +140,7 @@ public sealed class Loan : ICountryScoped
 
 public sealed class SavingsRecord : ICountryScoped
 {
+    public int UserId { get; set; }
     public string Country { get; set; } = "";
     public int Id { get; set; }
     public string Name { get; set; } = "";
@@ -147,6 +157,7 @@ public sealed class SavingsRecord : ICountryScoped
 
 public sealed class PlannerState : ICountryScoped
 {
+    public int UserId { get; set; }
     public string Country { get; set; } = "";
     public decimal Income { get; set; }
     public int? IdealSimulationId { get; set; }
@@ -154,6 +165,7 @@ public sealed class PlannerState : ICountryScoped
 
 public sealed class PlannerItem : ICountryScoped
 {
+    public int UserId { get; set; }
     public string Country { get; set; } = "";
     public int Id { get; set; }
     public string Name { get; set; } = "";
@@ -163,6 +175,7 @@ public sealed class PlannerItem : ICountryScoped
 
 public sealed class PlannerSimulation : ICountryScoped
 {
+    public int UserId { get; set; }
     public string Country { get; set; } = "";
     public int Id { get; set; }
     public string Name { get; set; } = "";
@@ -172,6 +185,7 @@ public sealed class PlannerSimulation : ICountryScoped
 
 public sealed class PlannerSimulationItem : ICountryScoped
 {
+    public int UserId { get; set; }
     public string Country { get; set; } = "";
     public int Id { get; set; }
     public int SimulationId { get; set; }
@@ -186,6 +200,7 @@ public sealed class PlannerSimulationItem : ICountryScoped
 
 public sealed class ImportRecord : ICountryScoped
 {
+    public int UserId { get; set; }
     public string Country { get; set; } = "";
     public int Id { get; set; }
     public DateTime Date { get; set; }
@@ -198,16 +213,17 @@ public sealed class ImportRecord : ICountryScoped
 
 public sealed class Counter : ICountryScoped
 {
+    public int UserId { get; set; }
     public string Country { get; set; } = "";
     public string Name { get; set; } = "";
     public int Value { get; set; }
 }
 
-/// <summary>The one row of preferences. The country it names is a column.</summary>
+/// <summary>One person's preferences. The country it names is a column.</summary>
 public sealed class Settings
 {
-    /// <summary>Always 1: the table holds one row, and the check constraint says so.</summary>
-    public byte Id { get; set; } = 1;
+    /// <summary>The account these are the preferences of, and the whole of the key.</summary>
+    public int UserId { get; set; }
 
     public string Theme { get; set; } = "";
     public string Locale { get; set; } = "";

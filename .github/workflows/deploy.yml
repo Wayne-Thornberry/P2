@@ -23,8 +23,13 @@ concurrency:
 # Everything runs on the server itself: the runner builds in place and deploys to the
 # folders IIS is already serving. Nothing is shipped between machines.
 #
-# Two IIS sites, created and kept true by the bootstrap step below, on the ports this
-# file's env: block fixes:
+# The box is prepared once, by setup.ps1 run elevated on the server, and never by this job:
+# both folders, both app pools, both sites, the firewall rules, the database and its two
+# Windows grants. Every deploy after it only writes into what that made, and the preflight
+# step below refuses to copy into a box that was never set up.
+#
+# The layout setup.ps1 creates is on the ports this file's env: block fixes -- and it reads
+# that block rather than repeating it, so the two cannot disagree:
 #
 #   Folio     the web site: the app at /<name>, and / redirects to it
 #   FolioApi  the API, on its own port, so the browser calls it directly
@@ -57,9 +62,9 @@ env:
   # what a move to HTTPS needs while both bindings are live.
   WEB_PUBLIC_ORIGIN: ${{ vars.WEB_PUBLIC_ORIGIN || 'http://localhost:5420' }}
 
-  # SQL Server. localhost means the same box. The bootstrap step creates the database if
-  # it is missing and grants the two Windows identities that use it, so no deployment
-  # login ever needs CREATE DATABASE.
+  # SQL Server. localhost means the same box. setup.ps1 creates the database if it is
+  # missing and grants the two Windows identities that use it, so no deployment login ever
+  # needs CREATE DATABASE. It reads these two from here, so keep them in this shape.
   SQL_SERVER: ${{ vars.SQL_SERVER || 'localhost' }}
   DB_NAME: ${{ vars.DB_NAME || 'Folio' }}
 
@@ -97,167 +102,110 @@ jobs:
           Write-Host "deployType=$type  api=$doApi  sites=$doSites  db=$doDb"
 
       # ======================================================================
-      #  BOOTSTRAP  (the box, made true rather than assumed: the
-      #  two folders, both app pools, both sites on the ports below,
-      #  the firewall rules, the database and the two Windows
-      #  grants. Every statement is idempotent, so this runs on
-      #  every deploy -- it repairs drift instead of failing on it --
-      #  and a project needs nothing on the box but its runner.)
+      #  PREFLIGHT  (the box is prepared once, by setup.ps1, and not by this
+      #  job: what the deploy writes into and restarts has to be there
+      #  before it starts. A missing site, pool, folder or database is a box
+      #  that was never set up, so the failure says that instead of letting
+      #  Robocopy create a folder that nothing serves.)
       # ======================================================================
 
-      - name: Bootstrap the box
+      - name: Check the box is set up
         shell: powershell
         run: |
-          Write-Host '=== Bootstrapping the box ===' -ForegroundColor Cyan
+          function New-DeployConnectionString {
+              param(
+                  [Parameter(Mandatory = $true)][string]$Server,
+                  [Parameter(Mandatory = $true)][string]$Database,
+                  [string]$User = "",
+                  [string]$Password = ""
+              )
 
-          # The IIS:\ drive only exists once its provider is loaded, and reading it is also
-          # the check that the runner can do the rest of this: services are not UAC-filtered,
-          # so a runner installed as NT AUTHORITY\SYSTEM is already an administrator.
-          Import-Module WebAdministration -ErrorAction SilentlyContinue
-          try {
-              $null = Get-ChildItem 'IIS:\AppPools' -ErrorAction Stop
-          } catch {
+              $builder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder
+              $builder['Data Source'] = $Server
+              $builder['Initial Catalog'] = $Database
+              $builder['TrustServerCertificate'] = $true
+
+              if ($User -and $Password) {
+                  $builder['User ID'] = $User
+                  $builder['Password'] = $Password
+              } else {
+                  # Windows authentication: SQL Server sees whatever the caller runs as.
+                  $builder['Integrated Security'] = $true
+              }
+
+              return $builder.ConnectionString
+          }
+
+          function Test-FolioDatabaseExists {
+              param([Parameter(Mandatory = $true)][string]$ConnectionString)
+
+              # Built from the constructor: assigning .ConnectionString directly binds to the
+              # indexer in Windows PowerShell 5.1 and throws "Keyword not supported".
+              $builder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder($ConnectionString)
+              $database = $builder['Initial Catalog']
+
+              # Ask master, because opening the target connection fails if the database is not there.
+              $builder['Initial Catalog'] = 'master'
+
+              $connection = New-Object System.Data.SqlClient.SqlConnection $builder.ConnectionString
+              try {
+                  $connection.Open()
+                  $command = $connection.CreateCommand()
+                  $command.CommandText = 'SELECT CASE WHEN DB_ID(@name) IS NULL THEN 0 ELSE 1 END'
+                  [void]$command.Parameters.AddWithValue('@name', $database)
+                  return ([int]$command.ExecuteScalar() -eq 1)
+              } finally {
+                  $connection.Dispose()
+              }
+          }
+
+          Write-Host '=== Checking the box ===' -ForegroundColor Cyan
+
+          $missing = @()
+
+          if ('${{ steps.flags.outputs.doSites }}' -eq 'True' -or '${{ steps.flags.outputs.doApi }}' -eq 'True') {
+              Import-Module WebAdministration -ErrorAction SilentlyContinue
+
+              foreach ($site in @('${{ env.SITE_NAME }}', '${{ env.API_SITE_NAME }}')) {
+                  if (-not (Test-Path "IIS:\Sites\$site")) { $missing += "the IIS site $site" }
+              }
+
+              foreach ($pool in @('${{ env.SITE_APP_POOL }}', '${{ env.API_APP_POOL }}') | Select-Object -Unique) {
+                  if (-not (Test-Path "IIS:\AppPools\$pool")) { $missing += "the app pool $pool" }
+              }
+
+              foreach ($path in @('${{ env.SITE_PATH }}', '${{ env.API_SITE_PATH }}')) {
+                  if (-not (Test-Path $path)) { $missing += "the folder $path" }
+              }
+          }
+
+          if ('${{ steps.flags.outputs.doDb }}' -eq 'True') {
+              $conn = New-DeployConnectionString -Server '${{ env.SQL_SERVER }}' -Database '${{ env.DB_NAME }}'
+              try {
+                  if (-not (Test-FolioDatabaseExists -ConnectionString $conn)) {
+                      $missing += "the database ${{ env.DB_NAME }} on '${{ env.SQL_SERVER }}'"
+                  }
+              } catch {
+                  $missing += "the database ${{ env.DB_NAME }} on '${{ env.SQL_SERVER }}' ($($_.Exception.Message))"
+              }
+          }
+
+          if ($missing) {
               Write-Host ''
-              Write-Host 'Cannot read the IIS configuration, so the box cannot be bootstrapped.' -ForegroundColor Red
-              Write-Host 'Either IIS is not installed, or the runner is not running as an administrator.' -ForegroundColor Red
-              Write-Host 'Check which account it runs as:'
-              Write-Host "  Get-CimInstance Win32_Service -Filter ""Name LIKE 'actions.runner.%'"" | Select-Object Name, StartName, State"
+              Write-Host 'This box has not been set up for this repository. Missing:' -ForegroundColor Red
+              foreach ($item in $missing) { Write-Host "  $item" -ForegroundColor Red }
+              Write-Host ''
+              Write-Host 'On the box, in a copy of this repository, from an elevated PowerShell:' -ForegroundColor Yellow
+              Write-Host '  .\setup.ps1 -Check     # what is missing, changing nothing' -ForegroundColor Yellow
+              Write-Host '  .\setup.ps1' -ForegroundColor Yellow
+              Write-Host ''
+              Write-Host 'That creates the folders, both app pools, both sites on the ports in this file,'
+              Write-Host 'the firewall rules, the database and its two Windows grants -- and installs the'
+              Write-Host 'runner too, given -RunnerUrl and -RunnerToken.'
               exit 1
           }
 
-          . "${{ github.workspace }}\scripts\lib.ps1"
-
-          #  the two folders
-          foreach ($path in @('${{ env.SITE_PATH }}', '${{ env.API_SITE_PATH }}')) {
-              if (-not (Test-Path $path)) {
-                  New-Item -ItemType Directory -Force -Path $path | Out-Null
-                  Write-Host "  created $path" -ForegroundColor DarkGray
-              }
-          }
-
-          #  both app pools, with no managed runtime: an ASP.NET Core app brings its own,
-          # and a pool set to v4.0 would look for the .NET Framework and never start
-          foreach ($pool in @('${{ env.SITE_APP_POOL }}', '${{ env.API_APP_POOL }}') | Select-Object -Unique) {
-              if (-not (Test-Path "IIS:\AppPools\$pool")) {
-                  New-WebAppPool -Name $pool | Out-Null
-                  Write-Host "  created app pool $pool" -ForegroundColor DarkGray
-              }
-              Set-ItemProperty "IIS:\AppPools\$pool" -Name managedRuntimeVersion -Value ''
-          }
-
-          #  both sites. The port and the folder are the two things every later step
-          # assumes, so a site that already exists is moved onto the ones in this file
-          # rather than trusted to still have them.
-          $sites = @(
-              [pscustomobject]@{
-                  Name = '${{ env.SITE_NAME }}'
-                  Port = ${{ env.SITE_PORT }}
-                  Path = '${{ env.SITE_PATH }}'
-                  Pool = '${{ env.SITE_APP_POOL }}'
-              }
-              [pscustomobject]@{
-                  Name = '${{ env.API_SITE_NAME }}'
-                  Port = ${{ env.API_PORT }}
-                  Path = '${{ env.API_SITE_PATH }}'
-                  Pool = '${{ env.API_APP_POOL }}'
-              }
-          )
-
-          foreach ($site in $sites) {
-              if (-not (Test-Path "IIS:\Sites\$($site.Name)")) {
-                  New-Website -Name $site.Name -Port $site.Port -PhysicalPath $site.Path -ApplicationPool $site.Pool | Out-Null
-                  Write-Host "  created site $($site.Name) on $($site.Port), serving $($site.Path)" -ForegroundColor DarkGray
-                  continue
-              }
-
-              Set-ItemProperty "IIS:\Sites\$($site.Name)" -Name physicalPath -Value $site.Path
-              Set-ItemProperty "IIS:\Sites\$($site.Name)" -Name applicationPool -Value $site.Pool
-
-              $binding = (Get-Item "IIS:\Sites\$($site.Name)").bindings.Collection | Select-Object -First 1
-              $port = 0
-              if ($binding) { $port = [int](($binding.bindingInformation -split ':')[1]) }
-
-              if ($port -ne $site.Port) {
-                  if ($port -gt 0) { Remove-WebBinding -Name $site.Name -Protocol 'http' -Port $port }
-                  New-WebBinding -Name $site.Name -Protocol 'http' -Port $site.Port
-                  Write-Host "  moved site $($site.Name) from port $port to $($site.Port)" -ForegroundColor DarkGray
-              }
-          }
-
-          #  the firewall: the browser is on another machine, and it calls both ports
-          foreach ($port in @(${{ env.SITE_PORT }}, ${{ env.API_PORT }})) {
-              $rule = "${{ env.SITE_NAME }} $port"
-              if (-not (Get-NetFirewallRule -DisplayName $rule -ErrorAction SilentlyContinue)) {
-                  New-NetFirewallRule -DisplayName $rule -Direction Inbound -Protocol TCP -LocalPort $port -Action Allow | Out-Null
-                  Write-Host "  opened inbound TCP $port" -ForegroundColor DarkGray
-              }
-          }
-
-          #  the database, and the two Windows identities that use it
-          #
-          # No password exists anywhere: NT AUTHORITY\SYSTEM is the runner -- it deploys the
-          # schema and runs the tests, and the tests each build and drop their own database,
-          # so it needs dbcreator as well as db_owner -- and IIS APPPOOL\<ApiPool> is the API
-          # while it is serving.
-          #
-          # Each user is created only when the database has no principal for that login under
-          # *any* name. A guard by name alone is not enough: when the runner creates the
-          # database it owns it, so its SID is already mapped to dbo, and CREATE USER would
-          # fail with "The login already has an account under a different user name" (15023).
-          #
-          # Creating a login needs a sysadmin once, and nothing can grant itself that. A box
-          # whose runner is already a sysadmin needs no step by hand; see the README.
-          #
-          # The database users themselves come from Grant-FolioDatabaseAccess, which the
-          # deploy also runs after publishing: SqlPackage drops a user the project does not
-          # describe, and the API's own user is one of them.
-          $db = '${{ env.DB_NAME }}'
-          $pool = '${{ env.API_APP_POOL }}'
-
-          $sql = @(
-              "IF DB_ID(N'$db') IS NULL CREATE DATABASE [$db];"
-              'GO'
-              "IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE [name] = N'NT AUTHORITY\SYSTEM') CREATE LOGIN [NT AUTHORITY\SYSTEM] FROM WINDOWS;"
-              'GO'
-              "IF IS_SRVROLEMEMBER('dbcreator', 'NT AUTHORITY\SYSTEM') <> 1 ALTER SERVER ROLE [dbcreator] ADD MEMBER [NT AUTHORITY\SYSTEM];"
-              'GO'
-              "IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE [name] = N'IIS APPPOOL\$pool') CREATE LOGIN [IIS APPPOOL\$pool] FROM WINDOWS;"
-              'GO'
-          ) -join "`n"
-
-          $script = Join-Path ([System.IO.Path]::GetTempPath()) 'bootstrap.sql'
-          [System.IO.File]::WriteAllText($script, $sql)
-
-          $connection = New-Object System.Data.SqlClient.SqlConnection (
-              New-DeployConnectionString -Server '${{ env.SQL_SERVER }}' -Database 'master')
-          try {
-              $connection.Open()
-              Invoke-SqlScript -Connection $connection -Path $script
-          } catch {
-              Write-Host ''
-              Write-Host "The database step failed: $($_.Exception.Message)" -ForegroundColor Red
-              if ($_.Exception.Message -match 'permission|denied') {
-                  Write-Host ''
-                  Write-Host 'The runner account has to be a sysadmin on this instance once, to create the' -ForegroundColor Yellow
-                  Write-Host 'logins and the grants. In SSMS, as an administrator:' -ForegroundColor Yellow
-                  Write-Host '  ALTER SERVER ROLE sysadmin ADD MEMBER [NT AUTHORITY\SYSTEM];' -ForegroundColor Yellow
-              }
-              exit 1
-          } finally {
-              $connection.Dispose()
-              Remove-Item $script -Force -ErrorAction SilentlyContinue
-          }
-
-          try {
-              Grant-FolioDatabaseAccess -Server '${{ env.SQL_SERVER }}' -Database $db `
-                  -Principal @('NT AUTHORITY\SYSTEM', "IIS APPPOOL\$pool")
-          } catch {
-              Write-Host ''
-              Write-Host "The grants failed: $($_.Exception.Message)" -ForegroundColor Red
-              exit 1
-          }
-
-          Write-Host '[OK] The box has its folders, pools, sites, firewall rules, database and grants' -ForegroundColor Green
+          Write-Host '[OK] The box has what this deploy writes into, restarts and publishes to' -ForegroundColor Green
 
       # ======================================================================
       #  TEST  (before anything is stopped or copied, so a failure
@@ -272,8 +220,8 @@ jobs:
 
           # Every test class builds its own throwaway database, so the account the tests
           # run as needs CREATE DATABASE. There is no login to configure: the runner runs as
-          # NT AUTHORITY\SYSTEM, which the bootstrap step above made a dbcreator, so the
-          # first candidate is simply this box.
+          # NT AUTHORITY\SYSTEM, which setup.ps1 made a dbcreator, so the first candidate is
+          # simply this box.
           #
           # Each candidate is asked whether it can by *connecting to it*, and the first that
           # answers is used. Asking only "is LocalDB installed" is what let a misconfigured
@@ -342,7 +290,7 @@ jobs:
           if (-not $server) {
               Write-Host 'No SQL Server the tests can build a database on:' -ForegroundColor Red
               $notes | ForEach-Object { Write-Host $_ }
-              Write-Error 'Every test class creates and drops its own database, so the runner account needs CREATE DATABASE on this instance -- the bootstrap step grants it, which needs the runner to be a sysadmin once (see the README).'
+              Write-Error 'Every test class creates and drops its own database, so the runner account needs CREATE DATABASE on this instance -- setup.ps1 gives it dbcreator, which is why setup.ps1 has to run as a sysadmin once (see the README).'
               exit 1
           }
 
@@ -438,9 +386,41 @@ jobs:
       - name: Stop IIS app pools
         shell: powershell
         run: |
+          function Set-IISPoolState {
+              param(
+                  [Parameter(Mandatory = $true)][string]$Name,
+                  [Parameter(Mandatory = $true)][ValidateSet("Started", "Stopped")][string]$State
+              )
+
+              if (-not (Test-Path "IIS:\AppPools\$Name")) {
+                  Write-Host "[WARN] App pool $Name not found - create it first" -ForegroundColor Yellow
+                  return
+              }
+
+              if ((Get-WebAppPoolState -Name $Name).Value -eq $State) {
+                  Write-Host "[OK] $Name is already $($State.ToLower())" -ForegroundColor Green
+                  return
+              }
+
+              if ($State -eq "Started") {
+                  Start-WebAppPool -Name $Name
+              } else {
+                  Stop-WebAppPool -Name $Name
+              }
+
+              # The cmdlet returns as soon as the request is queued, before the worker process has
+              # actually gone. Waiting here means a following robocopy is not fighting files the
+              # site still has open.
+              $deadline = (Get-Date).AddSeconds(20)
+              while ((Get-WebAppPoolState -Name $Name).Value -ne $State -and (Get-Date) -lt $deadline) {
+                  Start-Sleep -Milliseconds 500
+              }
+
+              Write-Host "[OK] $Name is $($State.ToLower())" -ForegroundColor Green
+          }
+
           Write-Host '=== Stopping IIS app pools ===' -ForegroundColor Cyan
           Import-Module WebAdministration -ErrorAction SilentlyContinue
-          . "${{ github.workspace }}\scripts\lib.ps1"
 
           if ('${{ steps.flags.outputs.doSites }}' -eq 'True') { Set-IISPoolState -Name '${{ env.SITE_APP_POOL }}' -State Stopped }
           if ('${{ steps.flags.outputs.doApi }}' -eq 'True') { Set-IISPoolState -Name '${{ env.API_APP_POOL }}' -State Stopped }
@@ -473,15 +453,37 @@ jobs:
         if: steps.flags.outputs.doApi == 'True'
         shell: powershell
         run: |
+          function New-DeployConnectionString {
+              param(
+                  [Parameter(Mandatory = $true)][string]$Server,
+                  [Parameter(Mandatory = $true)][string]$Database,
+                  [string]$User = "",
+                  [string]$Password = ""
+              )
+
+              $builder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder
+              $builder['Data Source'] = $Server
+              $builder['Initial Catalog'] = $Database
+              $builder['TrustServerCertificate'] = $true
+
+              if ($User -and $Password) {
+                  $builder['User ID'] = $User
+                  $builder['Password'] = $Password
+              } else {
+                  # Windows authentication: SQL Server sees whatever the caller runs as.
+                  $builder['Integrated Security'] = $true
+              }
+
+              return $builder.ConnectionString
+          }
+
           Write-Host '=== Deploying the API ===' -ForegroundColor Cyan
           $src = "${{ github.workspace }}\publish\api"
           $dst = '${{ env.API_SITE_PATH }}'
           New-Item -ItemType Directory -Force -Path $dst | Out-Null
 
-          . "${{ github.workspace }}\scripts\lib.ps1"
-
-          # Windows authentication: the runner runs as NT AUTHORITY\SYSTEM, which the
-          # bootstrap step gave db_owner on this database. No SQL login, no secret.
+          # Windows authentication: the runner runs as NT AUTHORITY\SYSTEM, which setup.ps1
+          # gave db_owner on this database. No SQL login, no secret.
           $conn = New-DeployConnectionString `
               -Server '${{ env.SQL_SERVER }}' `
               -Database '${{ env.DB_NAME }}'
@@ -523,18 +525,181 @@ jobs:
         if: steps.flags.outputs.doDb == 'True'
         shell: powershell
         run: |
+          function Split-SqlScript {
+              param([Parameter(Mandatory = $true)][string]$Path)
+
+              $raw = [System.IO.File]::ReadAllText($Path)
+              $lines = $raw -split "`r?`n"
+
+              $result = @()
+              $current = New-Object System.Collections.Generic.List[string]
+
+              foreach ($line in $lines) {
+                  if ($line -match '^\s*GO\s*(?<count>\d+)?\s*$') {
+                      $batchText = ($current -join "`n")
+                      if ($batchText.Trim().Length -gt 0) {
+                          $count = 0
+                          if ($Matches['count']) { $count = [int]$Matches['count'] }
+                          if ($count -lt 1) { $count = 1 }
+                          for ($i = 0; $i -lt $count; $i++) { $result += $batchText }
+                      }
+                      $current = New-Object System.Collections.Generic.List[string]
+                  } else {
+                      [void]$current.Add($line)
+                  }
+              }
+
+              $batchText = ($current -join "`n")
+              if ($batchText.Trim().Length -gt 0) { $result += $batchText }
+
+              return $result
+          }
+
+          function Invoke-SqlScript {
+              param(
+                  [Parameter(Mandatory = $true)][System.Data.SqlClient.SqlConnection]$Connection,
+                  [Parameter(Mandatory = $true)][string]$Path
+              )
+
+              # Batches are executed one at a time on the same connection, so an earlier batch is
+              # visible to a later one -- which is what a script needs when it drops a column and
+              # then the type that column used.
+              foreach ($batch in (Split-SqlScript -Path $Path)) {
+                  $command = $Connection.CreateCommand()
+                  try {
+                      $command.CommandText = $batch
+                      $command.CommandTimeout = 600
+                      [void]$command.ExecuteNonQuery()
+                  } catch {
+                      throw "$(Split-Path $Path -Leaf) failed: $($_.Exception.Message)"
+                  } finally {
+                      $command.Dispose()
+                  }
+              }
+          }
+
+          function New-DeployConnectionString {
+              param(
+                  [Parameter(Mandatory = $true)][string]$Server,
+                  [Parameter(Mandatory = $true)][string]$Database,
+                  [string]$User = "",
+                  [string]$Password = ""
+              )
+
+              $builder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder
+              $builder['Data Source'] = $Server
+              $builder['Initial Catalog'] = $Database
+              $builder['TrustServerCertificate'] = $true
+
+              if ($User -and $Password) {
+                  $builder['User ID'] = $User
+                  $builder['Password'] = $Password
+              } else {
+                  # Windows authentication: SQL Server sees whatever the caller runs as.
+                  $builder['Integrated Security'] = $true
+              }
+
+              return $builder.ConnectionString
+          }
+
+          function Test-FolioDatabaseExists {
+              param([Parameter(Mandatory = $true)][string]$ConnectionString)
+
+              # Built from the constructor: assigning .ConnectionString directly binds to the
+              # indexer in Windows PowerShell 5.1 and throws "Keyword not supported".
+              $builder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder($ConnectionString)
+              $database = $builder['Initial Catalog']
+
+              # Ask master, because opening the target connection fails if the database is not there.
+              $builder['Initial Catalog'] = 'master'
+
+              $connection = New-Object System.Data.SqlClient.SqlConnection $builder.ConnectionString
+              try {
+                  $connection.Open()
+                  $command = $connection.CreateCommand()
+                  $command.CommandText = 'SELECT CASE WHEN DB_ID(@name) IS NULL THEN 0 ELSE 1 END'
+                  [void]$command.Parameters.AddWithValue('@name', $database)
+                  return ([int]$command.ExecuteScalar() -eq 1)
+              } finally {
+                  $connection.Dispose()
+              }
+          }
+
+          function Invoke-FolioMigrations {
+              param(
+                  [Parameter(Mandatory = $true)][string]$ConnectionString,
+                  [Parameter(Mandatory = $true)][string]$MigrationsDir
+              )
+
+              if (-not (Test-Path $MigrationsDir)) {
+                  Write-Host '  No migrations directory; nothing to run.' -ForegroundColor Gray
+                  return
+              }
+
+              $files = @(Get-ChildItem -Path $MigrationsDir -Filter *.sql | Sort-Object Name)
+              if ($files.Count -eq 0) {
+                  Write-Host '  No migration scripts; nothing to run.' -ForegroundColor Gray
+                  return
+              }
+
+              if (-not (Test-FolioDatabaseExists -ConnectionString $ConnectionString)) {
+                  Write-Host '  The database does not exist yet; run Initialize-FolioDatabase instead.' -ForegroundColor Gray
+                  return
+              }
+
+              $connection = New-Object System.Data.SqlClient.SqlConnection $ConnectionString
+              try {
+                  $connection.Open()
+                  foreach ($file in $files) {
+                      Write-Host "  Applying $($file.Name)..." -ForegroundColor Cyan
+                      Invoke-SqlScript -Connection $connection -Path $file.FullName
+                      Write-Host "    [OK] $($file.Name)" -ForegroundColor Green
+                  }
+              } finally {
+                  $connection.Dispose()
+              }
+          }
+
+          function Grant-FolioDatabaseAccess {
+              param(
+                  [Parameter(Mandatory = $true)][string]$Server,
+                  [Parameter(Mandatory = $true)][string]$Database,
+                  [Parameter(Mandatory = $true)][string[]]$Principal
+              )
+
+              $statements = New-Object System.Collections.Generic.List[string]
+
+              foreach ($name in $Principal) {
+                  $quoted = $name -replace "'", "''"
+                  $statements.Add("IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE [name] = N'$quoted' OR [sid] = SUSER_SID(N'$quoted')) CREATE USER [$quoted] FOR LOGIN [$quoted];")
+                  $statements.Add('GO')
+                  $statements.Add("IF IS_ROLEMEMBER('db_owner', '$quoted') <> 1 ALTER ROLE [db_owner] ADD MEMBER [$quoted];")
+                  $statements.Add('GO')
+              }
+
+              $script = Join-Path ([System.IO.Path]::GetTempPath()) 'folio-grants.sql'
+              [System.IO.File]::WriteAllText($script, ($statements -join "`n"))
+
+              $connection = New-Object System.Data.SqlClient.SqlConnection (
+                  New-DeployConnectionString -Server $Server -Database $Database)
+              try {
+                  $connection.Open()
+                  Invoke-SqlScript -Connection $connection -Path $script
+              } finally {
+                  $connection.Dispose()
+                  Remove-Item $script -Force -ErrorAction SilentlyContinue
+              }
+          }
+
           Write-Host '=== Database ===' -ForegroundColor Cyan
 
-          . "${{ github.workspace }}\scripts\lib.ps1"
-
-          # Windows authentication, as the runner account: the bootstrap step gave it
-          # db_owner here.
+          # Windows authentication, as the runner account: setup.ps1 gave it db_owner here.
 
           $conn = New-DeployConnectionString -Server '${{ env.SQL_SERVER }}' -Database '${{ env.DB_NAME }}'
           $pool = '${{ env.API_APP_POOL }}'
 
           if (-not (Test-FolioDatabaseExists -ConnectionString $conn)) {
-              Write-Error "There is no database '${{ env.DB_NAME }}' on '${{ env.SQL_SERVER }}', although the bootstrap step creates it. Something dropped it while this deploy ran, so nothing was published."
+              Write-Error "There is no database '${{ env.DB_NAME }}' on '${{ env.SQL_SERVER }}', although setup.ps1 creates it. Something dropped it while this deploy ran, so nothing was published."
               exit 1
           }
 
@@ -594,9 +759,41 @@ jobs:
         if: always()
         shell: powershell
         run: |
+          function Set-IISPoolState {
+              param(
+                  [Parameter(Mandatory = $true)][string]$Name,
+                  [Parameter(Mandatory = $true)][ValidateSet("Started", "Stopped")][string]$State
+              )
+
+              if (-not (Test-Path "IIS:\AppPools\$Name")) {
+                  Write-Host "[WARN] App pool $Name not found - create it first" -ForegroundColor Yellow
+                  return
+              }
+
+              if ((Get-WebAppPoolState -Name $Name).Value -eq $State) {
+                  Write-Host "[OK] $Name is already $($State.ToLower())" -ForegroundColor Green
+                  return
+              }
+
+              if ($State -eq "Started") {
+                  Start-WebAppPool -Name $Name
+              } else {
+                  Stop-WebAppPool -Name $Name
+              }
+
+              # The cmdlet returns as soon as the request is queued, before the worker process has
+              # actually gone. Waiting here means a following robocopy is not fighting files the
+              # site still has open.
+              $deadline = (Get-Date).AddSeconds(20)
+              while ((Get-WebAppPoolState -Name $Name).Value -ne $State -and (Get-Date) -lt $deadline) {
+                  Start-Sleep -Milliseconds 500
+              }
+
+              Write-Host "[OK] $Name is $($State.ToLower())" -ForegroundColor Green
+          }
+
           Write-Host '=== Starting IIS app pools ===' -ForegroundColor Cyan
           Import-Module WebAdministration -ErrorAction SilentlyContinue
-          . "${{ github.workspace }}\scripts\lib.ps1"
 
           if ('${{ steps.flags.outputs.doSites }}' -eq 'True') { Set-IISPoolState -Name '${{ env.SITE_APP_POOL }}' -State Started }
           if ('${{ steps.flags.outputs.doApi }}' -eq 'True') { Set-IISPoolState -Name '${{ env.API_APP_POOL }}' -State Started }
@@ -607,6 +804,81 @@ jobs:
         if: steps.deployApi.outcome == 'success'
         shell: powershell
         run: |
+          function Show-SiteDiagnostics {
+              param(
+                  [Parameter(Mandatory = $true)][string]$SiteName,
+                  [Parameter(Mandatory = $true)][string]$PoolName,
+                  [Parameter(Mandatory = $true)][int]$Port,
+                  [Parameter(Mandatory = $true)][string]$SitePath
+              )
+
+              Write-Host ''
+              Write-Host "=== Diagnostics for $SiteName ===" -ForegroundColor Yellow
+
+              Import-Module WebAdministration -ErrorAction SilentlyContinue
+
+              Write-Host "App pool '$PoolName':"
+              if (Test-Path "IIS:\AppPools\$PoolName") {
+                  $state = (Get-WebAppPoolState -Name $PoolName).Value
+                  $identity = (Get-ItemProperty "IIS:\AppPools\$PoolName" -Name processModel -ErrorAction SilentlyContinue).identityType
+                  $user = (Get-ItemProperty "IIS:\AppPools\$PoolName" -Name processModel -ErrorAction SilentlyContinue).userName
+                  Write-Host "  state:    $state"
+                  Write-Host "  identity: $identity $user"
+              } else {
+                  Write-Host '  [missing]' -ForegroundColor Red
+              }
+
+              Write-Host "Site '$SiteName':"
+              if (Test-Path "IIS:\Sites\$SiteName") {
+                  $site = Get-Item "IIS:\Sites\$SiteName"
+                  Write-Host "  physical path: $($site.physicalPath)"
+                  Write-Host "  app pool:      $($site.applicationPool)"
+                  Write-Host "  bindings:"
+                  foreach ($binding in $site.bindings.Collection) {
+                      Write-Host "    $($binding.protocol) $($binding.bindingInformation)"
+                  }
+              } else {
+                  Write-Host '  [missing]' -ForegroundColor Red
+              }
+
+              Write-Host "Listening on port $Port :"
+              $listening = @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue)
+              if ($listening.Count -eq 0) {
+                  Write-Host '  nothing is listening' -ForegroundColor Red
+              } else {
+                  foreach ($connection in $listening) {
+                      $owner = (Get-Process -Id $connection.OwningProcess -ErrorAction SilentlyContinue).ProcessName
+                      Write-Host "  $($connection.LocalAddress):$($connection.LocalPort) ($owner)"
+                  }
+              }
+
+              Write-Host "Contents of $SitePath :"
+              if (Test-Path $SitePath) {
+                  Get-ChildItem -Path $SitePath -Force | Select-Object -First 20 | ForEach-Object { Write-Host "  $($_.Name)" }
+              } else {
+                  Write-Host '  [missing]' -ForegroundColor Red
+              }
+
+              # AspNetCoreModuleV2 writes its failures here, and they are the ones that explain a
+              # site that is up but answers 500.3.
+              $logs = Join-Path $env:ProgramData 'Microsoft\IIS\AspNetCoreModuleV2'
+              $harvest = Join-Path $env:ProgramFiles 'IIS Express\Logs'
+              foreach ($folder in @($logs, $harvest)) {
+                  if (-not (Test-Path $folder)) { continue }
+
+                  $latest = Get-ChildItem -Path $folder -Filter *.log -ErrorAction SilentlyContinue |
+                      Sort-Object LastWriteTime | Select-Object -Last 1
+
+                  if ($latest) {
+                      Write-Host "Last 20 lines of $($latest.FullName):"
+                      Get-Content -Path $latest.FullName -Tail 20 | ForEach-Object { Write-Host "  $_" }
+                  }
+              }
+
+              Write-Host '=== End of diagnostics ===' -ForegroundColor Yellow
+              Write-Host ''
+          }
+
           Write-Host '=== Checking the API answers ===' -ForegroundColor Cyan
           $url = '${{ env.API_SITE_URL }}/api/health'
 
@@ -657,7 +929,6 @@ jobs:
               Write-Host $lastBody
           }
 
-          . "${{ github.workspace }}\scripts\lib.ps1"
           Show-SiteDiagnostics -SiteName '${{ env.API_SITE_NAME }}' -PoolName '${{ env.API_APP_POOL }}' `
               -Port ${{ env.API_PORT }} -SitePath '${{ env.API_SITE_PATH }}'
 
@@ -669,12 +940,87 @@ jobs:
         if: always() && steps.deploySite.outcome == 'success'
         shell: powershell
         run: |
+          function Show-SiteDiagnostics {
+              param(
+                  [Parameter(Mandatory = $true)][string]$SiteName,
+                  [Parameter(Mandatory = $true)][string]$PoolName,
+                  [Parameter(Mandatory = $true)][int]$Port,
+                  [Parameter(Mandatory = $true)][string]$SitePath
+              )
+
+              Write-Host ''
+              Write-Host "=== Diagnostics for $SiteName ===" -ForegroundColor Yellow
+
+              Import-Module WebAdministration -ErrorAction SilentlyContinue
+
+              Write-Host "App pool '$PoolName':"
+              if (Test-Path "IIS:\AppPools\$PoolName") {
+                  $state = (Get-WebAppPoolState -Name $PoolName).Value
+                  $identity = (Get-ItemProperty "IIS:\AppPools\$PoolName" -Name processModel -ErrorAction SilentlyContinue).identityType
+                  $user = (Get-ItemProperty "IIS:\AppPools\$PoolName" -Name processModel -ErrorAction SilentlyContinue).userName
+                  Write-Host "  state:    $state"
+                  Write-Host "  identity: $identity $user"
+              } else {
+                  Write-Host '  [missing]' -ForegroundColor Red
+              }
+
+              Write-Host "Site '$SiteName':"
+              if (Test-Path "IIS:\Sites\$SiteName") {
+                  $site = Get-Item "IIS:\Sites\$SiteName"
+                  Write-Host "  physical path: $($site.physicalPath)"
+                  Write-Host "  app pool:      $($site.applicationPool)"
+                  Write-Host "  bindings:"
+                  foreach ($binding in $site.bindings.Collection) {
+                      Write-Host "    $($binding.protocol) $($binding.bindingInformation)"
+                  }
+              } else {
+                  Write-Host '  [missing]' -ForegroundColor Red
+              }
+
+              Write-Host "Listening on port $Port :"
+              $listening = @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue)
+              if ($listening.Count -eq 0) {
+                  Write-Host '  nothing is listening' -ForegroundColor Red
+              } else {
+                  foreach ($connection in $listening) {
+                      $owner = (Get-Process -Id $connection.OwningProcess -ErrorAction SilentlyContinue).ProcessName
+                      Write-Host "  $($connection.LocalAddress):$($connection.LocalPort) ($owner)"
+                  }
+              }
+
+              Write-Host "Contents of $SitePath :"
+              if (Test-Path $SitePath) {
+                  Get-ChildItem -Path $SitePath -Force | Select-Object -First 20 | ForEach-Object { Write-Host "  $($_.Name)" }
+              } else {
+                  Write-Host '  [missing]' -ForegroundColor Red
+              }
+
+              # AspNetCoreModuleV2 writes its failures here, and they are the ones that explain a
+              # site that is up but answers 500.3.
+              $logs = Join-Path $env:ProgramData 'Microsoft\IIS\AspNetCoreModuleV2'
+              $harvest = Join-Path $env:ProgramFiles 'IIS Express\Logs'
+              foreach ($folder in @($logs, $harvest)) {
+                  if (-not (Test-Path $folder)) { continue }
+
+                  $latest = Get-ChildItem -Path $folder -Filter *.log -ErrorAction SilentlyContinue |
+                      Sort-Object LastWriteTime | Select-Object -Last 1
+
+                  if ($latest) {
+                      Write-Host "Last 20 lines of $($latest.FullName):"
+                      Get-Content -Path $latest.FullName -Tail 20 | ForEach-Object { Write-Host "  $_" }
+                  }
+              }
+
+              Write-Host '=== End of diagnostics ===' -ForegroundColor Yellow
+              Write-Host ''
+          }
+
           Write-Host '=== Checking the site answers ===' -ForegroundColor Cyan
 
           # The root serves the app, and a deep link proves the rewrite rule is in place:
-          # /folio is served by index.html rather than looked up as a file, which is what
+          # /sample is served by index.html rather than looked up as a file, which is what
           # makes every other route work too.
-          $paths = @('/', '/folio')
+          $paths = @('/', '/sample')
 
           $failed = $false
 
@@ -704,7 +1050,6 @@ jobs:
           }
 
           if ($failed) {
-              . "${{ github.workspace }}\scripts\lib.ps1"
               Show-SiteDiagnostics -SiteName '${{ env.SITE_NAME }}' -PoolName '${{ env.SITE_APP_POOL }}' `
                   -Port ${{ env.SITE_PORT }} -SitePath '${{ env.SITE_PATH }}'
               exit 1

@@ -10,12 +10,12 @@ public sealed partial class WorkspaceService
     private async Task<FinanceBlob?> ReadFinanceAsync(string country, CancellationToken cancellationToken)
     {
         var loans = await db.Loans.AsNoTracking()
-            .Where(row => row.Country == country)
+            .Where(row => row.UserId == me.Id && row.Country == country)
             .OrderBy(row => row.SortOrder)
             .ToListAsync(cancellationToken);
 
         var savings = await db.SavingsRecords.AsNoTracking()
-            .Where(row => row.Country == country)
+            .Where(row => row.UserId == me.Id && row.Country == country)
             .OrderBy(row => row.SortOrder)
             .ToListAsync(cancellationToken);
 
@@ -54,6 +54,7 @@ public sealed partial class WorkspaceService
         var loans = (blob.Loans ?? [])
             .Select((loan, index) => new Loan
             {
+                UserId = me.Id,
                 Country = country,
                 Id = loan.Id,
                 Name = Text(loan.Name, "Loan", 100),
@@ -72,6 +73,7 @@ public sealed partial class WorkspaceService
         var savings = (blob.Savings ?? [])
             .Select((record, index) => new SavingsRecord
             {
+                UserId = me.Id,
                 Country = country,
                 Id = record.Id,
                 Name = Text(record.Name, "Savings", 100),
@@ -89,8 +91,8 @@ public sealed partial class WorkspaceService
 
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
-        await ReplaceAsync(db.Loans.Where(row => row.Country == country), loans, cancellationToken);
-        await ReplaceAsync(db.SavingsRecords.Where(row => row.Country == country), savings, cancellationToken);
+        await ReplaceAsync(db.Loans.Where(row => row.UserId == me.Id && row.Country == country), loans, cancellationToken);
+        await ReplaceAsync(db.SavingsRecords.Where(row => row.UserId == me.Id && row.Country == country), savings, cancellationToken);
 
         await SetCounterAsync(country, CounterNames.Loans, blob.NextLoanId, cancellationToken);
         await SetCounterAsync(country, CounterNames.SavingsRecords, blob.NextSavId, cancellationToken);

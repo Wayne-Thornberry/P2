@@ -10,12 +10,12 @@ public sealed partial class WorkspaceService
     private async Task<SavingsGoalsBlob?> ReadSavingsGoalsAsync(string country, CancellationToken cancellationToken)
     {
         var goals = await db.SavingsGoals.AsNoTracking()
-            .Where(row => row.Country == country)
+            .Where(row => row.UserId == me.Id && row.Country == country)
             .OrderBy(row => row.SortOrder)
             .ToListAsync(cancellationToken);
 
         var contributions = await db.SavingsContributions.AsNoTracking()
-            .Where(row => row.Country == country)
+            .Where(row => row.UserId == me.Id && row.Country == country)
             .OrderBy(row => row.SortOrder)
             .ToListAsync(cancellationToken);
 
@@ -52,6 +52,7 @@ public sealed partial class WorkspaceService
         var goals = (blob.Goals ?? [])
             .Select((goal, index) => new SavingsGoal
             {
+                UserId = me.Id,
                 Country = country,
                 Id = goal.Id,
                 Name = Text(goal.Name, "Goal", 100),
@@ -68,6 +69,7 @@ public sealed partial class WorkspaceService
         var contributions = (blob.Goals ?? [])
             .SelectMany(goal => (goal.Contributions ?? []).Select((contribution, index) => new SavingsContribution
             {
+                UserId = me.Id,
                 Country = country,
                 Id = contribution.Id,
                 GoalId = goal.Id,
@@ -81,8 +83,8 @@ public sealed partial class WorkspaceService
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
         // The contributions point at the goals, so they go first.
-        await db.SavingsContributions.Where(row => row.Country == country).ExecuteDeleteAsync(cancellationToken);
-        await ReplaceAsync(db.SavingsGoals.Where(row => row.Country == country), goals, cancellationToken);
+        await db.SavingsContributions.Where(row => row.UserId == me.Id && row.Country == country).ExecuteDeleteAsync(cancellationToken);
+        await ReplaceAsync(db.SavingsGoals.Where(row => row.UserId == me.Id && row.Country == country), goals, cancellationToken);
 
         db.SavingsContributions.AddRange(contributions);
         await db.SaveChangesAsync(cancellationToken);

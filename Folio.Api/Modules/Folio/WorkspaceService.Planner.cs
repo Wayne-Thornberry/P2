@@ -10,20 +10,20 @@ public sealed partial class WorkspaceService
     private async Task<PlannerBlob?> ReadPlannerAsync(string country, CancellationToken cancellationToken)
     {
         var state = await db.PlannerState.AsNoTracking()
-            .FirstOrDefaultAsync(row => row.Country == country, cancellationToken);
+            .FirstOrDefaultAsync(row => row.UserId == me.Id && row.Country == country, cancellationToken);
 
         var items = await db.PlannerItems.AsNoTracking()
-            .Where(row => row.Country == country)
+            .Where(row => row.UserId == me.Id && row.Country == country)
             .OrderBy(row => row.SortOrder)
             .ToListAsync(cancellationToken);
 
         var simulations = await db.PlannerSimulations.AsNoTracking()
-            .Where(row => row.Country == country)
+            .Where(row => row.UserId == me.Id && row.Country == country)
             .OrderBy(row => row.SortOrder)
             .ToListAsync(cancellationToken);
 
         var simulationItems = await db.PlannerSimulationItems.AsNoTracking()
-            .Where(row => row.Country == country)
+            .Where(row => row.UserId == me.Id && row.Country == country)
             .OrderBy(row => row.SortOrder)
             .ToListAsync(cancellationToken);
 
@@ -62,6 +62,7 @@ public sealed partial class WorkspaceService
         var items = (blob.Items ?? [])
             .Select((item, index) => new PlannerItem
             {
+                UserId = me.Id,
                 Country = country,
                 Id = item.Id,
                 Name = Text(item.Name, "Item", 100),
@@ -73,6 +74,7 @@ public sealed partial class WorkspaceService
         var simulations = (blob.Simulations ?? [])
             .Select((simulation, index) => new PlannerSimulation
             {
+                UserId = me.Id,
                 Country = country,
                 Id = simulation.Id,
                 Name = Text(simulation.Name, "Scenario", 100),
@@ -84,6 +86,7 @@ public sealed partial class WorkspaceService
         var simulationItems = (blob.Simulations ?? [])
             .SelectMany(simulation => (simulation.Items ?? []).Select((item, index) => new PlannerSimulationItem
             {
+                UserId = me.Id,
                 Country = country,
                 Id = item.Id,
                 SimulationId = simulation.Id,
@@ -99,18 +102,18 @@ public sealed partial class WorkspaceService
 
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
-        await db.PlannerSimulationItems.Where(row => row.Country == country).ExecuteDeleteAsync(cancellationToken);
-        await ReplaceAsync(db.PlannerSimulations.Where(row => row.Country == country), simulations, cancellationToken);
-        await ReplaceAsync(db.PlannerItems.Where(row => row.Country == country), items, cancellationToken);
+        await db.PlannerSimulationItems.Where(row => row.UserId == me.Id && row.Country == country).ExecuteDeleteAsync(cancellationToken);
+        await ReplaceAsync(db.PlannerSimulations.Where(row => row.UserId == me.Id && row.Country == country), simulations, cancellationToken);
+        await ReplaceAsync(db.PlannerItems.Where(row => row.UserId == me.Id && row.Country == country), items, cancellationToken);
 
         db.PlannerSimulationItems.AddRange(simulationItems);
 
         var state = await db.PlannerState.FirstOrDefaultAsync(
-            row => row.Country == country, cancellationToken);
+            row => row.UserId == me.Id && row.Country == country, cancellationToken);
 
         if (state is null)
         {
-            state = new PlannerState { Country = country };
+            state = new PlannerState { UserId = me.Id, Country = country };
             db.PlannerState.Add(state);
         }
 
