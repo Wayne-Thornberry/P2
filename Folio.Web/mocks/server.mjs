@@ -211,6 +211,146 @@ function healthReport(country, month) {
   return { score, grade: gradeOf(score), rolling3, reserveMonths, budgetAdherence, incomeConsistency }
 }
 
+/**
+ * The dashboard's numbers, worked out the way the API works them out.
+ *
+ * Same reason as the health score: a mock that answered with a plausible-looking constant
+ * would let the page look right while the thing it shows is wrong. Every rule the API
+ * applies is repeated here -- which accounts the budget ignores, how a spending line is
+ * grouped, how a budget line's percentage is capped.
+ */
+const roundCents = (value) => Math.round(value * 100) / 100
+
+function ignoredAccounts(accounts) {
+  return new Set(
+    accounts
+      .filter((account) => account.archived === true || (account.excludeFromBudget ?? account.type === 'liability'))
+      .map((account) => account.id),
+  )
+}
+
+function dashboardReport(country, month, budgetMonth) {
+  const blobs = countryWorkspace(country)
+  const transactions = blobs.folio_transactions?.transactions ?? []
+  const accounts = blobs.folio_accounts?.accounts ?? []
+  const budget = blobs.folio_budget ?? {}
+  const startDay = Number(settings.billableMonthStart ?? 1) || 1
+
+  const today = new Date()
+  const currentKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+  const shown = month ?? currentKey
+  const budgeted = budgetMonth ?? currentKey
+
+  const ignored = ignoredAccounts(accounts)
+  const inMonth = transactions.filter((t) => t.date.slice(0, 7) === shown)
+  const spent = inMonth.filter((t) => !t.accountId || !ignored.has(t.accountId))
+
+  const income = spent.filter((t) => t.type === 'in').reduce((sum, t) => sum + t.amount, 0)
+  const expenses = spent.filter((t) => t.type === 'out').reduce((sum, t) => sum + t.amount, 0)
+  const net = income - expenses
+
+  const totals = {
+    income: roundCents(income),
+    expenses: roundCents(expenses),
+    net: roundCents(net),
+    savingsRate: income > 0 ? Math.round(((income - expenses) / income) * 100) : 0,
+    incomeCount: spent.filter((t) => t.type === 'in').length,
+    expenseCount: spent.filter((t) => t.type === 'out').length,
+  }
+
+  const balances = new Map()
+  let unassigned = 0
+  let anyUnassigned = false
+
+  for (const t of transactions) {
+    const delta = t.type === 'in' ? t.amount : -t.amount
+
+    if (t.accountId) balances.set(t.accountId, (balances.get(t.accountId) ?? 0) + delta)
+    else {
+      unassigned += delta
+      anyUnassigned = true
+    }
+  }
+
+  const accountRows = accounts.map((account) => ({
+    id: account.id,
+    name: account.name,
+    balance: roundCents(balances.get(account.id) ?? 0),
+  }))
+
+  if (anyUnassigned) accountRows.push({ id: '__unassigned__', name: 'Unassigned', balance: roundCents(unassigned) })
+
+  const byName = new Map()
+  for (const t of spent) {
+    if (t.type !== 'out') continue
+    byName.set(t.name, (byName.get(t.name) ?? 0) + t.amount)
+  }
+
+  const topSpending = [...byName.entries()]
+    .map(([name, total]) => ({ name, total: roundCents(total) }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 5)
+
+  let lines = []
+  for (let back = 0; back < 24; back++) {
+    const [y, m] = shiftMonth(budgeted, -back).split('-').map(Number)
+    const entries = budget.monthlyEntries?.[y]?.[m]
+
+    if (entries?.length) {
+      lines = entries
+      break
+    }
+  }
+
+  let budgetStatus = null
+
+  if (lines.length > 0) {
+    const names = new Map((budget.globalItems ?? []).map((item) => [item.id, item.name]))
+    const activity = new Map()
+
+    for (const t of transactions) {
+      if (t.itemId === null || t.itemId === undefined) continue
+      if (billableMonthKey(t.date, startDay) !== budgeted) continue
+
+      activity.set(t.itemId, (activity.get(t.itemId) ?? 0) + (t.type === 'out' ? t.amount : -t.amount))
+    }
+
+    const rows = lines.map((line) => {
+      const used = activity.get(line.itemId) ?? 0
+      const assigned = line.assigned ?? 0
+
+      return {
+        id: line.itemId,
+        name: names.get(line.itemId) ?? '',
+        assigned: roundCents(assigned),
+        activity: roundCents(used),
+        available: roundCents(assigned - used),
+        pct: assigned > 0 ? Math.min(100, Math.round((used / assigned) * 100)) : used > 0 ? 100 : 0,
+      }
+    })
+
+    const totalAssigned = roundCents(rows.reduce((sum, row) => sum + row.assigned, 0))
+    const totalActivity = roundCents(rows.reduce((sum, row) => sum + row.activity, 0))
+
+    budgetStatus = {
+      totalAssigned,
+      totalActivity,
+      overCount: rows.filter((row) => row.available < 0).length,
+      onTrack: rows.filter((row) => row.available >= 0).length,
+      overallPct: totalAssigned > 0 ? Math.min(100, Math.round((totalActivity / totalAssigned) * 100)) : 0,
+      topRows: rows.slice().sort((a, b) => b.pct - a.pct || a.id - b.id).slice(0, 5),
+    }
+  }
+
+  const recent = transactions
+    .slice()
+    .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '') || (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
+    .slice(0, 8)
+    .map((t) => ({ id: t.id, name: t.name, date: t.date, accountId: t.accountId ?? null, amount: t.amount, type: t.type }))
+
+  return { totals, accounts: accountRows, topSpending, budget: budgetStatus, recent }
+}
+
 /** The folio module's endpoints. Returns true when it answered. */
 async function folioModule(request, response, route, url) {
   if (route === 'GET /api/folio/settings') {
@@ -266,6 +406,24 @@ async function folioModule(request, response, route, url) {
     }
 
     json(response, 200, healthReport(country, url.searchParams.get('month') ?? undefined))
+    return true
+  }
+
+  if (route === 'GET /api/folio/dashboard') {
+    if (!country) {
+      json(response, 400, { error: 'A country is needed: ?country=ireland.' })
+      return true
+    }
+
+    json(
+      response,
+      200,
+      dashboardReport(
+        country,
+        url.searchParams.get('month') ?? undefined,
+        url.searchParams.get('budgetMonth') ?? undefined,
+      ),
+    )
     return true
   }
 

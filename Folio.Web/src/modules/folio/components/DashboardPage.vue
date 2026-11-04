@@ -1,20 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useTransactionStore }         from '../stores/transactionStore'
 import { useAccountStore }             from '../stores/accountStore'
-import { useBudgetStore }              from '../stores/budgetStore'
 import { useSettingsStore }            from '../stores/settingsStore'
 import { useLoanStore }                from '../stores/loanStore'
 import { useSavingsGoalStore }         from '../stores/savingsGoalStore'
 import { useUpcomingTransactionStore } from '../stores/upcomingTransactionStore'
 import { useHealthScore }              from '../composables/useHealthScore'
-import { roundCents, txNet } from '../utils/math'
+import { useDashboard }                from '../composables/useDashboard'
+import { roundCents } from '../utils/math'
 import { toYearMonth, yearMonthKey } from '../utils/date'
-import { useBudgetFunds } from '../composables/useBudgetFunds'
 
-const txStore        = useTransactionStore()
 const accountStore   = useAccountStore()
-const budgetStore    = useBudgetStore()
 const settings       = useSettingsStore()
 const loanStore      = useLoanStore()
 const goalStore      = useSavingsGoalStore()
@@ -35,92 +31,17 @@ const _thisMonth = _now.getMonth() + 1
 const _monthKey  = yearMonthKey(_thisYear, _thisMonth)
 const _monthLabel = _now.toLocaleDateString(settings.locale, { month: 'long', year: 'numeric' })
 
-const thisMonthTxs = computed(() =>
-  txStore.transactions.filter(t => t.date.startsWith(_monthKey))
-)
 
-const { excludedAccountIds } = useBudgetFunds()
+// ── The numbers, from the API ─────────────────────────────────
+// The totals, the balances, the spending lines and the budget's progress are one answer
+// from one request, so the cards cannot disagree with each other.
+const { totals, accounts: accountBalances, totalFunds: totalBalance, topSpending, budget: budgetStatus, recent: recentTxs } =
+  useDashboard(() => _monthKey)
 
-const budgetMonthTxs = computed(() =>
-  thisMonthTxs.value.filter(t => !t.accountId || !excludedAccountIds.value.has(t.accountId))
-)
-
-const monthIn  = computed(() => budgetMonthTxs.value.filter(t => t.type === 'in').reduce((s, t) => s + t.amount, 0))
-const monthOut = computed(() => budgetMonthTxs.value.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0))
-const monthNet = computed(() => monthIn.value - monthOut.value)
-
-// ── Savings rate ──────────────────────────────────────────────
-const savingsRate = computed(() =>
-  monthIn.value > 0 ? Math.round(((monthIn.value - monthOut.value) / monthIn.value) * 100) : 0
-)
-
-// ── Account balances ──────────────────────────────────────────
-const accountBalances = computed(() => {
-  const balMap = new Map<string, number>()
-  let unassignedBal = 0
-  let hasUnassigned = false
-  for (const t of txStore.transactions) {
-    const delta = txNet(t)
-    if (t.accountId) {
-      balMap.set(t.accountId, (balMap.get(t.accountId) ?? 0) + delta)
-    } else {
-      unassignedBal += delta
-      hasUnassigned = true
-    }
-  }
-  const rows = accountStore.accounts.map(acc => ({
-    id: acc.id, name: acc.name, balance: roundCents(balMap.get(acc.id) ?? 0),
-  }))
-  if (hasUnassigned) {
-    rows.push({ id: '__unassigned__', name: 'Unassigned', balance: roundCents(unassignedBal) })
-  }
-  return rows
-})
-
-const totalBalance = computed(() =>
-  roundCents(accountBalances.value.reduce((sum, account) => sum + account.balance, 0))
-)
-
-// ── Budget status ─────────────────────────────────────────────
-const budgetStatus = computed(() => {
-  const items = budgetStore.items
-  if (items.length === 0) return null
-  const activityMap = txStore.getMonthlyActivityMap(_thisYear, _thisMonth)
-  const rows = items.map(item => {
-    const activity  = activityMap.get(item.id) ?? 0
-    const available = roundCents(item.assigned - activity)
-    const pct       = item.assigned > 0 ? Math.min(100, Math.round((activity / item.assigned) * 100)) : (activity > 0 ? 100 : 0)
-    return { ...item, activity, available, pct }
-  })
-  const totalAssigned = roundCents(rows.reduce((sum, row) => sum + row.assigned, 0))
-  const totalActivity = roundCents(rows.reduce((sum, row) => sum + row.activity, 0))
-  const overCount     = rows.filter(r => r.available < 0).length
-  const onTrack       = rows.filter(r => r.available >= 0).length
-  const overallPct    = totalAssigned > 0 ? Math.min(100, Math.round((totalActivity / totalAssigned) * 100)) : 0
-  const topRows       = rows.slice().sort((a, b) => b.pct - a.pct).slice(0, 5)
-  return { totalAssigned, totalActivity, overCount, onTrack, overallPct, topRows }
-})
-
-// ── Top spending (this month) ─────────────────────────────────
-const topSpending = computed(() => {
-  const map = new Map<string, number>()
-  for (const t of thisMonthTxs.value) {
-    if (t.type !== 'out') continue
-    map.set(t.name, (map.get(t.name) ?? 0) + t.amount)
-  }
-  return [...map.entries()]
-    .map(([name, total]) => ({ name, total }))
-    .sort((a, b) => b.total - a.total)
-    .slice(0, 5)
-})
-
-// ── Recent transactions ───────────────────────────────────────
-const recentTxs = computed(() =>
-  txStore.transactions
-    .slice()
-    .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))
-    .slice(0, 8)
-)
+const monthIn     = computed(() => totals.value.income)
+const monthOut    = computed(() => totals.value.expenses)
+const monthNet    = computed(() => totals.value.net)
+const savingsRate = computed(() => totals.value.savingsRate)
 
 function budgetBarColor(pct: number): string {
   if (pct >= 100) return '#dc2626'
@@ -268,12 +189,12 @@ const goalDashRows = computed((): GoalDashRow[] =>
         <button class="dash-stat-card" @click="emit('viewTransactions', _monthKey)">
           <span class="dash-stat-label">Money In</span>
           <span class="dash-stat-value money-positive">{{ formatMoney(monthIn) }}</span>
-          <span class="dash-stat-sub">{{ thisMonthTxs.filter(t => t.type === 'in').length }} transactions</span>
+          <span class="dash-stat-sub">{{ totals.incomeCount }} transactions</span>
         </button>
         <button class="dash-stat-card" @click="emit('viewTransactions', _monthKey)">
           <span class="dash-stat-label">Money Out</span>
           <span class="dash-stat-value money-negative">{{ formatMoney(monthOut) }}</span>
-          <span class="dash-stat-sub">{{ thisMonthTxs.filter(t => t.type === 'out').length }} transactions</span>
+          <span class="dash-stat-sub">{{ totals.expenseCount }} transactions</span>
         </button>
         <div class="dash-stat-card">
           <span class="dash-stat-label">Net</span>

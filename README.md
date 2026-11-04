@@ -86,15 +86,24 @@ The site holds the data; the **API answers the questions about it**.
   consistency. The rules are one class,
   [HealthService](Folio.Api/Modules/Folio/HealthService.cs), and its arithmetic is a pure
   function so a test can hand it a fixed day and check the answer.
+- **The dashboard's numbers are the API's.** `GET /api/folio/dashboard?country=<id>&month=&budgetMonth=`
+  answers with the month's totals, every account's balance, the biggest spending lines, the
+  budget's progress and the newest transactions — one answer, so no two cards can disagree.
+  [DashboardService](Folio.Api/Modules/Folio/DashboardService.cs) holds the rules, including
+  which accounts the budget ignores and which days a billable month owns.
 - **The page renders what it is given.** [useHealthScore](Folio.Web/src/modules/folio/composables/useHealthScore.ts)
-  asks once for the whole app, and asks again when a save lands — `workspace.ts` counts
-  those — so the Dashboard and the Performance page cannot show two different scores.
+  and [useDashboard](Folio.Web/src/modules/folio/composables/useDashboard.ts) ask once for
+  the whole app, and ask again when a save lands — `workspace.ts` counts those — so an edit
+  shows the figure after it rather than before.
 - **The month is part of the question.** The budget a month is measured against is the one
-  on screen, so the site sends it rather than letting the API guess.
+  on screen, so the site sends it rather than letting the API guess. The dashboard takes two
+  months for that reason: the calendar month its cards add up, and the billable month whose
+  budget they measure.
 
-The rest of the arithmetic — the dashboard totals, the planner's projections, the CSV
-adapters, the demo budget — is still in TypeScript, and is being moved into the API in that
-order. When it lands, a rule lives in one place: the module's service class.
+The rest of the arithmetic — the planner's projections, the loan and savings projections on
+the dashboard, the CSV adapters, the demo budget — is still in TypeScript, and is being
+moved into the API in that order. When it lands, a rule lives in one place: the module's
+service class.
 
 ## No sign-in
 

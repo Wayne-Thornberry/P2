@@ -33,7 +33,8 @@ public sealed class FolioModule : IFolioModule
 
     public void AddServices(IServiceCollection services, IConfiguration configuration) =>
         services.AddScoped<WorkspaceService>()
-                .AddScoped<HealthService>();
+                .AddScoped<HealthService>()
+                .AddScoped<DashboardService>();
 
     public void Map(RouteGroupBuilder api)
     {
@@ -42,6 +43,7 @@ public sealed class FolioModule : IFolioModule
         api.MapGet("/countries", ListCountriesAsync);
 
         api.MapGet("/health", GetHealthAsync);
+        api.MapGet("/dashboard", GetDashboardAsync);
 
         api.MapGet("/settings", GetSettingsAsync);
         api.MapPut("/settings", SaveSettingsAsync);
@@ -84,17 +86,52 @@ public sealed class FolioModule : IFolioModule
         if (Country(country) is not { } name)
             return ApiErrors.BadRequest("A country is needed: ?country=ireland.");
 
-        DateOnly? viewed = null;
-
-        if (month is not null)
-        {
-            if (!DateOnly.TryParseExact($"{month}-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
-                return ApiErrors.BadRequest("A month is written yyyy-mm: ?month=2026-11.");
-
-            viewed = parsed;
-        }
+        if (!TryMonth(month, out var viewed))
+            return ApiErrors.BadRequest("A month is written yyyy-mm: ?month=2026-11.");
 
         return Results.Ok(await health.ReadAsync(name, viewed, cancellationToken));
+    }
+
+    /// <summary>
+    /// The Dashboard's numbers.
+    ///
+    /// <paramref name="month"/> is the calendar month its cards add up, and
+    /// <paramref name="budgetMonth"/> is the billable month whose budget they measure
+    /// against: they are one and the same until a budget starts mid-month, and the page
+    /// keeps them apart so neither has to guess about the other.
+    /// </summary>
+    private static async Task<IResult> GetDashboardAsync(
+        string? country,
+        string? month,
+        string? budgetMonth,
+        DashboardService dashboard,
+        CancellationToken cancellationToken)
+    {
+        if (Country(country) is not { } name)
+            return ApiErrors.BadRequest("A country is needed: ?country=ireland.");
+
+        if (!TryMonth(month, out var shown))
+            return ApiErrors.BadRequest("A month is written yyyy-mm: ?month=2026-11.");
+
+        if (!TryMonth(budgetMonth, out var budgeted))
+            return ApiErrors.BadRequest("A month is written yyyy-mm: ?budgetMonth=2026-11.");
+
+        return Results.Ok(await dashboard.ReadAsync(name, shown, budgeted, cancellationToken));
+    }
+
+    /// <summary>A yyyy-mm query value, or null when it was not given; false when it is not a month.</summary>
+    private static bool TryMonth(string? value, out DateOnly? month)
+    {
+        month = null;
+
+        if (value is null)
+            return true;
+
+        if (!DateOnly.TryParseExact($"{value}-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+            return false;
+
+        month = parsed;
+        return true;
     }
 
     /// <summary>

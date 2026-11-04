@@ -26,7 +26,7 @@ it before changing anything. In short:
   `FolioDbContext`, in `WorkspaceService` and in the module's TypeScript types.
 - **A computed view is asked for, not calculated.** Anything the API works out has its own
   `GET`; the site asks again when `workspace.ts` reports a save, so the figure on screen
-  describes the budget as it was saved.
+  describes the budget as it was saved. `GET /api/folio/dashboard` is the second example.
 - **An app is a schema + tables + migration, a class implementing
   [IFolioModule](../Folio.Api/Modules/IFolioModule.cs), a folder under
   `Folio.Web/src/modules` with one line in `registry.ts`, and tests on both sides.** Its

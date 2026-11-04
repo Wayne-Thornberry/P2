@@ -17,15 +17,6 @@ public sealed class HealthService(FolioDbContext db, TimeProvider clock)
     /// <summary>Completed months the score looks at. The current one is still being lived.</summary>
     public const int WindowMonths = 6;
 
-    /// <summary>
-    /// How far back to look for the assignments a month has none of its own.
-    ///
-    /// The site copies last month's budget into a month it has not seen yet, so a month
-    /// with no rows of its own runs on its predecessor's -- the same rule, without writing
-    /// the copy.
-    /// </summary>
-    private const int AssignmentLookBackMonths = 24;
-
     public async Task<HealthReport> ReadAsync(string country, DateOnly? viewed, CancellationToken cancellationToken)
     {
         var settings = await db.Settings.AsNoTracking().FirstOrDefaultAsync(cancellationToken);
@@ -36,10 +27,11 @@ public sealed class HealthService(FolioDbContext db, TimeProvider clock)
             .Where(row => row.Country == country)
             .ToListAsync(cancellationToken);
 
-        var month = viewed ?? FirstOf(BillableMonth(DateOnly.FromDateTime(clock.GetLocalNow().DateTime), startDay));
-        var lines = await AssignmentsAsync(country, month, cancellationToken);
+        var today = DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
+        var month = viewed ?? FirstOf(BillableMonth(today, startDay));
+        var lines = await Assignments.ReadAsync(db, country, month, cancellationToken);
 
-        return Compute(transactions, lines, startDay, DateOnly.FromDateTime(clock.GetLocalNow().DateTime), month);
+        return Compute(transactions, lines, startDay, today, month);
     }
 
     /// <summary>The score and its parts, from rows and a day. No database, no clock.</summary>
@@ -204,34 +196,12 @@ public sealed class HealthService(FolioDbContext db, TimeProvider clock)
 
     private static DateOnly FirstOf((int Year, int Month) month) => new(month.Year, month.Month, 1);
 
-    private async Task<List<BudgetLine>> AssignmentsAsync(string country, DateOnly month, CancellationToken cancellationToken)
-    {
-        for (var back = 0; back < AssignmentLookBackMonths; back++)
-        {
-            var at = month.AddMonths(-back);
-
-            var lines = await db.BudgetAssignments
-                .AsNoTracking()
-                .Where(row => row.Country == country && row.Year == at.Year && row.Month == at.Month)
-                .Select(row => new BudgetLine(row.ItemId, row.Assigned))
-                .ToListAsync(cancellationToken);
-
-            if (lines.Count > 0)
-                return lines;
-        }
-
-        return [];
-    }
-
     // JavaScript's Math.round: a half always goes up. C#'s default banker's rounding would
     // answer differently on the .5 that a percentage falls on often enough to notice.
     private static int JsRound(decimal value) => (int)Math.Floor(value + 0.5m);
 
     private static decimal JsRound1(decimal value) => Math.Floor(value * 10 + 0.5m) / 10;
 }
-
-/// <summary>A budget line's assignment, which is what "overspent" is measured against.</summary>
-public sealed record BudgetLine(int ItemId, decimal Assigned);
 
 /// <summary>One month of the window, already summed.</summary>
 public sealed record MonthTotal(decimal Income, decimal Expenses);
