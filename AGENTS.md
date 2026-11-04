@@ -33,8 +33,12 @@ box. The site is the budget itself, on one module — `folio` — with no page i
    that cannot create the symlinks npm workspaces need. One project, one `node_modules`.
 8. **A module's name is used twice**: `/api/<name>` on the API and `/<name>` on the site.
    The two are one app seen from both sides, so they must be equal.
-9. **Every table in the `folio` schema is keyed on `(UserId, Country, Id)`.** One person
-   can keep a budget for more than one country, and each is a separate set of rows.
+9. **Every table in the `folio` schema is keyed on `(Country, Id)`.** One person can keep a
+   budget for more than one country, and each is a separate set of rows.
+10. **A rule lives on the server.** What makes a row valid, what a number means, what the
+    page is shown belongs to the module's service class and the endpoints it feeds. The
+    site displays what comes back and formats it. A rule kept in both places drifts, and
+    the browser's copy is the one no test covers.
 
 ## The data
 

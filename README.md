@@ -61,20 +61,40 @@ the template, goals, finance, the planner, import history — and the site reads
 the whole collection.
 
 - **The API is the database's only client.** `GET /api/folio/workspace?country=<id>` reads
-  every collection for the signed-in user and that country. `PUT /api/folio/<collection>`
-  replaces one of them, in a transaction, and is how every change is saved.
+  every collection for that country. `PUT /api/folio/<collection>` replaces one of them, in
+  a transaction, and is how every change is saved.
 - **One table per entity.** A collection maps onto real columns and keys: transactions in
   `folio.Transactions`, the envelope assignments in `folio.BudgetAssignments`, a goal's
   contributions in `folio.SavingsContributions`, and so on. The model is in
   [Tables](Folio.Database/Tables) and the mapping in
   [FolioDbContext](Folio.Api/Data/FolioDbContext.cs).
-- **Country is part of the key.** Every table is keyed on `(UserId, Country, Id)`, so the
-  budget for Ireland and the budget for Sweden are separate sets of rows and switching
-  country switches which ones are loaded.
+- **Country is part of the key.** Every table is keyed on `(Country, Id)`, so the budget
+  for Ireland and the budget for Sweden are separate sets of rows and switching country
+  switches which ones are loaded.
 - **The browser keeps a copy.** [workspace.ts](Folio.Web/src/modules/folio/workspace.ts)
   fetches the saved workspace before the app starts and puts it where the stores already
   look; a change is written to the browser immediately and sent to the API shortly after.
   A save that cannot reach the server is retried on the next change rather than lost.
+
+## Where the working out happens
+
+The site holds the data; the **API answers the questions about it**.
+
+- **The health score is the API's.** `GET /api/folio/health?country=<id>&month=<yyyy-mm>`
+  reads the saved rows and answers with the score, the grade and the parts it is made of —
+  the three-month savings rate, the emergency reserve, the budget adherence, the income
+  consistency. The rules are one class,
+  [HealthService](Folio.Api/Modules/Folio/HealthService.cs), and its arithmetic is a pure
+  function so a test can hand it a fixed day and check the answer.
+- **The page renders what it is given.** [useHealthScore](Folio.Web/src/modules/folio/composables/useHealthScore.ts)
+  asks once for the whole app, and asks again when a save lands — `workspace.ts` counts
+  those — so the Dashboard and the Performance page cannot show two different scores.
+- **The month is part of the question.** The budget a month is measured against is the one
+  on screen, so the site sends it rather than letting the API guess.
+
+The rest of the arithmetic — the dashboard totals, the planner's projections, the CSV
+adapters, the demo budget — is still in TypeScript, and is being moved into the API in that
+order. When it lands, a rule lives in one place: the module's service class.
 
 ## No sign-in
 

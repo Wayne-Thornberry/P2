@@ -10,6 +10,7 @@ src/modules/
     index.ts         the route
     FolioView.vue    the app itself, with its own pages and sidebar
     workspace.ts     how its data reaches the API
+    composables/     what it asks the API to work out, and the state that holds it
     components/      its pages and dialogs
     stores/          its Pinia stores
     utils/           its pure logic, and the tests beside it

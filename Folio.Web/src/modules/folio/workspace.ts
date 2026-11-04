@@ -1,3 +1,4 @@
+import { ref } from 'vue'
 import { api } from '../../shared'
 import { storageKey } from './utils/storeStorage'
 
@@ -32,6 +33,15 @@ const SETTINGS_KEY = 'folio_settings'
 
 /** How long after the last change a collection is sent, so a burst of edits is one request. */
 const SETTLE_MS = 500
+
+/**
+ * Counts the saves that have reached the server.
+ *
+ * What the API works out for the site -- the health score today -- is only true for what
+ * has been saved, so a view watching this number asks again once an edit has landed
+ * instead of showing a figure that describes the budget before it.
+ */
+export const saved = ref(0)
 
 interface PendingSave {
   timer: ReturnType<typeof setTimeout>
@@ -158,9 +168,14 @@ function adoptLocalCopy(): void {
 
 /** Runs a save after the ones already queued, so requests leave in the order they were made. */
 function enqueue(task: () => Promise<unknown>): void {
-  queue = queue.then(task).catch((error: unknown) => {
-    warn('A change could not be saved to the server; it is still in this browser', error)
-  })
+  queue = queue
+    .then(task)
+    .then(() => {
+      saved.value += 1
+    })
+    .catch((error: unknown) => {
+      warn('A change could not be saved to the server; it is still in this browser', error)
+    })
 }
 
 /** Waits for everything queued to be sent, for a caller about to leave the page. */

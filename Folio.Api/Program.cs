@@ -21,6 +21,10 @@ builder.Services.AddDbContext<FolioDbContext>(options => options.UseSqlServer(co
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull);
 
+// A module that works something out for the site takes TimeProvider rather than reading the
+// clock itself, so a test can stand at a fixed day.
+builder.Services.AddSingleton(TimeProvider.System);
+
 // Every module in the assembly, found rather than listed, so copying a module into
 // the repository is all it takes for it to be registered and served.
 var catalog = ModuleCatalog.Discover();

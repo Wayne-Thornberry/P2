@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Folio.Api.Http;
 
@@ -31,13 +32,16 @@ public sealed class FolioModule : IFolioModule
     public string Name => ModuleName;
 
     public void AddServices(IServiceCollection services, IConfiguration configuration) =>
-        services.AddScoped<WorkspaceService>();
+        services.AddScoped<WorkspaceService>()
+                .AddScoped<HealthService>();
 
     public void Map(RouteGroupBuilder api)
     {
         api.MapGet("/workspace", GetWorkspaceAsync);
         api.MapDelete("/workspace", DeleteWorkspaceAsync);
         api.MapGet("/countries", ListCountriesAsync);
+
+        api.MapGet("/health", GetHealthAsync);
 
         api.MapGet("/settings", GetSettingsAsync);
         api.MapPut("/settings", SaveSettingsAsync);
@@ -62,6 +66,35 @@ public sealed class FolioModule : IFolioModule
             return ApiErrors.BadRequest("A country is needed: ?country=ireland.");
 
         return Results.Ok(await workspace.ReadAsync(name, cancellationToken));
+    }
+
+    /// <summary>
+    /// The health score, and the parts it is made of.
+    ///
+    /// <paramref name="month"/> is the month the site is showing, because the budget it
+    /// measures spending against is that month's: without it the answer would be about a
+    /// budget nobody is looking at.
+    /// </summary>
+    private static async Task<IResult> GetHealthAsync(
+        string? country,
+        string? month,
+        HealthService health,
+        CancellationToken cancellationToken)
+    {
+        if (Country(country) is not { } name)
+            return ApiErrors.BadRequest("A country is needed: ?country=ireland.");
+
+        DateOnly? viewed = null;
+
+        if (month is not null)
+        {
+            if (!DateOnly.TryParseExact($"{month}-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+                return ApiErrors.BadRequest("A month is written yyyy-mm: ?month=2026-11.");
+
+            viewed = parsed;
+        }
+
+        return Results.Ok(await health.ReadAsync(name, viewed, cancellationToken));
     }
 
     /// <summary>

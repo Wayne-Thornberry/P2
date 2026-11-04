@@ -10,6 +10,9 @@ it before changing anything. In short:
   step.
 - **The API is open.** There is no sign-in and no sessions: the box is private, so the
   endpoints are not guarded. Do not reintroduce a user, a token or a `UserId` column.
+- **A rule lives on the server.** Rules, limits and computed values go in the module's
+  service class on the API, and the page displays what comes back. Do not re-implement a
+  rule in TypeScript for a faster message. `GET /api/folio/health` is the shape to copy.
 - **The API never creates a schema object.** "Invalid object name" means the database has
   not been deployed.
 - **`npm ci` inside `Folio.Web`.** No npm workspaces — this tree cannot create symlinks.
@@ -19,8 +22,11 @@ it before changing anything. In short:
   `-Api` is the only path that touches a real database.
 - **A collection is saved whole.** The site keeps each of Folio's nine collections as one
   aggregate and `PUT`s it to `/api/folio/<collection>?country=<id>`; the API replaces the
-  rows for that user and country inside a transaction. A new field has to be added on both
-  sides, in `FolioDbContext`, in `WorkspaceService` and in the module's TypeScript types.
+  rows for that country inside a transaction. A new field has to be added on both sides, in
+  `FolioDbContext`, in `WorkspaceService` and in the module's TypeScript types.
+- **A computed view is asked for, not calculated.** Anything the API works out has its own
+  `GET`; the site asks again when `workspace.ts` reports a save, so the figure on screen
+  describes the budget as it was saved.
 - **An app is a schema + tables + migration, a class implementing
   [IFolioModule](../Folio.Api/Modules/IFolioModule.cs), a folder under
   `Folio.Web/src/modules` with one line in `registry.ts`, and tests on both sides.** Its

@@ -1,27 +1,16 @@
 // ── useHealthScore ─────────────────────────────────────────────
-// Single source of truth for the financial health score shown on
-// both the Performance page and the Dashboard widget.
-// Uses a 3-month rolling window of completed months only — the
-// current (incomplete) month is excluded from all metrics.
+// The financial health score, as the API works it out.
+//
+// The rules -- the six-month window, the savings bands, the reserve, the adherence --
+// were once here, and the Dashboard and the Performance page could only agree while
+// nobody changed them. They are the API's now: this asks for the answer, and asks again
+// when the budget is saved, so an edit shows the score after it rather than before.
 
-import { computed } from 'vue'
-import { useTransactionStore } from '../stores/transactionStore'
-import { useBudgetStore }      from '../stores/budgetStore'
-import { useSettingsStore }    from '../stores/settingsStore'
-import { billableMonthKey, currentBillableMonth, yearMonthKey } from '../utils/date'
-
-/**
- * Generate the YYYY-MM key for a billable month at a given offset from the current one.
- * offset=0 → current billable month (excluded), offset=-1 → previous billable month, etc.
- */
-function billableMonthStr(offset: number, startDay: number): string {
-  const cur = currentBillableMonth(startDay)
-  let y = cur.year
-  let m = cur.month + offset
-  while (m <= 0) { y--; m += 12 }
-  while (m > 12)  { y++; m -= 12 }
-  return yearMonthKey(y, m)
-}
+import { computed, ref, watch } from 'vue'
+import { api } from '../../../shared'
+import { useMonthStore } from '../stores/monthStore'
+import { useSettingsStore } from '../stores/settingsStore'
+import { saved } from '../workspace'
 
 export interface HealthGrade {
   letter: string
@@ -33,114 +22,74 @@ export interface BudgetAdherence {
   total:   number
   over:    number
   onTrack: number
-  pct:     number   // % on-track, 0–100
+  pct:     number   // % on-track, 0-100
+}
+
+/** What the API answers, and every part the pages show. */
+export interface HealthReport {
+  score:             number
+  grade:             HealthGrade
+  rolling3:          { income: number; expenses: number; savingsRate: number }
+  reserveMonths:     number | null
+  budgetAdherence:   BudgetAdherence | null
+  incomeConsistency: number
+}
+
+// One report for the whole app: the Dashboard and the Performance page ask the same
+// question, so they get the same answer from one request.
+const report = ref<HealthReport | null>(null)
+
+let inFlight: Promise<void> | null = null
+
+async function load(): Promise<void> {
+  if (inFlight) return inFlight
+
+  const country = useSettingsStore().country
+  if (!country) return
+
+  const monthStore = useMonthStore()
+  const month = `${monthStore.activeYear}-${String(monthStore.activeMonth).padStart(2, '0')}`
+
+  inFlight = api
+    .get<HealthReport>(`/api/folio/health?country=${encodeURIComponent(country)}&month=${month}`)
+    .then((answer) => {
+      report.value = answer
+    })
+    .catch((error: unknown) => {
+      // A score that could not be fetched is not a score of zero: the last one stays on
+      // screen, and the reason is in the console.
+      console.warn('[folio] the health score could not be read.', error)
+    })
+    .finally(() => {
+      inFlight = null
+    })
+
+  return inFlight
 }
 
 export function useHealthScore() {
-  const txStore     = useTransactionStore()
-  const budgetStore = useBudgetStore()
   const settings    = useSettingsStore()
-  const startDay    = () => settings.billableMonthStart
+  const monthStore  = useMonthStore()
 
-  // ── Last 6 completed months (excludes current incomplete month) ──
-  const MONTHS = computed(() => Array.from({ length: 6 }, (_, i) => billableMonthStr(i - 6, startDay())))
-
-  const monthStats = computed(() =>
-    MONTHS.value.map(ym => {
-      const sd = startDay()
-      const txs      = txStore.transactions.filter(t => billableMonthKey(t.date, sd) === ym)
-      const income   = txs.filter(t => t.type === 'in').reduce((s, t)  => s + t.amount, 0)
-      const expenses = txs.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0)
-      return { ym, income, expenses }
-    })
+  watch(
+    [() => settings.country, () => monthStore.activeYear, () => monthStore.activeMonth, saved],
+    () => void load(),
+    { immediate: true },
   )
 
-  // 3-month rolling average (% savings rate as integer e.g. 34)
-  const rolling3 = computed(() => {
-    const last3 = monthStats.value.slice(-3).filter(m => m.income > 0 || m.expenses > 0)
-    if (last3.length === 0) return { income: 0, expenses: 0, savingsRate: 0 }
-    const income   = last3.reduce((s, m) => s + m.income,   0) / last3.length
-    const expenses = last3.reduce((s, m) => s + m.expenses, 0) / last3.length
-    const savingsRate = income > 0 ? Math.round(((income - expenses) / income) * 100) : 0
-    return { income, expenses, savingsRate }
-  })
+  const score = computed((): number => report.value?.score ?? 0)
 
-  // Reserve months = net transaction balance / avg monthly expenses
-  const reserveMonths = computed((): number | null => {
-    const avgExp = rolling3.value.expenses
-    if (avgExp <= 0) return null
-    const balance = txStore.transactions.reduce(
-      (s, t) => s + (t.type === 'in' ? t.amount : -t.amount), 0,
-    )
-    return Math.round((balance / avgExp) * 10) / 10
-  })
-
-  // Budget adherence — % of active items NOT overspent last completed billable month
-  const budgetAdherence = computed((): BudgetAdherence | null => {
-    const items = budgetStore.items
-    if (items.length === 0) return null
-    const cur = currentBillableMonth(startDay())
-    let y = cur.year
-    let m = cur.month - 1
-    if (m <= 0) { y--; m += 12 }
-    const map  = txStore.getMonthlyActivityMap(y, m)
-    const over = items.filter(item => (map.get(item.id) ?? 0) > (item.assigned ?? 0)).length
-    const total = items.length
-    return { total, over, onTrack: total - over, pct: Math.round(((total - over) / total) * 100) }
-  })
-
-  // Income consistency — how many of the last 3 months had any income
-  const incomeConsistency = computed((): number =>
-    monthStats.value.slice(-3).filter(m => m.income > 0).length
+  const grade = computed((): HealthGrade =>
+    report.value?.grade ?? { letter: '-', label: 'Loading', color: 'var(--ink-muted)' },
   )
 
-  // ── Score (max 100) ───────────────────────────────────────────
-  const score = computed((): number => {
-    let s = 0
+  const rolling3 = computed(() => report.value?.rolling3 ?? { income: 0, expenses: 0, savingsRate: 0 })
 
-    // Savings rate (35 pts) — based on 3-month rolling average
-    const sr = rolling3.value.savingsRate
-    if      (sr >= 20) s += 35
-    else if (sr >= 10) s += 25
-    else if (sr >= 5)  s += 15
-    else if (sr >= 0)  s += 8
+  const reserveMonths = computed((): number | null => report.value?.reserveMonths ?? null)
 
-    // Emergency reserve (30 pts)
-    const r = reserveMonths.value ?? 0
-    if      (r >= 6) s += 30
-    else if (r >= 3) s += 22
-    else if (r >= 1) s += 12
-    else if (r > 0)  s += 4
+  const budgetAdherence = computed((): BudgetAdherence | null => report.value?.budgetAdherence ?? null)
 
-    // Budget adherence (20 pts) — excluded and scaled if no budget
-    const noBudget = budgetAdherence.value === null
-    if (!noBudget) {
-      const p = budgetAdherence.value!.pct
-      if      (p === 100) s += 20
-      else if (p >= 75)   s += 15
-      else if (p >= 50)   s += 8
-      else                s += 2
-    }
-
-    // Income consistency (15 pts) — last 3 months
-    const withIncome = incomeConsistency.value
-    if      (withIncome === 3) s += 15
-    else if (withIncome === 2) s += 9
-    else if (withIncome === 1) s += 4
-
-    // No budget: scored out of 80, scale to 100
-    if (noBudget) return Math.min(100, Math.max(0, Math.round(s / 80 * 100)))
-    return Math.min(100, Math.max(0, s))
-  })
-
-  const grade = computed((): HealthGrade => {
-    const s = score.value
-    if (s >= 85) return { letter: 'A', label: 'Excellent',  color: '#10b981' }
-    if (s >= 70) return { letter: 'B', label: 'Good',       color: '#22d3ee' }
-    if (s >= 55) return { letter: 'C', label: 'Fair',       color: '#f59e0b' }
-    if (s >= 40) return { letter: 'D', label: 'Needs Work', color: '#f97316' }
-    return             { letter: 'F', label: 'Critical',    color: '#ef4444' }
-  })
+  const incomeConsistency = computed((): number => report.value?.incomeConsistency ?? 0)
 
   return { score, grade, rolling3, reserveMonths, budgetAdherence, incomeConsistency }
 }
