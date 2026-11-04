@@ -46,6 +46,12 @@ in, and offers to make the first account if the box has none.
     page is shown belongs to the module's service class and the endpoints it feeds. The
     site displays what comes back and formats it. A rule kept in both places drifts, and
     the browser's copy is the one no test covers.
+11. **Nothing that is served is kept.** The API says `no-store` from one middleware in
+    [Program.cs](Folio.Api/Program.cs); the site says it from the headers in
+    [web.config](Folio.Web/web.config), which is why there is no `clientCache` element
+    beside them — it can only say `no-cache`, and it writes a second `Cache-Control`. A
+    cached `index.html` is a page that asks for bundles the last deploy deleted. The
+    deploy's two smoke tests read the header back so this cannot be lost quietly.
 
 ## The data
 

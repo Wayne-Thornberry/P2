@@ -308,7 +308,9 @@ copying into a folder nothing serves) → run the tests, before anything is stop
 failure leaves the running sites alone → build the API, the model and the site → stop the
 app pools → copy the site → copy the API and write its `appsettings.Production.json` →
 apply the migrations and publish the model with `sqlpackage` → start the pools → smoke-test
-the API's `/api/health` and the site's `/` → clean up.
+the API's `/api/health` and the site's `/` → clean up. Both smoke tests also read the
+`Cache-Control` header back and fail the deploy if it has lost its `no-store`: a cached
+`index.html` outlives the deploy that replaced it and then asks for bundles that are gone.
 
 Nothing is created by the deploy. The two IIS sites it publishes onto, and the database the
 API reads, are made once by [setup.ps1](setup.ps1):

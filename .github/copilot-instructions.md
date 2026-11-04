@@ -26,6 +26,10 @@ it before changing anything. In short:
   rule in TypeScript for a faster message. `GET /api/folio/health` is the shape to copy.
 - **The API never creates a schema object.** "Invalid object name" means the database has
   not been deployed.
+- **Nothing served is kept.** The API says `no-store` from one middleware in `Program.cs`,
+  the site from the headers in `Folio.Web/web.config` (no `clientCache` beside them — it
+  writes a second `Cache-Control`). A cached `index.html` asks for bundles the last deploy
+  deleted. The deploy's smoke tests read the header back.
 - **`npm ci` inside `Folio.Web`.** No npm workspaces — this tree cannot create symlinks.
 - **The site can talk to two APIs.** `.\start.ps1` builds a LocalDB database from the model
   and serves the real API against it; `-Mock` serves the fake API in `Folio.Web/mocks`,

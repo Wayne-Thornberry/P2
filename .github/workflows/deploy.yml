@@ -901,6 +901,19 @@ jobs:
                   $res = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 5
                   if ($res.StatusCode -eq 200 -and $res.Content -match '"database"\s*:\s*"ok"') {
                       Write-Host "[OK] API healthy at $url" -ForegroundColor Green
+
+                      # Nothing between the box and the browser may keep an answer. It is
+                      # one middleware in the API, but a proxy or a web.config between the
+                      # two could still add a header of its own, and this is the only place
+                      # that sees what actually left the box.
+                      $cache = $res.Headers['Cache-Control']
+                      if ($cache -notmatch 'no-store') {
+                          Write-Host "[FAILED] $url answered Cache-Control '$cache'" -ForegroundColor Red
+                          Write-Host '  The API must say no-store: see the middleware in Program.cs.' -ForegroundColor Yellow
+                          exit 1
+                      }
+                      Write-Host "[OK] API answers are not to be kept ($cache)" -ForegroundColor Green
+
                       exit 0
                   }
                   $lastStatus = $res.StatusCode
@@ -1043,6 +1056,20 @@ jobs:
                       $res = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 5
                       if ($res.StatusCode -ge 200 -and $res.StatusCode -lt 400 -and $res.Content -match '<div id="app">') {
                           Write-Host "[OK] $url" -ForegroundColor Green
+
+                          # index.html is what names the hashed bundles, so a copy kept by
+                          # the browser survives a deploy as a page asking for files that
+                          # are no longer there. The site says no-store on every response;
+                          # this is the only place that sees what IIS actually sent.
+                          $cache = $res.Headers['Cache-Control']
+                          if ($cache -notmatch 'no-store') {
+                              Write-Host "[FAILED] $url answered Cache-Control '$cache'" -ForegroundColor Red
+                              Write-Host '  web.config must add the no-store headers: see Folio.Web/web.config.' -ForegroundColor Yellow
+                              $failed = $true
+                          } else {
+                              Write-Host "[OK] $url is not to be kept ($cache)" -ForegroundColor Green
+                          }
+
                           $served = $true
                           break
                       }

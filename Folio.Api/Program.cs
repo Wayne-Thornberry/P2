@@ -62,10 +62,12 @@ var app = builder.Build();
 // Nothing this answers is to be kept by whatever sits between here and the person reading
 // it. The list changes when a button is pressed, and an answered-from-cache page is a page
 // describing a box that has moved on -- which is a bug report about the app, not the cache.
+// The three headers together are also what Folio.Web's web.config says of the site's files.
 app.Use(async (context, next) =>
 {
-    context.Response.Headers.CacheControl = "no-store, no-cache, must-revalidate";
+    context.Response.Headers.CacheControl = "no-store, no-cache, must-revalidate, max-age=0";
     context.Response.Headers.Pragma = "no-cache";
+    context.Response.Headers.Expires = "0";
 
     await next();
 });
