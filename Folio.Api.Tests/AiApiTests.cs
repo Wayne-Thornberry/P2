@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Folio.Api.Ai;
+using Folio.Api.Modules.Folio;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
@@ -79,8 +80,8 @@ public sealed class FakeDeepSeek : HttpMessageHandler
     public const string GoodAssignment = """
         {
           "assignments": [
-            { "id": 1, "item": "groceries", "new": false, "confidence": 0.94, "why": "supermarket" },
-            { "id": 2, "item": "Subscriptions", "new": true, "confidence": 0.8, "why": "monthly streaming" }
+            { "payee": "TESCO STORES 1234", "item": "groceries", "new": false, "confidence": 0.94, "why": "supermarket" },
+            { "payee": "NETFLIX.COM", "item": "Subscriptions", "new": true, "confidence": 0.8, "why": "monthly streaming" }
           ],
           "newItems": [ "Subscriptions" ]
         }
@@ -94,6 +95,12 @@ public sealed class FakeDeepSeek : HttpMessageHandler
     /// <summary>The content of the chat completion this answers with.</summary>
     public string Answer { get; set; } = GoodReport;
 
+    /// <summary>An answer worked out from which call this is, for tests that make several.</summary>
+    public Func<int, string>? Reply { get; set; }
+
+    /// <summary>How many calls have been made since the last reset.</summary>
+    public int Requests { get; private set; }
+
     public HttpStatusCode Status { get; set; } = HttpStatusCode.OK;
 
     /// <summary>Back to a good day, before a test changes it.</summary>
@@ -102,6 +109,8 @@ public sealed class FakeDeepSeek : HttpMessageHandler
         Request = null;
         Body = null;
         Answer = GoodReport;
+        Reply = null;
+        Requests = 0;
         Status = HttpStatusCode.OK;
     }
 
@@ -110,13 +119,16 @@ public sealed class FakeDeepSeek : HttpMessageHandler
         CancellationToken cancellationToken)
     {
         Request = request;
+        Requests++;
         Body = request.Content is null
             ? null
             : await request.Content.ReadAsStringAsync(cancellationToken);
 
+        var answer = Reply?.Invoke(Requests) ?? Answer;
+
         var completion = JsonSerializer.Serialize(new
         {
-            choices = new[] { new { message = new { content = Answer } } },
+            choices = new[] { new { message = new { content = answer } } },
         });
 
         return new HttpResponseMessage(Status)
@@ -254,18 +266,19 @@ public sealed class AiApiTests(AiFactory factory) : IClassFixture<AiFactory>
         response.EnsureSuccessStatusCode();
 
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var assignments = body.RootElement.GetProperty("assignments");
+        var groups = body.RootElement.GetProperty("groups");
 
         // "groceries" in the answer is "Groceries" in the budget: the same item, by its own
-        // spelling and its own id.
-        var first = assignments.EnumerateArray().First(row => row.GetProperty("transactionId").GetInt32() == 1);
+        // spelling and its own id, and it carries every row that shares the payee.
+        var first = groups.EnumerateArray().First(row => row.GetProperty("payee").GetString() == "TESCO STORES 1234");
         Assert.Equal(3201, first.GetProperty("itemId").GetInt32());
         Assert.Equal("Groceries", first.GetProperty("itemName").GetString());
         Assert.False(first.GetProperty("isNew").GetBoolean());
+        Assert.Equal([1], first.GetProperty("transactionIds").EnumerateArray().Select(id => id.GetInt32()));
 
         // Nothing existing fits, so the second is a proposal with no id yet: the page adds
         // the item and assigns it, in one save.
-        var second = assignments.EnumerateArray().First(row => row.GetProperty("transactionId").GetInt32() == 2);
+        var second = groups.EnumerateArray().First(row => row.GetProperty("payee").GetString() == "NETFLIX.COM");
         Assert.False(
             second.TryGetProperty("itemId", out var itemId) && itemId.ValueKind != JsonValueKind.Null,
             "a proposed new item has no id until the page adds it");
@@ -273,6 +286,100 @@ public sealed class AiApiTests(AiFactory factory) : IClassFixture<AiFactory>
         Assert.True(second.GetProperty("isNew").GetBoolean());
 
         Assert.Equal("Subscriptions", body.RootElement.GetProperty("newItems")[0].GetString());
+        Assert.Equal(2, body.RootElement.GetProperty("covered").GetInt32());
+    }
+
+    [DatabaseFact]
+    public async Task One_payee_is_one_question_however_many_rows_share_it()
+    {
+        factory.DeepSeek.Reset();
+        factory.DeepSeek.Answer = FakeDeepSeek.GoodAssignment;
+
+        var client = await factory.CreateSignedInClientAsync();
+
+        // Two hundred shops at the same supermarket: one name, one question, every row
+        // covered.
+        var rows = Enumerable.Range(1, 200).Select(id => new
+        {
+            id,
+            name = "TESCO STORES 1234",
+            date = "2026-04-01",
+            createdAt = "2026-04-01T10:00:00.000Z",
+            amount = 10m,
+            type = "out",
+            itemId = (int?)null,
+        });
+
+        await client.PutAsJsonAsync($"/api/folio/transactions?country={Country}", new
+        {
+            transactions = rows.ToArray(),
+            nextId = 201,
+        });
+
+        var response = await client.PostAsJsonAsync($"/api/folio/categorise?country={Country}", new
+        {
+            items = new object[] { new { id = 3201, name = "Groceries" } },
+        });
+
+        response.EnsureSuccessStatusCode();
+
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(1, factory.DeepSeek.Requests);
+        Assert.Equal(1, body.RootElement.GetProperty("payees").GetInt32());
+        Assert.Equal(200, body.RootElement.GetProperty("covered").GetInt32());
+    }
+
+    [DatabaseFact]
+    public async Task A_payee_the_budget_already_categorised_costs_no_question_at_all()
+    {
+        factory.DeepSeek.Reset();
+        factory.DeepSeek.Answer = """{ "assignments": [] }""";
+
+        var client = await factory.CreateSignedInClientAsync();
+
+        // The user has already said where Tesco goes; the next import of the same bank
+        // needs no model to say it again.
+        await client.PutAsJsonAsync($"/api/folio/transactions?country={Country}", new
+        {
+            transactions = new object[]
+            {
+                new
+                {
+                    id = 71,
+                    name = "TESCO STORES 1234",
+                    date = "2026-05-01",
+                    createdAt = "2026-05-01T10:00:00.000Z",
+                    amount = 40m,
+                    type = "out",
+                    itemId = 3201,
+                },
+                new
+                {
+                    id = 72,
+                    name = "Tesco Stores 1234",
+                    date = "2026-05-08",
+                    createdAt = "2026-05-08T10:00:00.000Z",
+                    amount = 44m,
+                    type = "out",
+                    itemId = (int?)null,
+                },
+            },
+            nextId = 73,
+        });
+
+        var response = await client.PostAsJsonAsync($"/api/folio/categorise?country={Country}", new
+        {
+            items = new object[] { new { id = 3201, name = "Groceries" } },
+        });
+
+        response.EnsureSuccessStatusCode();
+
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(0, factory.DeepSeek.Requests);
+        Assert.Equal(1, body.RootElement.GetProperty("fromHistory").GetInt32());
+        Assert.Equal(1, body.RootElement.GetProperty("covered").GetInt32());
     }
 
     [DatabaseFact]
@@ -322,6 +429,88 @@ public sealed class AiApiTests(AiFactory factory) : IClassFixture<AiFactory>
         Assert.Equal(1, considered);
         Assert.Contains("Aldi", factory.DeepSeek.Body ?? "", StringComparison.Ordinal);
         Assert.DoesNotContain("Already sorted", factory.DeepSeek.Body ?? "", StringComparison.Ordinal);
+    }
+
+    [DatabaseFact]
+    public async Task Thousands_of_transactions_are_a_handful_of_questions_not_hundreds()
+    {
+        factory.DeepSeek.Reset();
+
+        // Each call is answered for the payees it asked about, which is what proves the
+        // batching: the answer only ever names names it was given.
+        factory.DeepSeek.Reply = _ => JsonSerializer.Serialize(new
+        {
+            assignments = Enumerable.Range(1, 130).Select(id => new Dictionary<string, object>
+            {
+                ["payee"] = $"PAYEE {id}",
+                ["item"] = "Groceries",
+                ["new"] = false,
+                ["confidence"] = 0.9m,
+            }),
+        });
+
+        var client = await factory.CreateSignedInClientAsync();
+
+        // 3,000 transactions over 130 different payees: the shape a few years of statements
+        // really has.
+        var rows = Enumerable.Range(1, 3000).Select(id => new
+        {
+            id,
+            name = $"PAYEE {(id % 130) + 1}",
+            date = "2026-03-01",
+            createdAt = "2026-03-01T10:00:00.000Z",
+            amount = 10m,
+            type = "out",
+            itemId = (int?)null,
+        });
+
+        await client.PutAsJsonAsync($"/api/folio/transactions?country={Country}", new
+        {
+            transactions = rows.ToArray(),
+            nextId = 3001,
+        });
+
+        var response = await client.PostAsJsonAsync($"/api/folio/categorise?country={Country}", new
+        {
+            items = new object[] { new { id = 3201, name = "Groceries" } },
+        });
+
+        response.EnsureSuccessStatusCode();
+
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        // 3,000 rows, 130 payees, three questions — not one that could not be answered, and
+        // not 3,000.
+        Assert.Equal(130, body.RootElement.GetProperty("payees").GetInt32());
+        Assert.Equal(3000, body.RootElement.GetProperty("considered").GetInt32());
+        Assert.Equal(3000, body.RootElement.GetProperty("covered").GetInt32());
+        Assert.Equal(
+            (130 + CategoriseService.PayeesPerAsk - 1) / CategoriseService.PayeesPerAsk,
+            factory.DeepSeek.Requests);
+        Assert.Equal(0, body.RootElement.GetProperty("unreadable").GetInt32());
+    }
+
+    [DatabaseFact]
+    public async Task An_answer_that_cannot_be_read_at_all_is_a_refusal_not_an_empty_proposal()
+    {
+        factory.DeepSeek.Reset();
+
+        // Truncated mid-object, which is what the token cap produced when the whole of a
+        // large selection was asked for in one go.
+        factory.DeepSeek.Answer = """{ "assignments": [ { "id": 1, "item": "Grocer""";
+
+        var client = await factory.CreateSignedInClientAsync();
+
+        var response = await client.PostAsJsonAsync($"/api/folio/categorise?country={Country}", new
+        {
+            transactions = new object[]
+            {
+                new { id = 1, name = "Tesco", notes = "", amount = 10m, type = "out", date = "2026-03-01" },
+            },
+            items = new object[] { new { id = 3201, name = "Groceries" } },
+        });
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
     }
 
     private static object Spending(int id, string name, string date, decimal amount) => new

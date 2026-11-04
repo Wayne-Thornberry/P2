@@ -65,7 +65,7 @@ public sealed class AiRulesTests
         Assert.All(facts.Months, month => Assert.Equal(0m, month.Out));
     }
 
-    // ── reading the answer ─────────────────────────────────────────────────────────────
+    // ── reading the report ─────────────────────────────────────────────────────────────
 
     [Fact]
     public void A_report_is_read_as_the_page_renders_it()
@@ -111,63 +111,109 @@ public sealed class AiRulesTests
     // ── reading the categorising answer ────────────────────────────────────────────────
 
     [Fact]
-    public void An_assignment_is_matched_to_the_item_by_its_name_however_it_is_spelt()
+    public void A_payee_is_matched_to_the_item_by_its_name_however_it_is_spelt()
     {
-        var (assignments, newItems, unmatched) = CategoriseService.FromAnswer(
-            """{ "assignments": [ { "id": 7, "item": "eating out", "new": false, "confidence": 0.9 } ] }""",
-            Candidates(7),
+        var (decisions, readable) = CategoriseService.FromAnswer(
+            """{ "assignments": [ { "payee": "TESCO STORES 1234", "item": "eating out", "new": false, "confidence": 0.9 } ] }""",
+            ["TESCO STORES 1234"],
             [new BudgetItemDto(3202, "Eating Out")]);
 
-        Assert.Equal(3202, assignments.Single().ItemId);
-        Assert.Equal("Eating Out", assignments.Single().ItemName);
-        Assert.False(assignments.Single().IsNew);
-        Assert.Empty(newItems);
-        Assert.Empty(unmatched);
+        Assert.True(readable);
+        Assert.Equal(3202, decisions.Single().ItemId);
+        Assert.Equal("Eating Out", decisions.Single().ItemName);
+        Assert.False(decisions.Single().IsNew);
+    }
+
+    [Fact]
+    public void The_model_may_miscapitalise_the_payee_and_name_a_field_after_what_it_meant()
+    {
+        // What a model actually writes when it is being helpful rather than compiled.
+        var (decisions, readable) = CategoriseService.FromAnswer(
+            """
+            {
+              "assignments": [
+                { "payee": "tesco stores 1234", "itemName": "Groceries", "confidence": "0.8" },
+                { "name": "Netflix", "category": "Subscriptions", "new": "true", "confidence": 0.5 }
+              ]
+            }
+            """,
+            ["TESCO STORES 1234", "NETFLIX"],
+            [new BudgetItemDto(1, "Groceries")]);
+
+        Assert.True(readable);
+        Assert.Equal(2, decisions.Count);
+        Assert.Equal(1, decisions[0].ItemId);
+        Assert.Equal(0.8m, decisions[0].Confidence);
+        Assert.Equal("Subscriptions", decisions[1].ItemName);
+        Assert.True(decisions[1].IsNew);
+    }
+
+    [Fact]
+    public void An_answer_that_stops_halfway_is_unreadable_rather_than_a_shrug()
+    {
+        // What a truncated answer looks like: valid JSON until the token budget ran out.
+        var (decisions, readable) = CategoriseService.FromAnswer(
+            """{ "assignments": [ { "payee": "TESCO", "item": "Grocer""",
+            ["TESCO"],
+            [new BudgetItemDto(1, "Groceries")]);
+
+        Assert.False(readable);
+        Assert.Empty(decisions);
+    }
+
+    [Fact]
+    public void An_empty_list_of_assignments_is_readable_and_simply_declines()
+    {
+        var (decisions, readable) = CategoriseService.FromAnswer(
+            """{ "assignments": [], "newItems": [] }""",
+            ["TESCO"],
+            []);
+
+        Assert.True(readable);
+        Assert.Empty(decisions);
     }
 
     [Fact]
     public void A_new_item_is_only_one_the_answer_says_it_is_inventing()
     {
-        var (assignments, newItems, unmatched) = CategoriseService.FromAnswer(
+        var (decisions, _) = CategoriseService.FromAnswer(
             """
             {
               "assignments": [
-                { "id": 7, "item": "Subscriptions", "new": true, "confidence": 2 },
-                { "id": 8, "item": "Holidays", "new": false, "confidence": 0.4 }
+                { "payee": "NETFLIX", "item": "Subscriptions", "new": true, "confidence": 2 },
+                { "payee": "RYANAIR", "item": "Holidays", "new": false, "confidence": 0.4 }
               ]
             }
             """,
-            Candidates(7, 8),
+            ["NETFLIX", "RYANAIR"],
             []);
 
         // Inventing is allowed where it was flagged; a name nothing matches and the model
         // did not call new is left alone rather than quietly added.
-        Assert.Single(assignments);
-        Assert.Equal("Subscriptions", assignments[0].ItemName);
-        Assert.Equal(1m, assignments[0].Confidence);
-        Assert.Equal(["Subscriptions"], newItems);
-        Assert.Equal([8], unmatched);
+        Assert.Single(decisions);
+        Assert.Equal("Subscriptions", decisions[0].ItemName);
+        Assert.Equal(1m, decisions[0].Confidence);
+        Assert.True(decisions[0].IsNew);
     }
 
     [Fact]
-    public void An_id_nobody_asked_about_and_a_second_answer_for_the_same_row_are_both_dropped()
+    public void A_payee_nobody_asked_about_and_a_second_answer_for_the_same_one_are_both_dropped()
     {
-        var (assignments, _, unmatched) = CategoriseService.FromAnswer(
+        var (decisions, _) = CategoriseService.FromAnswer(
             """
             {
               "assignments": [
-                { "id": 999, "item": "Groceries", "new": false },
-                { "id": 7, "item": "Groceries", "new": false },
-                { "id": 7, "item": "Coffee", "new": false }
+                { "payee": "NOT IN THE LIST", "item": "Groceries", "new": false },
+                { "payee": "TESCO", "item": "Groceries", "new": false },
+                { "payee": "tesco", "item": "Coffee", "new": false }
               ]
             }
             """,
-            Candidates(7),
+            ["TESCO"],
             [new BudgetItemDto(1, "Groceries"), new BudgetItemDto(2, "Coffee")]);
 
-        Assert.Single(assignments);
-        Assert.Equal("Groceries", assignments[0].ItemName);
-        Assert.Empty(unmatched);
+        Assert.Single(decisions);
+        Assert.Equal("Groceries", decisions[0].ItemName);
     }
 
     [Fact]
@@ -175,17 +221,38 @@ public sealed class AiRulesTests
     {
         var count = CategoriseService.MaxNewItems + 4;
 
-        var assignments = Enumerable.Range(1, count)
-            .Select(id => $$"""{ "id": {{id}}, "item": "Item {{id}}", "new": true }""")
+        var entries = Enumerable.Range(1, count)
+            .Select(id => $$"""{ "payee": "PAYEE {{id}}", "item": "Item {{id}}", "new": true }""")
             .ToList();
 
-        var (kept, newItems, _) = CategoriseService.FromAnswer(
-            $$"""{ "assignments": [ {{string.Join(", ", assignments)}} ] }""",
-            Candidates([.. Enumerable.Range(1, count)]),
+        var payees = Enumerable.Range(1, count).Select(id => $"PAYEE {id}").ToList();
+
+        var (decisions, _) = CategoriseService.FromAnswer(
+            $$"""{ "assignments": [ {{string.Join(", ", entries)}} ] }""",
+            payees,
             []);
 
-        Assert.Equal(CategoriseService.MaxNewItems, newItems.Count);
-        Assert.Equal(CategoriseService.MaxNewItems, kept.Count(row => row.IsNew));
+        Assert.Equal(CategoriseService.MaxNewItems, decisions.Count(row => row.IsNew));
+    }
+
+    [Fact]
+    public void A_question_never_carries_more_payees_than_an_answer_can_hold()
+    {
+        // The bug this replaced: asking about two hundred rows at once needed a longer
+        // answer than the model may write, so it stopped mid-JSON and nothing could be read.
+        // A batch of payees is small enough that its answer always fits.
+        Assert.True(CategoriseService.PayeesPerAsk > 0);
+        Assert.True(
+            CategoriseService.PayeesPerAsk * 40 <= 4000,
+            "one payee is about twenty-five tokens; a batch has to leave room for the rest");
+    }
+
+    [Fact]
+    public void The_same_payee_twice_is_the_same_question()
+    {
+        Assert.Equal(CategoriseService.Spell("TESCO STORES 1234"), CategoriseService.Spell("Tesco Stores 1234"));
+        Assert.Equal(CategoriseService.Spell("Tesco"), CategoriseService.Spell(" tesco "));
+        Assert.NotEqual(CategoriseService.Spell("Tesco"), CategoriseService.Spell("Lidl"));
     }
 
     // ── fixtures ───────────────────────────────────────────────────────────────────────
@@ -217,7 +284,4 @@ public sealed class AiRulesTests
         ItemId = itemId,
         AccountId = "acc-1",
     };
-
-    private static List<CategoriseCandidate> Candidates(params int[] ids) =>
-        [.. ids.Select(id => new CategoriseCandidate(id, $"Transaction {id}", "", 10m, "out", "2026-01-01"))];
 }

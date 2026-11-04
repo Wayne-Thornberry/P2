@@ -18,7 +18,9 @@ it before changing anything. In short:
   [CategoriseService](Folio.Api/Modules/Folio/CategoriseService.cs), only when a button is
   pressed. The numbers a report is about are the API's arithmetic, never the model's; the
   model writes what they mean. A categorising answer is a proposal the page applies, not a
-  write. No key means `GET /api/folio/ai` answers false and nothing offers either feature.
+  write, and it is asked per payee — not per row — so the cost of a budget does not grow
+  with its transaction count. No key means `GET /api/folio/ai` answers false and nothing
+  offers either feature.
 - **A rule lives on the server.** Rules, limits and computed values go in the module's
   service class on the API, and the page displays what comes back. Do not re-implement a
   rule in TypeScript for a faster message. `GET /api/folio/health` is the shape to copy.

@@ -219,61 +219,120 @@ const RULES = [
   [/salary|payroll|wage/i, 'Salary'],
 ]
 
-/** The assignments, each of which the page may then apply. */
-export function categorise(body, items) {
+/** A payee as it is matched: case, spacing and punctuation taken out. */
+function spell(name) {
+  return String(name ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '')
+}
+
+/**
+ * The proposal, grouped by payee rather than by row -- the shape the real API answers with,
+ * because the page cannot tell the two apart, and a budget of thousands of transactions is
+ * a few hundred questions when it is asked per payee.
+ */
+export function categorise(body, workspace) {
   const existing = Array.isArray(body?.items) && body.items.length > 0
     ? body.items
-    : (items ?? []).map((item) => ({ id: item.id, name: item.name }))
+    : (workspace?.folio_budget?.globalItems ?? []).map((item) => ({ id: item.id, name: item.name }))
 
   const byName = new Map(existing.map((item) => [item.name.toLowerCase(), item]))
+  const transactions = workspace?.folio_transactions?.transactions ?? []
 
-  const asked = Array.isArray(body?.transactions) ? body.transactions : []
-  const assignments = []
+  // Selected rows, or -- when nothing was selected -- everything with no item yet, which is
+  // the set the real API would pick for itself.
+  const asked = Array.isArray(body?.transactions) && body.transactions.length > 0
+    ? body.transactions
+    : transactions.filter((row) => row.itemId === null || row.itemId === undefined)
+
+  const byPayee = new Map()
+
+  for (const row of asked) {
+    if (!row || typeof row.id !== 'number') continue
+
+    const key = spell(row.name)
+
+    if (!key) continue
+    if (!byPayee.has(key)) byPayee.set(key, [])
+
+    byPayee.get(key).push(row)
+  }
+
+  // What the budget already knows: the newest item a payee was given by hand.
+  const known = new Map()
+
+  for (const row of [...transactions].sort((a, b) => String(b.date).localeCompare(String(a.date)))) {
+    const key = spell(row.name)
+
+    if (key && !known.has(key) && typeof row.itemId === 'number') known.set(key, row.itemId)
+  }
+
+  const groups = []
   const newItems = []
-  const unmatched = []
 
-  for (const transaction of asked) {
-    if (!transaction || typeof transaction.id !== 'number') continue
+  for (const rows of byPayee.values()) {
+    const ids = rows.map((row) => row.id)
 
-    const haystack = `${transaction.name ?? ''} ${transaction.notes ?? ''}`
-    const rule = RULES.find(([pattern]) => pattern.test(haystack))
+    const history = existing.find((item) => item.id === known.get(spell(rows[0].name)))
 
-    if (!rule) {
-      unmatched.push(transaction.id)
-      continue
-    }
-
-    const wanted = rule[1]
-    const known = byName.get(wanted.toLowerCase())
-
-    if (known) {
-      assignments.push({
-        transactionId: transaction.id,
-        itemId: known.id,
-        itemName: known.name,
+    if (history) {
+      groups.push({
+        payee: rows[0].name,
+        itemId: history.id,
+        itemName: history.name,
         isNew: false,
-        confidence: 0.9,
-        why: `matches ${wanted.toLowerCase()}`,
+        confidence: 1,
+        why: 'you have already categorised this payee',
+        transactionIds: ids,
+        fromHistory: true,
       })
       continue
     }
 
-    if (newItems.length >= 8) {
-      unmatched.push(transaction.id)
+    const haystack = rows.map((row) => `${row.name ?? ''} ${row.notes ?? ''}`).join(' ')
+    const rule = RULES.find(([pattern]) => pattern.test(haystack))
+
+    if (!rule) continue
+
+    const wanted = rule[1]
+    const match = byName.get(wanted.toLowerCase())
+
+    if (match) {
+      groups.push({
+        payee: rows[0].name,
+        itemId: match.id,
+        itemName: match.name,
+        isNew: false,
+        confidence: 0.9,
+        why: `matches ${wanted.toLowerCase()}`,
+        transactionIds: ids,
+        fromHistory: false,
+      })
       continue
     }
 
+    if (newItems.length >= 8) continue
+
     if (!newItems.some((name) => name.toLowerCase() === wanted.toLowerCase())) newItems.push(wanted)
 
-    assignments.push({
-      transactionId: transaction.id,
+    groups.push({
+      payee: rows[0].name,
       itemId: null,
       itemName: wanted,
       isNew: true,
       confidence: 0.75,
       why: `no existing item fits; ${wanted.toLowerCase()} is the habit`,
+      transactionIds: ids,
+      fromHistory: false,
     })
   }
 
-  return { assignments, newItems, unmatched, considered: asked.length, items: existing }
+  return {
+    groups,
+    newItems,
+    considered: asked.length,
+    payees: byPayee.size,
+    fromHistory: groups.filter((group) => group.fromHistory).reduce((sum, group) => sum + group.transactionIds.length, 0),
+    unreadable: 0,
+    covered: groups.reduce((sum, group) => sum + group.transactionIds.length, 0),
+    items: existing,
+  }
 }

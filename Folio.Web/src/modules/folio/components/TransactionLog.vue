@@ -24,9 +24,10 @@ const historyStore = useImportHistoryStore()
 const { confirm }  = useConfirm()
 
 // ── AI categorising ────────────────────────────────────────────
-// The answer is a proposal, so it is shown before it is applied: what each transaction
-// looks like, why, and which items would have to be created — and nothing is written
-// until the person looking at it says so.
+// The answer is a proposal, so it is shown before it is applied: the item each payee looks
+// like, why, and which items would have to be created — and nothing is written until the
+// person looking at it says so. With nothing selected the API is asked about whatever has
+// no item yet, so a budget of thousands does not have to be handed over row by row.
 const categorise = useCategorise()
 const aiNotice   = ref('')
 
@@ -35,7 +36,7 @@ function askAiToCategorise(): void {
 
   const rows = selectedCount.value > 0
     ? filteredTransactions.value.filter(t => selectedIds.value.has(t.id))
-    : filteredTransactions.value
+    : []
 
   void categorise.propose(settings.country, rows)
 }
@@ -1361,38 +1362,67 @@ const historyExpanded = ref(false)
 
       <div v-else-if="categorise.proposal.value" class="assign-bulk-banner tx-bulk-banner">
         <div class="assign-bulk-banner-msg">
-          <strong>{{ categorise.proposal.value.assignments.length }}</strong>
-          of <strong>{{ categorise.proposal.value.considered }}</strong> transactions have an item.
-          <template v-if="categorise.proposal.value.newItems.length">
-            New item{{ categorise.proposal.value.newItems.length === 1 ? '' : 's' }}:
-            <strong>{{ categorise.proposal.value.newItems.join(', ') }}</strong>.
-          </template>
-          <template v-if="categorise.proposal.value.unmatched.length">
-            {{ categorise.proposal.value.unmatched.length }} left alone.
+          <template v-if="categorise.proposal.value.covered === 0">
+            The AI did not find an item for any of the
+            <strong>{{ categorise.proposal.value.considered }}</strong> transactions
+            (<strong>{{ categorise.proposal.value.payees }}</strong>
+            {{ categorise.proposal.value.payees === 1 ? 'payee' : 'payees' }}).
+            <template v-if="categorise.proposal.value.unreadable > 0">
+              {{ categorise.proposal.value.unreadable }} of those payees came back unreadable — try again.
+            </template>
+            <template v-else>
+              Their names may not say enough; categorise a few by hand and it will learn the
+              items to reuse.
+            </template>
           </template>
 
-          <details class="mt-1">
-            <summary class="cursor-pointer text-[0.7rem] text-zinc-500 dark:text-zinc-400">See them</summary>
-            <ul class="mt-1 max-h-48 overflow-y-auto flex flex-col gap-0.5">
-              <li
-                v-for="assignment in categorise.proposal.value.assignments"
-                :key="assignment.transactionId"
-                class="text-[0.7rem] leading-snug"
-              >
-                <span class="font-semibold">{{ store.transactions.find(t => t.id === assignment.transactionId)?.name ?? `#${assignment.transactionId}` }}</span>
-                → <span class="font-semibold">{{ assignment.itemName }}</span>
-                <span class="text-zinc-400 dark:text-zinc-500">
-                  · {{ Math.round(assignment.confidence * 100) }}%{{ assignment.why ? ` · ${assignment.why}` : '' }}
-                </span>
-              </li>
-            </ul>
-          </details>
+          <template v-else>
+            <strong>{{ categorise.proposal.value.covered }}</strong>
+            of <strong>{{ categorise.proposal.value.considered }}</strong> transactions have an item
+            — <strong>{{ categorise.proposal.value.payees }}</strong>
+            {{ categorise.proposal.value.payees === 1 ? 'payee' : 'payees' }} between them.
+            <template v-if="categorise.proposal.value.fromHistory > 0">
+              {{ categorise.proposal.value.fromHistory }} came from payees you have already
+              categorised, so no AI was needed for those.
+            </template>
+            <template v-if="categorise.proposal.value.newItems.length">
+              New item{{ categorise.proposal.value.newItems.length === 1 ? '' : 's' }}:
+              <strong>{{ categorise.proposal.value.newItems.join(', ') }}</strong>.
+            </template>
+            <template v-if="categorise.proposal.value.unreadable > 0">
+              {{ categorise.proposal.value.unreadable }} payees could not be read.
+            </template>
+
+            <details class="mt-1">
+              <summary class="cursor-pointer text-[0.7rem] text-zinc-500 dark:text-zinc-400">See them</summary>
+              <ul class="mt-1 max-h-48 overflow-y-auto flex flex-col gap-0.5">
+                <li
+                  v-for="group in categorise.proposal.value.groups"
+                  :key="group.payee"
+                  class="text-[0.7rem] leading-snug"
+                >
+                  <span class="font-semibold">{{ group.payee }}</span>
+                  <span class="text-zinc-400 dark:text-zinc-500">({{ group.transactionIds.length }})</span>
+                  → <span class="font-semibold">{{ group.itemName }}</span>
+                  <span class="text-zinc-400 dark:text-zinc-500">
+                    · {{ group.fromHistory ? 'yours already' : `${Math.round(group.confidence * 100)}%${group.why ? ` · ${group.why}` : ''}` }}
+                  </span>
+                </li>
+              </ul>
+            </details>
+          </template>
         </div>
         <div class="assign-bulk-banner-actions">
-          <button class="assign-bulk-confirm-btn" @click="applyAiCategorise">
-            <i class="pi pi-check" /> Apply {{ categorise.proposal.value.assignments.length }}
+          <button
+            v-if="categorise.proposal.value.covered > 0"
+            class="assign-bulk-confirm-btn"
+            @click="applyAiCategorise"
+          >
+            <i class="pi pi-check" /> Apply to {{ categorise.proposal.value.covered }}
           </button>
-          <button class="assign-bulk-dismiss-btn" @click="dismissAiCategorise">Cancel</button>
+          <button class="assign-bulk-dismiss-btn" @click="dismissAiCategorise">
+            {{ categorise.proposal.value.covered > 0 ? 'Cancel' : 'Dismiss' }}
+          </button>
         </div>
       </div>
 
@@ -1847,7 +1877,7 @@ const historyExpanded = ref(false)
           :disabled="categorise.loading.value"
           :title="selectedCount > 0
             ? `Ask the AI what item ${selectedCount} selected transactions belong to`
-            : `Ask the AI what item all ${totalCount} filtered transactions belong to`"
+            : 'Ask the AI what item the transactions with no item belong to'"
           @click="askAiToCategorise"
         >
           <i class="pi pi-sparkles" />

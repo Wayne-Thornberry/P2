@@ -626,7 +626,7 @@ async function folioModule(request, response, route, url) {
     }
 
     const body = await readJson(request)
-    json(response, 200, categorise(body ?? {}, countryWorkspace(country).folio_budget?.globalItems ?? []))
+    json(response, 200, categorise(body ?? {}, countryWorkspace(country)))
     return true
   }
 

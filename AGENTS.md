@@ -109,11 +109,15 @@ Two features ask DeepSeek, and both are on a button because both cost a call:
   asked only for the reading of them: the headline, the findings, the patterns, the risks,
   the actions.
 - **The categorising** (`POST /api/folio/categorise`) on the Transactions page, for the
-  selected rows or all of them. The answer is a *proposal*: the item, the reason and a
-  confidence, with any new items named but not created. The page applies it through the
-  stores, so it is saved the way every other edit is. An existing item wins wherever one
-  fits, matched by its name however it is spelt, and a new one is a last resort capped at
-  eight.
+  selected rows or — with nothing selected — every row in the country that has no item yet,
+  which is a set the API picks. **The question is asked per payee, not per row**: the rows
+  that share a name share an item, so a budget of thousands of transactions is a few hundred
+  questions and a handful of calls. Two things cost nothing at all: a payee the budget has
+  already categorised (the user's own answer, reused) and a name the model has already
+  placed. The answer is a *proposal*: the item, the reason and a confidence, with any new
+  items named but not created. The page applies it through the stores, so it is saved the
+  way every other edit is. An existing item wins wherever one fits, matched by its name
+  however it is spelt, and a new one is a last resort capped at eight.
 
 The key is `Ai:DeepSeek:ApiKey`, from the `DEEPSEEK_API_KEY` repository secret via
 appsettings.Production.json, or from the environment for a local run. **Empty means no AI**:

@@ -9,9 +9,12 @@ import type { Transaction } from '../types/transaction'
  * Categorising a batch of transactions with the AI.
  *
  * It is a proposal first and a change second: the page asks, the answer arrives with the
- * item each transaction looks like and the reason, and nothing is written until the person
+ * item each payee looks like and the reason, and nothing is written until the person
  * looking at it says so. Applying goes through the stores — the same stores every other
  * edit uses — so the change is saved the way a change is always saved.
+ *
+ * The question is asked of payees, not rows: the API groups what it is given, so a budget
+ * with thousands of transactions still costs a handful of model calls.
  */
 export function useCategorise() {
   const budget = useBudgetStore()
@@ -21,14 +24,14 @@ export function useCategorise() {
   const loading = ref(false)
   const error = ref('')
 
+  /**
+   * Asks about these rows, or — when nothing is selected — about everything in the country
+   * the site has not categorised yet, which is a set the API picks so the button and the
+   * endpoint agree on what "all of them" means.
+   */
   async function propose(country: string, rows: Transaction[]): Promise<void> {
     if (!country) {
       error.value = 'Choose a country first: transactions belong to one budget.'
-      return
-    }
-
-    if (rows.length === 0) {
-      error.value = 'There are no transactions to categorise.'
       return
     }
 
@@ -55,31 +58,35 @@ export function useCategorise() {
     }
   }
 
-  /** Writes the proposal: new items first, so their ids exist for the assignments. */
+  /** Writes the proposal: new items first, so their ids exist for the rows behind them. */
   function apply(): { assigned: number; created: number } {
     const current = proposal.value
 
     if (current === null) return { assigned: 0, created: 0 }
 
     let created = 0
+    let assigned = 0
 
-    for (const assignment of current.assignments) {
-      let itemId = assignment.itemId ?? null
+    for (const group of current.groups) {
+      let itemId = group.itemId ?? null
 
       if (itemId === null) {
         const before = budget.globalItems.length
 
-        itemId = budget.getOrCreateGlobalItem(assignment.itemName)
+        itemId = budget.getOrCreateGlobalItem(group.itemName)
 
         if (budget.globalItems.length > before) created++
       }
 
-      transactions.patchTransaction(assignment.transactionId, { itemId })
+      for (const id of group.transactionIds) {
+        transactions.patchTransaction(id, { itemId })
+        assigned++
+      }
     }
 
     proposal.value = null
 
-    return { assigned: current.assignments.length, created }
+    return { assigned, created }
   }
 
   function dismiss(): void {

@@ -147,20 +147,32 @@ export interface CategoriseInput {
   date: string
 }
 
-export interface CategoriseAssignment {
-  transactionId: number
+/** One payee, the item it belongs to, and every transaction that shares its name. */
+export interface CategoriseGroup {
+  payee: string
   itemId?: number | null
   itemName: string
   isNew: boolean
   confidence: number
   why: string
+  transactionIds: number[]
+  /** The budget already knew this one: the answer is the user's own, not the model's. */
+  fromHistory: boolean
 }
 
 export interface CategoriseResponse {
-  assignments: CategoriseAssignment[]
+  groups: CategoriseGroup[]
   newItems: string[]
-  unmatched: number[]
+  /** Rows the API looked at: what was selected, or everything not yet categorised. */
   considered: number
+  /** Distinct payees among them, which is all the model is asked about. */
+  payees: number
+  /** Rows placed by the user's own earlier answer, at no cost. */
+  fromHistory: number
+  /** Payees whose answer could not be read at all — a truncated reply, not a shrug. */
+  unreadable: number
+  /** How many transactions the proposal covers, which is what the page applies. */
+  covered: number
   items: Array<{ id: number; name: string }>
 }
 
@@ -180,7 +192,13 @@ export function generate(
   )
 }
 
-/** What item each of these transactions belongs to, as a proposal nothing has saved yet. */
+/**
+ * What item each of these transactions belongs to, as a proposal nothing has saved yet.
+ *
+ * An empty selection is not an error: the API then answers about everything in the country
+ * it has no item for, which is what "all of them" means and keeps thousands of rows off
+ * the wire.
+ */
 export function categorise(
   country: string,
   transactions: CategoriseInput[],
@@ -188,6 +206,6 @@ export function categorise(
 ): Promise<CategoriseResponse> {
   return api.post<CategoriseResponse>(
     `/api/folio/categorise?country=${encodeURIComponent(country)}`,
-    { transactions, items },
+    transactions.length > 0 ? { transactions, items } : { items },
   )
 }

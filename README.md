@@ -169,12 +169,16 @@ the habits and rhythms, the risks, and what to do about them. Underneath it are 
 it was written from: money in and out, savings rate, every month, every item, the biggest
 payees, what repeats, what is over budget.
 
-**The categorising** — Transactions → *AI categorize* — looks at the selected transactions
-(or all of them) and proposes the budget item each one belongs to, from its name and notes.
-It prefers an item that already exists, matched however it is spelt, and only invents one
-when nothing fits — at most eight, named in the proposal before anything is created. Nothing
-is written until you press Apply, and applying goes through the stores, so it is saved the
-way every other edit is.
+**The categorising** — Transactions → *AI categorize* — proposes the budget item each payee
+belongs to, from its name and notes. Select a few rows and it answers for those; select
+nothing and it takes everything with no item yet. It asks about *payees*, not rows, so a
+budget with thousands of transactions costs a handful of calls rather than one per
+transaction: "Tesco" is one question whether it appears four times or four hundred. A payee
+you have already categorised is answered from your own earlier choice, at no cost. It
+prefers an item that already exists, matched however it is spelt, and only invents one when
+nothing fits — at most eight, named in the proposal before anything is created. Nothing is
+written until you press Apply, and applying goes through the stores, so it is saved the way
+every other edit is.
 
 **What the AI is not asked to do.** It never adds up your money. Every figure in a report is
 worked out by the API from the saved rows — that is the part with tests that need no model —
