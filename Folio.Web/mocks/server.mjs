@@ -351,6 +351,144 @@ function dashboardReport(country, month, budgetMonth) {
   return { totals, accounts: accountRows, topSpending, budget: budgetStatus, recent }
 }
 
+/**
+ * The loans and savings accounts, worked out the way the API works them out.
+ *
+ * Same arithmetic, same order of rounding: the schedule runs on the exact payment and only
+ * shows it rounded, and money is rounded to cents with Math.round, which is what the API
+ * does too.
+ */
+const roundToCents = (value) => Math.round(value * 100) / 100
+
+function exactPayment(loan) {
+  const rate = loan.apr / 100 / 12
+  const months = loan.termMonths
+
+  if (months <= 0) return 0
+  if (rate <= 0) return loan.principal / months
+
+  const growth = Math.pow(1 + rate, months)
+
+  return (loan.principal * rate * growth) / (growth - 1)
+}
+
+function amortization(loan) {
+  const payment = exactPayment(loan)
+  const rate = loan.apr / 100 / 12
+  const start = new Date(`${loan.startDate}T00:00:00`)
+
+  let balance = loan.principal
+  const rows = []
+
+  for (let month = 1; month <= loan.termMonths; month++) {
+    const at = new Date(start)
+    at.setMonth(at.getMonth() + month)
+
+    const opening = balance
+    const interest = balance * rate
+    const principal = Math.min(payment - interest, balance)
+    balance = Math.max(0, balance - principal)
+
+    rows.push({
+      month,
+      date: `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}`,
+      openingBalance: roundToCents(opening),
+      payment: roundToCents(payment),
+      interestPaid: roundToCents(interest),
+      principalPaid: roundToCents(principal),
+      closingBalance: roundToCents(balance),
+    })
+  }
+
+  return rows
+}
+
+function savingsProjection(saving, months) {
+  const periodsPerYear = { monthly: 12, quarterly: 4, annually: 1 }[saving.compoundFreq] ?? 12
+  const ratePerPeriod = saving.apr / 100 / periodsPerYear
+  const periodsPerMonth = periodsPerYear / 12
+  const start = new Date(`${saving.startDate}T00:00:00`)
+
+  return Array.from({ length: Math.max(0, months) + 1 }, (_, i) => {
+    const at = new Date(start)
+    at.setMonth(at.getMonth() + i)
+
+    return {
+      date: `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}`,
+      balance: roundToCents(saving.startBalance * Math.pow(1 + ratePerPeriod, i * periodsPerMonth)),
+    }
+  })
+}
+
+function financeSummary(country) {
+  const blobs = countryWorkspace(country)
+  const loans = (blobs.folio_finance?.loans ?? []).filter((loan) => !loan.archived)
+  const savings = (blobs.folio_finance?.savings ?? []).filter((saving) => !saving.archived)
+  const transactions = blobs.folio_transactions?.transactions ?? []
+  const today = new Date()
+  const nowKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+
+  const loanRows = loans.map((loan) => {
+    const rows = amortization(loan)
+    const next = rows.find((row) => row.date >= nowKey)
+    const remaining = next?.openingBalance ?? loan.principal
+
+    return {
+      id: loan.id,
+      name: loan.name,
+      color: loan.color,
+      apr: loan.apr,
+      principal: loan.principal,
+      remaining,
+      pctPaid: loan.principal > 0 ? Math.round(((loan.principal - remaining) / loan.principal) * 100) : 100,
+      monthlyPayment: roundToCents(exactPayment(loan)),
+      payoffMonth: rows.length > 0 ? rows[rows.length - 1].date : '',
+    }
+  })
+
+  const savingsRows = savings.map((saving) => {
+    const elapsed = Math.max(
+      0,
+      (today.getFullYear() - new Date(`${saving.startDate}T00:00:00`).getFullYear()) * 12 +
+        (today.getMonth() - new Date(`${saving.startDate}T00:00:00`).getMonth()),
+    )
+
+    const projectedNow = saving.linkedAccountId
+      ? roundToCents(
+          transactions
+            .filter((t) => t.accountId === saving.linkedAccountId)
+            .reduce((sum, t) => sum + (t.type === 'in' ? t.amount : -t.amount), 0),
+        )
+      : savingsProjection(saving, elapsed).slice(-1)[0].balance
+
+    return {
+      id: saving.id,
+      name: saving.name,
+      color: saving.color,
+      apr: saving.apr,
+      startBalance: saving.startBalance,
+      projectedNow,
+      interestEarned: roundToCents(projectedNow - saving.startBalance),
+      compoundFreq: saving.compoundFreq,
+    }
+  })
+
+  const monthlyPayments = roundToCents(loanRows.reduce((sum, row) => sum + row.monthlyPayment, 0))
+  const loanRemaining = roundToCents(loanRows.reduce((sum, row) => sum + row.remaining, 0))
+  const projectedSavings = roundToCents(savingsRows.reduce((sum, row) => sum + row.projectedNow, 0))
+
+  return {
+    loans: loanRows,
+    savings: savingsRows,
+    totals: {
+      monthlyPayments,
+      loanRemaining,
+      projectedSavings,
+      netPosition: roundToCents(projectedSavings - loanRemaining),
+    },
+  }
+}
+
 /** The folio module's endpoints. Returns true when it answered. */
 async function folioModule(request, response, route, url) {
   if (route === 'GET /api/folio/settings') {
@@ -409,8 +547,7 @@ async function folioModule(request, response, route, url) {
     return true
   }
 
-  if (route === 'GET /api/folio/dashboard') {
-    if (!country) {
+  if (route === 'GET /api/folio/dashboard') {    if (!country) {
       json(response, 400, { error: 'A country is needed: ?country=ireland.' })
       return true
     }
@@ -424,6 +561,16 @@ async function folioModule(request, response, route, url) {
         url.searchParams.get('budgetMonth') ?? undefined,
       ),
     )
+    return true
+  }
+
+  if (route === 'GET /api/folio/finance/summary') {
+    if (!country) {
+      json(response, 400, { error: 'A country is needed: ?country=ireland.' })
+      return true
+    }
+
+    json(response, 200, financeSummary(country))
     return true
   }
 

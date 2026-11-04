@@ -2,17 +2,15 @@
 import { computed } from 'vue'
 import { useAccountStore }             from '../stores/accountStore'
 import { useSettingsStore }            from '../stores/settingsStore'
-import { useLoanStore }                from '../stores/loanStore'
 import { useSavingsGoalStore }         from '../stores/savingsGoalStore'
 import { useUpcomingTransactionStore } from '../stores/upcomingTransactionStore'
 import { useHealthScore }              from '../composables/useHealthScore'
 import { useDashboard }                from '../composables/useDashboard'
-import { roundCents } from '../utils/math'
-import { toYearMonth, yearMonthKey } from '../utils/date'
+import { useFinance }                  from '../composables/useFinance'
+import { yearMonthKey } from '../utils/date'
 
 const accountStore   = useAccountStore()
 const settings       = useSettingsStore()
-const loanStore      = useLoanStore()
 const goalStore      = useSavingsGoalStore()
 const upStore        = useUpcomingTransactionStore()
 
@@ -54,93 +52,21 @@ function getAccountName(id: string | null): string {
   return accountStore.accounts.find(a => a.id === id)?.name ?? id
 }
 
-// ── Finance summary ───────────────────────────────────────────
-const activeLoans = computed(() => loanStore.loans.filter(l => !l.archived))
-const activeSavings = computed(() => loanStore.savings.filter(s => !s.archived))
+// ── Finance summary, from the API ─────────────────────────────
+// What a loan still owes, what it costs a month and when it ends are one calculation, so
+// they arrive together rather than each card working them out from a schedule.
+const {
+  loans: loanDashRows,
+  savings: savDashRows,
+  totals: financeTotals,
+  hasFinance,
+  payoffLabel,
+} = useFinance()
 
-const totalMonthlyPayments = computed(() =>
-  roundCents(activeLoans.value.reduce((sum, loan) => sum + loanStore.monthlyPayment(loan), 0))
-)
-
-const totalLoanRemaining = computed(() => {
-  return roundCents(activeLoans.value.reduce((remaining, loan) => {
-    const rows = loanStore.calcAmortization(loan)
-    const nowYM = toYearMonth(_now)
-    const row = rows.find(r => r.date >= nowYM)
-    return remaining + (row?.openingBalance ?? loan.principal)
-  }, 0))
-})
-
-const totalProjectedSavings = computed(() => {
-  return roundCents(activeSavings.value.reduce((sum, savingsAccount) => {
-    if (savingsAccount.linkedAccountId) return sum + loanStore.accountNetBalance(savingsAccount.linkedAccountId)
-    const elapsedMonths = Math.max(0,
-      (_now.getFullYear() - new Date(savingsAccount.startDate).getFullYear()) * 12 +
-      _now.getMonth() - new Date(savingsAccount.startDate).getMonth()
-    )
-    const projection = loanStore.calcSavingsProjection(savingsAccount, elapsedMonths)
-    return sum + (projection[projection.length - 1]?.balance ?? savingsAccount.startBalance)
-  }, 0))
-})
-
-const finNetPosition = computed(() =>
-  roundCents(totalProjectedSavings.value - totalLoanRemaining.value)
-)
-
-interface LoanDashRow {
-  id: number; name: string; color: string; apr: number
-  principal: number; remaining: number; pctPaid: number
-  monthlyPayment: number; payoffDate: string
-}
-
-const loanDashRows = computed((): LoanDashRow[] =>
-  activeLoans.value.map(loan => {
-    const rows = loanStore.calcAmortization(loan)
-    const nowYM = toYearMonth(_now)
-    const row = rows.find(r => r.date >= nowYM)
-    const remaining = row?.openingBalance ?? 0
-    const pctPaid = loan.principal > 0
-      ? Math.round(((loan.principal - remaining) / loan.principal) * 100)
-      : 100
-    const payoffRow = rows[rows.length - 1]
-    const payoffDate = payoffRow
-      ? new Date(payoffRow.date + '-01').toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
-      : '—'
-    return {
-      id: loan.id, name: loan.name, color: loan.color, apr: loan.apr,
-      principal: loan.principal, remaining, pctPaid,
-      monthlyPayment: loanStore.monthlyPayment(loan), payoffDate,
-    }
-  })
-)
-
-interface SavDashRow {
-  id: number; name: string; color: string; apr: number
-  startBalance: number; projectedNow: number; interestEarned: number; compoundFreq: string
-}
-
-const savDashRows = computed((): SavDashRow[] =>
-  activeSavings.value.map(sav => {
-    const elapsedMonths = Math.max(0,
-      (_now.getFullYear() - new Date(sav.startDate).getFullYear()) * 12 +
-      _now.getMonth() - new Date(sav.startDate).getMonth()
-    )
-    const proj = loanStore.calcSavingsProjection(sav, elapsedMonths)
-    const projectedNow = sav.linkedAccountId
-      ? loanStore.accountNetBalance(sav.linkedAccountId)
-      : (proj[proj.length - 1]?.balance ?? sav.startBalance)
-    return {
-      id: sav.id, name: sav.name, color: sav.color, apr: sav.apr,
-      startBalance: sav.startBalance,
-      projectedNow,
-      interestEarned: roundCents(projectedNow - sav.startBalance),
-      compoundFreq: sav.compoundFreq,
-    }
-  })
-)
-
-const hasFinance = computed(() => activeLoans.value.length > 0 || activeSavings.value.length > 0)
-
+const totalMonthlyPayments  = computed(() => financeTotals.value.monthlyPayments)
+const totalLoanRemaining    = computed(() => financeTotals.value.loanRemaining)
+const totalProjectedSavings = computed(() => financeTotals.value.projectedSavings)
+const finNetPosition        = computed(() => financeTotals.value.netPosition)
 // ── Performance snapshot ──────────────────────────────────────
 const { score: perfHealthScore, grade: perfHealthGrade } = useHealthScore()
 
@@ -412,20 +338,20 @@ const goalDashRows = computed((): GoalDashRow[] =>
 
       <!-- Top stat row -->
       <div class="dash-stat-grid">
-        <div v-if="activeLoans.length > 0" class="dash-stat-card">
+        <div v-if="loanDashRows.length > 0" class="dash-stat-card">
           <span class="dash-stat-label">Monthly Loan Payments</span>
           <span class="dash-stat-value money-negative">{{ formatMoney(totalMonthlyPayments) }}</span>
-          <span class="dash-stat-sub">{{ activeLoans.length }} active loan{{ activeLoans.length !== 1 ? 's' : '' }}</span>
+          <span class="dash-stat-sub">{{ loanDashRows.length }} active loan{{ loanDashRows.length !== 1 ? 's' : '' }}</span>
         </div>
-        <div v-if="activeLoans.length > 0" class="dash-stat-card">
+        <div v-if="loanDashRows.length > 0" class="dash-stat-card">
           <span class="dash-stat-label">Loan Debt Remaining</span>
           <span class="dash-stat-value money-negative">{{ formatMoney(totalLoanRemaining) }}</span>
           <span class="dash-stat-sub">outstanding balance</span>
         </div>
-        <div v-if="activeSavings.length > 0" class="dash-stat-card">
+        <div v-if="savDashRows.length > 0" class="dash-stat-card">
           <span class="dash-stat-label">Savings Balance</span>
           <span class="dash-stat-value money-positive">{{ formatMoney(totalProjectedSavings) }}</span>
-          <span class="dash-stat-sub">{{ activeSavings.length }} savings account{{ activeSavings.length !== 1 ? 's' : '' }}</span>
+          <span class="dash-stat-sub">{{ savDashRows.length }} savings account{{ savDashRows.length !== 1 ? 's' : '' }}</span>
         </div>
         <div v-if="hasFinance" class="dash-stat-card">
           <span class="dash-stat-label">Net Finance Position</span>
@@ -466,7 +392,7 @@ const goalDashRows = computed((): GoalDashRow[] =>
               </span>
               <span class="dash-fin-stat">
                 <span class="dash-fin-stat-label">Payoff</span>
-                <span class="dash-fin-stat-val">{{ row.payoffDate }}</span>
+                <span class="dash-fin-stat-val">{{ payoffLabel(row.payoffMonth) }}</span>
               </span>
             </div>
           </div>

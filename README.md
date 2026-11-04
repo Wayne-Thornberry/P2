@@ -91,19 +91,24 @@ The site holds the data; the **API answers the questions about it**.
   budget's progress and the newest transactions — one answer, so no two cards can disagree.
   [DashboardService](Folio.Api/Modules/Folio/DashboardService.cs) holds the rules, including
   which accounts the budget ignores and which days a billable month owns.
-- **The page renders what it is given.** [useHealthScore](Folio.Web/src/modules/folio/composables/useHealthScore.ts)
-  and [useDashboard](Folio.Web/src/modules/folio/composables/useDashboard.ts) ask once for
-  the whole app, and ask again when a save lands — `workspace.ts` counts those — so an edit
-  shows the figure after it rather than before.
+- **The finance summary is the API's.** `GET /api/folio/finance/summary?country=<id>` answers
+  what each loan still owes, what it costs a month, when it ends, and what each savings
+  account is worth by now. [FinanceService](Folio.Api/Modules/Folio/FinanceService.cs) holds
+  the amortisation and compounding, in `double` and rounded the way the browser rounded it,
+  so a projection that lands a penny away from the Finance page's own chart cannot happen.
+- **The page renders what it is given.** [useHealthScore](Folio.Web/src/modules/folio/composables/useHealthScore.ts),
+  [useDashboard](Folio.Web/src/modules/folio/composables/useDashboard.ts) and
+  [useFinance](Folio.Web/src/modules/folio/composables/useFinance.ts) ask once for the whole
+  app, and ask again when a save lands — `workspace.ts` counts those — so an edit shows the
+  figure after it rather than before.
 - **The month is part of the question.** The budget a month is measured against is the one
   on screen, so the site sends it rather than letting the API guess. The dashboard takes two
   months for that reason: the calendar month its cards add up, and the billable month whose
   budget they measure.
 
-The rest of the arithmetic — the planner's projections, the loan and savings projections on
-the dashboard, the CSV adapters, the demo budget — is still in TypeScript, and is being
-moved into the API in that order. When it lands, a rule lives in one place: the module's
-service class.
+The rest of the arithmetic — the planner's projections, the Finance page's charts, the CSV
+adapters, the demo budget — is still in TypeScript, and is being moved into the API in that
+order. When it lands, a rule lives in one place: the module's service class.
 
 ## No sign-in
 

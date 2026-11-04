@@ -34,7 +34,8 @@ public sealed class FolioModule : IFolioModule
     public void AddServices(IServiceCollection services, IConfiguration configuration) =>
         services.AddScoped<WorkspaceService>()
                 .AddScoped<HealthService>()
-                .AddScoped<DashboardService>();
+                .AddScoped<DashboardService>()
+                .AddScoped<FinanceService>();
 
     public void Map(RouteGroupBuilder api)
     {
@@ -44,6 +45,7 @@ public sealed class FolioModule : IFolioModule
 
         api.MapGet("/health", GetHealthAsync);
         api.MapGet("/dashboard", GetDashboardAsync);
+        api.MapGet("/finance/summary", GetFinanceAsync);
 
         api.MapGet("/settings", GetSettingsAsync);
         api.MapPut("/settings", SaveSettingsAsync);
@@ -117,6 +119,18 @@ public sealed class FolioModule : IFolioModule
             return ApiErrors.BadRequest("A month is written yyyy-mm: ?budgetMonth=2026-11.");
 
         return Results.Ok(await dashboard.ReadAsync(name, shown, budgeted, cancellationToken));
+    }
+
+    /// <summary>What the loans and savings accounts come to.</summary>
+    private static async Task<IResult> GetFinanceAsync(
+        string? country,
+        FinanceService finance,
+        CancellationToken cancellationToken)
+    {
+        if (Country(country) is not { } name)
+            return ApiErrors.BadRequest("A country is needed: ?country=ireland.");
+
+        return Results.Ok(await finance.ReadAsync(name, cancellationToken));
     }
 
     /// <summary>A yyyy-mm query value, or null when it was not given; false when it is not a month.</summary>
