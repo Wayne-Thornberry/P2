@@ -33,6 +33,10 @@ Desktop.ini
 # Logs
 *.log
 
+# The scratch tool the statement PDFs were once broken down with: it holds real bank
+# statements, which are nobody's business but the account holder's. It never goes in.
+tools/
+
 # Editor settings, except the extensions this project wants.
 .vscode/*
 !.vscode/extensions.json

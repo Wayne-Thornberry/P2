@@ -49,6 +49,8 @@ public sealed class FolioModule : IFolioModule
 
         api.MapPost("/demo", GenerateDemoAsync);
 
+        api.MapPost("/import/statement", ReadStatement);
+
         api.MapGet("/settings", GetSettingsAsync);
         api.MapPut("/settings", SaveSettingsAsync);
 
@@ -165,6 +167,22 @@ public sealed class FolioModule : IFolioModule
         await workspace.SaveFinanceAsync(name, demo.Finance, cancellationToken);
 
         return Results.Ok(demo.Result);
+    }
+
+    /// <summary>
+    /// The transactions in a statement PDF, as the site's import dialog understands them.
+    ///
+    /// The browser does the reading — a PDF is a layout, and pdf.js is what turns it into
+    /// words with positions — and this does the understanding: which column an amount is in,
+    /// what a date is, which lines are the statement's furniture, and how far apart one
+    /// statement ends and the next begins. Nothing is stored, so no country is asked for.
+    /// </summary>
+    private static IResult ReadStatement(StatementRequest request)
+    {
+        if (BankStatement.Refusal(request) is { } refusal)
+            return ApiErrors.BadRequest(refusal);
+
+        return Results.Ok(BankStatement.Read(request));
     }
 
     /// <summary>A yyyy-mm query value, or null when it was not given; false when it is not a month.</summary>

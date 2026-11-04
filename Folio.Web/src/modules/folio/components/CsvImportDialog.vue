@@ -5,14 +5,16 @@ import { useAccountStore } from '../stores/accountStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useImportHistoryStore } from '../stores/importHistoryStore'
 import { processMultipleCsvFiles, CSV_ADAPTERS } from '../utils/csvAdapters'
-import type { MultiCsvResult } from '../utils/csvAdapters'
+import type { MultiCsvResult, ParsedRow, GapAdjustment } from '../utils/csvAdapters'
+import type { StatementAnswer } from '../composables/useStatement'
 import { roundCents, txNet, sumNet } from '../utils/math'
 import { cleanTxName, txNamesMatch } from '../utils/txNameCleaner'
 import { dayBefore, dayAfter } from '../utils/date'
 
 const props = defineProps<{
-  visible: boolean
-  csvFiles: Array<{ text: string; fileName: string }>
+  visible:   boolean
+  csvFiles:  Array<{ text: string; fileName: string }>
+  statement?: StatementAnswer | null
 }>()
 
 const emit = defineEmits<{
@@ -45,11 +47,64 @@ watch(() => props.visible, (v) => {
 })
 
 // ── Parsed result (reactive to files + adapter choice) ───────
-const processedResult = computed(() => {
+//
+// Two ways in: the site parses a CSV with the bank's adapter, or the API has already turned
+// a statement PDF into rows. Both come out the same shape, so everything below — the plan,
+// the preview, the import itself — is written once.
+interface ImportRows {
+  bankId:          string
+  bankName:        string
+  allRows:         ParsedRow[]
+  openingBalance:  number | null
+  openingDate:     string
+  gapAdjustments:  GapAdjustment[]
+  csvSummaries:    MultiCsvResult['csvSummaries']
+}
+
+const processedResult = computed<ImportRows | null>(() => {
+  if (props.statement) {
+    return {
+      bankId:         props.statement.bank,
+      bankName:       props.statement.bankName,
+      allRows:        props.statement.rows,
+      openingBalance: props.statement.openingBalance,
+      openingDate:    props.statement.openingDate,
+      gapAdjustments: props.statement.gaps,
+      csvSummaries:   props.statement.files.map(file => ({
+        fileName:       file.fileName,
+        adapterName:    props.statement!.bankName,
+        rowCount:       file.rowCount,
+        oldestDate:     file.oldestDate,
+        newestDate:     file.newestDate,
+        openingBalance: file.openingBalance,
+        closingBalance: file.closingBalance,
+      })),
+    }
+  }
+
   if (props.csvFiles.length === 0) return null
   if (!selectedAdapterId.value) return null // No adapter selected
-  return processMultipleCsvFiles(props.csvFiles, selectedAdapterId.value)
+
+  const parsed = processMultipleCsvFiles(props.csvFiles, selectedAdapterId.value)
+
+  return {
+    bankId:         parsed.adapter.id,
+    bankName:       parsed.adapter.name,
+    allRows:        parsed.allRows,
+    openingBalance: parsed.openingBalance,
+    openingDate:    parsed.openingDate,
+    gapAdjustments: parsed.gapAdjustments,
+    csvSummaries:   parsed.csvSummaries,
+  }
 })
+
+/** The files this import is made of, whether they were dropped as CSV or as a statement. */
+const fileNames = computed((): string[] =>
+  props.statement ? props.statement.files.map(file => file.fileName) : props.csvFiles.map(file => file.fileName),
+)
+
+/** The bank whose names and dates this import is read with. */
+const importBankId = computed((): string | null => processedResult.value?.bankId ?? null)
 
 // ── Import plan: how this import interacts with existing data ─
 type ImportPlan =
@@ -151,7 +206,6 @@ async function handleImport(): Promise<void> {
   }
 
   // 2. Build auto-assignment map BEFORE any deletions (preserves existing assignments)
-  const importBankId = selectedAdapterId.value || null
   const accBankIdMap = new Map(accountStore.accounts.map(a => [a.id, a.bankId ?? null]))
   const autoAssignMap = new Map<string, number>() // cleanedName → itemId
   for (const t of txStore.transactions) {
@@ -163,7 +217,7 @@ async function handleImport(): Promise<void> {
 
   function _buildBatch(rows: MultiCsvResult['allRows']): Array<{ name: string; date: string; type: 'in' | 'out'; amount: number; itemId: number | null; accountId: string }> {
     return rows.map(row => {
-      const rowClean = cleanTxName(row.details, importBankId)
+      const rowClean = cleanTxName(row.details, importBankId.value)
       let autoItemId: number | null = null
       for (const [existingClean, existingItemId] of autoAssignMap) {
         if (txNamesMatch(rowClean, existingClean)) { autoItemId = existingItemId; break }
@@ -227,9 +281,9 @@ async function handleImport(): Promise<void> {
     emit('done', count)
     if (count > 0) {
       historyStore.addRecord({
-        bankName:  result.adapter.name,
-        adapterId: result.adapter.id,
-        fileName:  props.csvFiles.map(f => f.fileName).join(', '),
+        bankName:  result.bankName,
+        adapterId: result.bankId,
+        fileName:  fileNames.value.join(', '),
         rowCount:  count,
       })
     }
@@ -301,7 +355,7 @@ async function handleImport(): Promise<void> {
     if (consumed < existing) {
       consumedCounts.set(key, consumed + 1)
     } else {
-      const rowClean = cleanTxName(row.details, importBankId)
+      const rowClean = cleanTxName(row.details, importBankId.value)
       let autoItemId: number | null = null
       for (const [existingClean, existingItemId] of autoAssignMap) {
         if (txNamesMatch(rowClean, existingClean)) { autoItemId = existingItemId; break }
@@ -351,9 +405,9 @@ async function handleImport(): Promise<void> {
   emit('done', count)
   if (count > 0) {
     historyStore.addRecord({
-      bankName:  result.adapter.name,
-      adapterId: result.adapter.id,
-      fileName:  props.csvFiles.map(f => f.fileName).join(', '),
+      bankName:  result.bankName,
+      adapterId: result.bankId,
+      fileName:  fileNames.value.join(', '),
       rowCount:  count,
     })
   }
@@ -376,19 +430,25 @@ async function handleImport(): Promise<void> {
           <div class="csv-dialog-header">
             <div class="csv-dialog-title">
               <i class="pi pi-upload" />
-              Import CSV Transactions
+              Import transactions
             </div>
             <button class="csv-dialog-close" @click="emit('close')" title="Close">
               <i class="pi pi-times" />
             </button>
           </div>
 
-          <!-- Bank / format selector -->
+          <!-- Bank / format selector: a statement has already said which bank wrote it -->
           <div class="csv-dialog-section">
             <div class="csv-dialog-section-label">
               <i class="pi pi-building-columns" /> Bank / format
             </div>
-            <div class="csv-dialog-account-list">
+            <div v-if="statement" class="csv-summary">
+              <div class="csv-summary-row">
+                <i class="pi pi-file-pdf" />
+                <span><strong>{{ statement.bankName }}</strong> statement, read by the API</span>
+              </div>
+            </div>
+            <div v-else class="csv-dialog-account-list">
               <label
                 v-for="adapter in availableAdapters"
                 :key="adapter.id"
@@ -448,12 +508,12 @@ async function handleImport(): Promise<void> {
               <div class="csv-summary-row">
                 <i class="pi pi-file" />
                 <span>
-                  {{ props.csvFiles.length }} file{{ props.csvFiles.length > 1 ? 's' : '' }},
+                  {{ fileNames.length }} file{{ fileNames.length > 1 ? 's' : '' }},
                   <strong>{{ processedResult.allRows.length }}</strong>
                   transaction{{ processedResult.allRows.length !== 1 ? 's' : '' }}
                 </span>
               </div>
-              <div v-if="props.csvFiles.length > 1" class="csv-summary-row csv-summary-muted">
+              <div v-if="fileNames.length > 1" class="csv-summary-row csv-summary-muted">
                 <i class="pi pi-list" />
                 <span>{{ processedResult.csvSummaries.map(s => s.fileName).join(', ') }}</span>
               </div>

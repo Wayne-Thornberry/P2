@@ -14,6 +14,7 @@
 import http from 'node:http'
 import { seedSettings, seedWorkspace } from './seed.mjs'
 import { demoRefusal, demoWorkspace } from './demo.mjs'
+import { readStatement, statementRefusal } from './statement.mjs'
 
 const PORT = Number(process.env.MOCK_PORT ?? 5490)
 
@@ -600,6 +601,23 @@ async function folioModule(request, response, route, url) {
     workspace.set(country, { ...countryWorkspace(country), ...collections })
 
     json(response, 200, result)
+    return true
+  }
+
+  if (route === 'POST /api/folio/import/statement') {
+    const body = await readJson(request)
+    if (!body) {
+      json(response, 400, { error: 'That statement could not be read.' })
+      return true
+    }
+
+    const refusal = statementRefusal(body)
+    if (refusal) {
+      json(response, 400, { error: refusal })
+      return true
+    }
+
+    json(response, 200, readStatement(body))
     return true
   }
 

@@ -20,7 +20,7 @@ import CsvImportDialog from './components/CsvImportDialog.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import { useSettingsStore } from './stores/settingsStore'
 import { SUPPORTED_COUNTRIES, getCountryById } from './data/countries'
-import { useCsvDrop } from './composables/useCsvDrop'
+import { useFileDrop } from './composables/useFileDrop'
 import { useNavigation } from './composables/useNavigation'
 import { clearAndImport } from './utils/persistence'
 import { flushSaves } from './workspace'
@@ -96,7 +96,10 @@ async function switchCountry(id: string): Promise<void> {
   await flushSaves()
   setTimeout(() => window.location.reload(), 80)
 }
-const { isDraggingOver, csvDialogVisible, pendingCsvFiles, backupDropVisible, pendingBackupJson, onDragEnter, onDragOver, onDragLeave, onDrop } = useCsvDrop()
+const {
+  isDraggingOver, csvDialogVisible, pendingCsvFiles, pendingStatement, readingStatement, statementError,
+  backupDropVisible, pendingBackupJson, closeImportDialog, onDragEnter, onDragOver, onDragLeave, onDrop,
+} = useFileDrop()
 const { confirm } = useConfirm()
 
 // Watch for dropped JSON backup — trigger themed confirm dialog
@@ -123,6 +126,15 @@ function onCsvDone(count: number): void {
   csvImportCount.value = count
   _csvMsgTimer = setTimeout(() => { csvImportMsg.value = ''; csvImportCount.value = 0 }, 4000)
 }
+
+// A statement that could not be read says why, in the same toast an import result uses.
+watch(statementError, (message) => {
+  if (!message) return
+  if (_csvMsgTimer) clearTimeout(_csvMsgTimer)
+  csvImportMsg.value   = message
+  csvImportCount.value = 0
+  _csvMsgTimer = setTimeout(() => { csvImportMsg.value = '' }, 6000)
+})
 
 function confirmBackupRestore(): void {
   const json = pendingBackupJson.value
@@ -183,7 +195,15 @@ const breadcrumbSegments = computed(() =>
     <Transition name="fade">
       <div v-if="isDraggingOver" class="app-drop-overlay">
         <i class="pi pi-upload app-drop-icon" />
-        <span class="app-drop-label">Drop to import &mdash; CSV for transactions &middot; JSON to restore backup</span>
+        <span class="app-drop-label">Drop to import &mdash; a CSV, a statement PDF, or JSON to restore backup</span>
+      </div>
+    </Transition>
+
+    <!-- Reading a dropped statement -->
+    <Transition name="fade">
+      <div v-if="readingStatement" class="app-loading-overlay">
+        <i class="pi pi-spin pi-spinner app-loading-spinner" />
+        <span class="app-loading-label">Reading the statement&hellip;</span>
       </div>
     </Transition>
 
@@ -333,11 +353,12 @@ const breadcrumbSegments = computed(() =>
 
   </div>
 
-  <!-- Global CSV import dialog -->
+  <!-- Global transactions import dialog: a CSV the site parsed, or a statement the API read -->
   <CsvImportDialog
     :visible="csvDialogVisible"
     :csvFiles="pendingCsvFiles"
-    @close="csvDialogVisible = false"
+    :statement="pendingStatement"
+    @close="closeImportDialog"
     @done="onCsvDone"
   />
 

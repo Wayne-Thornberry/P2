@@ -1,10 +1,10 @@
 # Folio — a private budget on your own box
 
-Folio is a personal finance app: envelope budgeting, a transaction log with CSV import,
-accounts, savings goals, loans, reports, a calendar, a what-if calculator and a financial
-health score. It follows one person's money across whatever countries they keep a budget
-in, and it runs on a single Windows box: IIS serves the site and the API, and SQL Server
-sits beside them.
+Folio is a personal finance app: envelope budgeting, a transaction log that takes a dropped
+CSV or a dropped bank statement PDF, accounts, savings goals, loans, reports, a calendar, a
+what-if calculator and a financial health score. It follows one person's money across
+whatever countries they keep a budget in, and it runs on a single Windows box: IIS serves
+the site and the API, and SQL Server sits beside them.
 
 The rules a change has to obey, and the handful that must never be broken, are in
 [AGENTS.md](AGENTS.md).
@@ -112,10 +112,21 @@ The site holds the data; the **API answers the questions about it**.
   on screen, so the site sends it rather than letting the API guess. The dashboard takes two
   months for that reason: the calendar month its cards add up, and the billable month whose
   budget they measure.
+- **Reading a statement is the API's.** A bank statement PDF is a picture of a table, not a
+  file of rows: whether an amount is money in or out is a question about which column it was
+  drawn in. `POST /api/folio/import/statement` is given the words and the boxes they were
+  drawn in — [useStatement](Folio.Web/src/modules/folio/composables/useStatement.ts) gets
+  those from pdf.js in the browser, when a PDF is dropped — and
+  [BankStatement](Folio.Api/Modules/Folio/BankStatement.cs) answers with the transactions,
+  the balance each one left behind, the opening balance and any gap between two statements.
+  Which headings are the column boundaries, what a date looks like and which lines are the
+  statement's own furniture are the bank's rules, so they are not the browser's. It reads
+  Bank of Ireland statements today; another bank is another set of headings in that class.
 
 The rest of the arithmetic — the planner's projections, the Finance page's charts, the CSV
 adapters — is still in TypeScript, and is being moved into the API in that order. When it
-lands, a rule lives in one place: the module's service class.
+lands, a rule lives in one place: the module's service class. (The statement reader went
+first: there was nothing to migrate, and it is the format the PDFs arrive in.)
 
 ## No sign-in
 
@@ -132,7 +143,10 @@ ever reappears.
 A local run has **no database**. The site talks to its own mock API, which serves a
 complete example budget from memory: the budget, three months of transactions, four
 accounts, two savings goals, a loan, a planner scenario and an import history. Changes are
-live and interactive, and vanish when you stop it.
+live and interactive, and vanish when you stop it. A statement PDF can be dropped on the
+page here too — the mock applies the same reading rules as
+[BankStatement](Folio.Api/Modules/Folio/BankStatement.cs), so the import that works locally
+is the import that works on the box.
 
 Requirements: Node 22+ and PowerShell. That is all — no SQL Server, no LocalDB, and no
 .NET SDK unless you use `-Api`.

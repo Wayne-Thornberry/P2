@@ -22,6 +22,7 @@
     "@primevue/themes": "^4.5.4",
     "@tailwindcss/vite": "^4.2.2",
     "chart.js": "^4.5.1",
+    "pdfjs-dist": "^6.5.438",
     "pinia": "^3.0.4",
     "primeicons": "^7.0.0",
     "primevue": "^4.5.5",
