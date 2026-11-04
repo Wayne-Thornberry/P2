@@ -1,5 +1,7 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Folio.Api.Ai;
 using Folio.Api.Auth;
 using Folio.Api.Http;
 
@@ -36,7 +38,11 @@ public sealed class FolioModule : IFolioModule
         services.AddScoped<WorkspaceService>()
                 .AddScoped<HealthService>()
                 .AddScoped<DashboardService>()
-                .AddScoped<FinanceService>();
+                .AddScoped<FinanceService>()
+                .AddScoped<AnalysisService>()
+                .AddScoped<CategoriseService>()
+                .Configure<DeepSeekOptions>(configuration.GetSection(DeepSeekOptions.SectionName))
+                .AddHttpClient<DeepSeekClient>();
 
     public void Map(RouteGroupBuilder api)
     {
@@ -47,6 +53,10 @@ public sealed class FolioModule : IFolioModule
         api.MapGet("/health", GetHealthAsync);
         api.MapGet("/dashboard", GetDashboardAsync);
         api.MapGet("/finance/summary", GetFinanceAsync);
+
+        api.MapGet("/ai", GetAiStatus);
+        api.MapPost("/analysis", GetAnalysisAsync);
+        api.MapPost("/categorise", CategoriseAsync);
 
         api.MapPost("/demo", GenerateDemoAsync);
 
@@ -136,6 +146,78 @@ public sealed class FolioModule : IFolioModule
             return ApiErrors.BadRequest("A country is needed: ?country=ireland.");
 
         return Results.Ok(await finance.ReadAsync(name, cancellationToken));
+    }
+
+    /// <summary>
+    /// Whether this box can write a report at all. The page asks before it offers the
+    /// button, so a site with no key does not show a button that can only fail.
+    /// </summary>
+    private static IResult GetAiStatus(IOptions<DeepSeekOptions> options) =>
+        Results.Ok(new AiStatusResponse(options.Value.IsConfigured, options.Value.Model));
+
+    /// <summary>
+    /// A written report on the last year of spending, for all accounts or the ones asked
+    /// for. The numbers in it are the API's; the words are DeepSeek's.
+    /// </summary>
+    private static async Task<IResult> GetAnalysisAsync(
+        string? country,
+        AnalysisRequest request,
+        AnalysisService analysis,
+        ILoggerFactory logs,
+        CancellationToken cancellationToken)
+    {
+        if (Country(country) is not { } name)
+            return ApiErrors.BadRequest("A country is needed: ?country=ireland.");
+
+        try
+        {
+            return Results.Ok(await analysis.ReadAsync(
+                name,
+                request.Accounts,
+                request.Months ?? AnalysisService.DefaultMonths,
+                cancellationToken));
+        }
+        catch (AiUnavailableException failure)
+        {
+            return AiUnavailable(logs, "The analysis", failure);
+        }
+    }
+
+    /// <summary>
+    /// Which item each of these transactions belongs to, as a proposal the page applies.
+    /// With none named, it reads the ones nothing has categorised yet.
+    /// </summary>
+    private static async Task<IResult> CategoriseAsync(
+        string? country,
+        CategoriseRequest request,
+        CategoriseService categories,
+        ILoggerFactory logs,
+        CancellationToken cancellationToken)
+    {
+        if (Country(country) is not { } name)
+            return ApiErrors.BadRequest("A country is needed: ?country=ireland.");
+
+        try
+        {
+            return Results.Ok(await categories.ReadAsync(name, request, cancellationToken));
+        }
+        catch (AiUnavailableException failure)
+        {
+            return AiUnavailable(logs, "Categorising", failure);
+        }
+    }
+
+    /// <summary>
+    /// One answer for both AI failures: the page shows the message, and the log keeps the
+    /// reason. Nothing was changed, which is true of both of them.
+    /// </summary>
+    private static IResult AiUnavailable(ILoggerFactory logs, string what, AiUnavailableException failure)
+    {
+        logs.CreateLogger("Folio.Ai").LogWarning(failure, "{What} could not be asked for.", what);
+
+        return ApiErrors.Of(
+            "The AI is not answering. Nothing was changed; try again in a moment.",
+            StatusCodes.Status503ServiceUnavailable);
     }
 
     /// <summary>

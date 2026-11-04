@@ -13,6 +13,7 @@
 
 import http from 'node:http'
 import { seedSettings, seedWorkspace } from './seed.mjs'
+import { aiStatus, analysisReport, categorise } from './ai.mjs'
 import { demoRefusal, demoWorkspace } from './demo.mjs'
 import { readStatement, statementRefusal } from './statement.mjs'
 
@@ -599,6 +600,33 @@ async function folioModule(request, response, route, url) {
     }
 
     json(response, 200, financeSummary(country))
+    return true
+  }
+
+  if (route === 'GET /api/folio/ai') {
+    json(response, 200, aiStatus())
+    return true
+  }
+
+  if (route === 'POST /api/folio/analysis') {
+    if (!country) {
+      json(response, 400, { error: 'A country is needed: ?country=ireland.' })
+      return true
+    }
+
+    const body = await readJson(request)
+    json(response, 200, analysisReport(countryWorkspace(country), body ?? {}))
+    return true
+  }
+
+  if (route === 'POST /api/folio/categorise') {
+    if (!country) {
+      json(response, 400, { error: 'A country is needed: ?country=ireland.' })
+      return true
+    }
+
+    const body = await readJson(request)
+    json(response, 200, categorise(body ?? {}, countryWorkspace(country).folio_budget?.globalItems ?? []))
     return true
   }
 

@@ -6,6 +6,7 @@ import { useAccountStore } from '../stores/accountStore'
 import { useBudgetStore } from '../stores/budgetStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useLoanStore } from '../stores/loanStore'
+import { useAnalysis } from '../composables/useAnalysis'
 import { UNASSIGNED_ACCOUNT_ID, UNASSIGNED_ACCOUNT } from '../types/transaction'
 import { dateToYmd, toYearMonth, yearMonthKey } from '../utils/date'
 
@@ -16,6 +17,24 @@ const accountStore = useAccountStore()
 const budgetStore  = useBudgetStore()
 const settings     = useSettingsStore()
 const loanStore    = useLoanStore()
+
+// The AI report. Asked for on a button rather than on arrival: it costs a call and takes a
+// few seconds, and a report nobody asked for is a report nobody reads.
+const analysis        = useAnalysis()
+const analysisAccounts = ref<string[]>([])
+const analysisMonths   = ref(12)
+
+function toggleAnalysisAccount(id: string): void {
+  analysisAccounts.value = analysisAccounts.value.includes(id)
+    ? analysisAccounts.value.filter(accountId => accountId !== id)
+    : [...analysisAccounts.value, id]
+}
+
+function generateAnalysis(): void {
+  void analysis.generate(settings.country, analysisAccounts.value, analysisMonths.value)
+}
+
+onMounted(() => { void analysis.check() })
 
 function formatMoney(v: number): string { return settings.formatMoney(v) }
 
@@ -45,7 +64,7 @@ function goTx(opts: { month?: string; accountId?: string; name?: string; type?: 
 }
 
 // ── Tabs ───────────────────────────────────────────────────────
-type Tab = 'overall' | 'breakdown' | 'items' | 'finance'
+type Tab = 'overall' | 'breakdown' | 'items' | 'finance' | 'analysis'
 const activeTab = ref<Tab>('overall')
 
 type BreakdownSubTab = 'year' | 'month' | 'range'
@@ -55,6 +74,7 @@ const tabs: { id: Tab; label: string }[] = [
   { id: 'breakdown', label: 'Breakdown'  },
   { id: 'items',     label: 'Items'      },
   { id: 'finance',   label: 'Finance'    },
+  { id: 'analysis',  label: 'AI Report'  },
 ]
 
 // ── Shared month selector ──────────────────────────────────────
@@ -1949,6 +1969,245 @@ watch(yearViewYear, y => {
           </table>
         </div>
       </template>
+
+    </template>
+
+    <!-- ── AI REPORT ─────────────────────────────────────────────── -->
+    <template v-if="activeTab === 'analysis'">
+
+      <div class="flex flex-col gap-4">
+        <div class="flex flex-col gap-1">
+          <h2 class="flex items-center gap-2 text-sm font-black uppercase tracking-wide">
+            <i class="pi pi-sparkles" /> AI analysis
+          </h2>
+          <p class="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed max-w-2xl">
+            Reads the transactions in the period and writes a report on them: where the money
+            goes, what is trending, what looks like a habit and what is worth changing. The
+            figures are worked out here from your own budget; the words are DeepSeek's.
+          </p>
+        </div>
+
+        <p v-if="!analysis.available.value" class="text-xs text-amber-700 dark:text-amber-400">
+          This server has no DeepSeek key, so no report can be written. Set the
+          <code class="font-mono">DEEPSEEK_API_KEY</code> secret and deploy, or put one in the
+          environment for a local run.
+        </p>
+
+        <template v-else>
+          <!-- What to look at -->
+          <div class="flex flex-wrap items-end gap-3 border-2 border-zinc-300 dark:border-zinc-600 bg-zinc-100 dark:bg-zinc-800 p-3">
+            <label class="flex flex-col gap-1">
+              <span class="text-[0.58rem] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500">Period</span>
+              <select v-model.number="analysisMonths" class="px-2 py-1.5 text-xs bg-white dark:bg-zinc-900 border-2 border-zinc-300 dark:border-zinc-600 outline-none">
+                <option :value="6">Last 6 months</option>
+                <option :value="12">Last 12 months</option>
+                <option :value="24">Last 24 months</option>
+                <option :value="36">Last 3 years</option>
+              </select>
+            </label>
+
+            <div class="flex flex-col gap-1">
+              <span class="text-[0.58rem] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500">Accounts</span>
+              <div class="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  :class="[
+                    'px-2 py-1 text-[0.7rem] font-semibold border-2 transition-colors',
+                    analysisAccounts.length === 0
+                      ? 'border-zinc-900 dark:border-zinc-100 bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900'
+                      : 'border-zinc-300 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100',
+                  ]"
+                  @click="analysisAccounts = []"
+                >All</button>
+
+                <button
+                  v-for="account in accountStore.accounts"
+                  :key="account.id"
+                  type="button"
+                  :class="[
+                    'px-2 py-1 text-[0.7rem] font-semibold border-2 transition-colors',
+                    analysisAccounts.includes(account.id)
+                      ? 'border-zinc-900 dark:border-zinc-100 bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900'
+                      : 'border-zinc-300 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100',
+                  ]"
+                  @click="toggleAnalysisAccount(account.id)"
+                >{{ account.name }}</button>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              class="ml-auto px-4 py-2 text-xs font-black uppercase tracking-wide bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900 hover:opacity-90 disabled:opacity-50"
+              :disabled="analysis.loading.value"
+              @click="generateAnalysis()"
+            >
+              {{ analysis.loading.value ? 'Reading…' : analysis.report.value ? 'Write it again' : 'Write the report' }}
+            </button>
+          </div>
+
+          <p v-if="analysis.loading.value" class="text-xs text-zinc-500 dark:text-zinc-400">
+            Reading up to {{ analysisMonths }} months of transactions. This takes a few seconds.
+          </p>
+
+          <p v-if="analysis.error.value" class="text-xs text-red-600 dark:text-red-400" role="alert">
+            {{ analysis.error.value }}
+          </p>
+
+          <template v-if="analysis.report.value">
+            <div class="flex flex-col gap-1 border-l-4 border-zinc-900 dark:border-zinc-100 pl-3">
+              <p class="text-base font-black leading-snug">{{ analysis.report.value.report.headline }}</p>
+              <p class="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">{{ analysis.report.value.report.summary }}</p>
+              <p class="text-[0.6rem] font-mono text-zinc-400 dark:text-zinc-500">
+                {{ analysis.report.value.period.from }} → {{ analysis.report.value.period.to }} ·
+                {{ analysis.report.value.model }} · written {{ new Date(analysis.report.value.generatedAt).toLocaleString() }}
+              </p>
+            </div>
+
+            <!-- The money, as the API worked it out -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <div
+                v-for="cell in [
+                  { label: 'Money in',  value: formatMoney(analysis.report.value.facts.totals.in) },
+                  { label: 'Money out', value: formatMoney(analysis.report.value.facts.totals.out) },
+                  { label: 'Net',       value: formatMoney(analysis.report.value.facts.totals.net) },
+                  { label: 'Saved',     value: analysis.report.value.facts.totals.savingsRate + '%' },
+                  { label: 'Average month out', value: formatMoney(analysis.report.value.facts.totals.averageOutPerMonth) },
+                  { label: 'Transactions', value: String(analysis.report.value.facts.totals.transactions) },
+                  { label: 'Average spend', value: formatMoney(analysis.report.value.facts.totals.averageTransaction) },
+                  { label: 'Uncategorised', value: formatMoney(analysis.report.value.facts.budget.uncategorisedAmount) },
+                ]"
+                :key="cell.label"
+                class="border-2 border-zinc-300 dark:border-zinc-600 bg-zinc-100 dark:bg-zinc-800 px-3 py-2 flex flex-col gap-0.5"
+              >
+                <span class="text-[0.58rem] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500">{{ cell.label }}</span>
+                <span class="text-sm font-black">{{ cell.value }}</span>
+              </div>
+            </div>
+
+            <!-- Findings -->
+            <div v-if="analysis.report.value.report.findings.length" class="flex flex-col gap-2">
+              <h3 class="text-xs font-black uppercase tracking-wide">What stands out</h3>
+              <div
+                v-for="finding in analysis.report.value.report.findings"
+                :key="finding.title"
+                class="border-2 border-zinc-300 dark:border-zinc-600 px-3 py-2 flex flex-col gap-0.5"
+              >
+                <div class="flex items-center gap-2">
+                  <i :class="[
+                    'pi text-[0.7rem]',
+                    finding.severity === 'high' ? 'pi-exclamation-circle text-red-600 dark:text-red-400'
+                      : finding.severity === 'medium' ? 'pi-exclamation-triangle text-amber-600 dark:text-amber-400'
+                      : 'pi-info-circle text-emerald-700 dark:text-emerald-400',
+                  ]" />
+                  <span class="text-xs font-black">{{ finding.title }}</span>
+                  <span class="ml-auto text-[0.55rem] font-mono uppercase text-zinc-400 dark:text-zinc-500">{{ finding.severity }}</span>
+                </div>
+                <p class="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">{{ finding.detail }}</p>
+              </div>
+            </div>
+
+            <!-- Patterns, risks, actions -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-2">
+              <div
+                v-for="block in [
+                  { title: 'Patterns', icon: 'pi-chart-line', lines: analysis.report.value.report.patterns },
+                  { title: 'Risks',    icon: 'pi-shield',     lines: analysis.report.value.report.risks },
+                  { title: 'Actions',  icon: 'pi-check',      lines: analysis.report.value.report.actions },
+                ]"
+                :key="block.title"
+                class="border-2 border-zinc-300 dark:border-zinc-600 bg-zinc-100 dark:bg-zinc-800 px-3 py-2 flex flex-col gap-1"
+              >
+                <span class="flex items-center gap-1.5 text-[0.58rem] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500">
+                  <i :class="['pi', block.icon]" /> {{ block.title }}
+                </span>
+                <p v-if="block.lines.length === 0" class="text-xs text-zinc-400 dark:text-zinc-500">Nothing to report.</p>
+                <p v-for="line in block.lines" :key="line" class="text-xs leading-relaxed">{{ line }}</p>
+              </div>
+            </div>
+
+            <!-- The data the report was written from -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-2">
+              <div class="border-2 border-zinc-300 dark:border-zinc-600 overflow-hidden">
+                <p class="px-3 py-2 text-[0.58rem] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500 border-b-2 border-zinc-300 dark:border-zinc-600">By month</p>
+                <table class="w-full text-xs">
+                  <thead>
+                    <tr class="text-[0.58rem] uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+                      <th class="text-left px-3 py-1">Month</th>
+                      <th class="text-right px-3 py-1">In</th>
+                      <th class="text-right px-3 py-1">Out</th>
+                      <th class="text-right px-3 py-1">Net</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="month in analysis.report.value.facts.months" :key="month.month" class="border-t border-zinc-200 dark:border-zinc-700">
+                      <td class="px-3 py-1 font-mono">{{ month.month }}</td>
+                      <td class="px-3 py-1 text-right">{{ formatMoney(month.in) }}</td>
+                      <td class="px-3 py-1 text-right">{{ formatMoney(month.out) }}</td>
+                      <td class="px-3 py-1 text-right" :class="month.in - month.out >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'">
+                        {{ formatMoney(month.in - month.out) }}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="border-2 border-zinc-300 dark:border-zinc-600 overflow-hidden">
+                <p class="px-3 py-2 text-[0.58rem] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500 border-b-2 border-zinc-300 dark:border-zinc-600">By item</p>
+                <table class="w-full text-xs">
+                  <tbody>
+                    <tr v-for="category in analysis.report.value.facts.categories" :key="category.name" class="border-t border-zinc-200 dark:border-zinc-700">
+                      <td class="px-3 py-1">{{ category.name }}</td>
+                      <td class="px-3 py-1 text-right">{{ formatMoney(category.spent) }}</td>
+                      <td class="px-3 py-1 text-right font-mono text-zinc-500 dark:text-zinc-400">{{ category.share }}%</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="border-2 border-zinc-300 dark:border-zinc-600 overflow-hidden">
+                <p class="px-3 py-2 text-[0.58rem] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500 border-b-2 border-zinc-300 dark:border-zinc-600">Where it went</p>
+                <table class="w-full text-xs">
+                  <tbody>
+                    <tr v-for="merchant in analysis.report.value.facts.merchants" :key="merchant.name" class="border-t border-zinc-200 dark:border-zinc-700">
+                      <td class="px-3 py-1 truncate max-w-[12rem]">{{ merchant.name }}</td>
+                      <td class="px-3 py-1 text-right">{{ formatMoney(merchant.spent) }}</td>
+                      <td class="px-3 py-1 text-right font-mono text-zinc-500 dark:text-zinc-400">{{ merchant.count }}×</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="border-2 border-zinc-300 dark:border-zinc-600 overflow-hidden">
+                <p class="px-3 py-2 text-[0.58rem] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500 border-b-2 border-zinc-300 dark:border-zinc-600">Recurring</p>
+                <p v-if="analysis.report.value.facts.recurring.length === 0" class="px-3 py-2 text-xs text-zinc-400 dark:text-zinc-500">Nothing repeats yet.</p>
+                <table v-else class="w-full text-xs">
+                  <tbody>
+                    <tr v-for="bill in analysis.report.value.facts.recurring" :key="bill.name" class="border-t border-zinc-200 dark:border-zinc-700">
+                      <td class="px-3 py-1 truncate max-w-[12rem]">{{ bill.name }}</td>
+                      <td class="px-3 py-1 text-right">{{ formatMoney(bill.amount) }}</td>
+                      <td class="px-3 py-1 text-right font-mono text-zinc-500 dark:text-zinc-400">{{ bill.months }}mo</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div v-if="analysis.report.value.facts.budget.overspending.length" class="border-2 border-zinc-300 dark:border-zinc-600 overflow-hidden">
+              <p class="px-3 py-2 text-[0.58rem] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500 border-b-2 border-zinc-300 dark:border-zinc-600">Over budget this month</p>
+              <table class="w-full text-xs">
+                <tbody>
+                  <tr v-for="over in analysis.report.value.facts.budget.overspending" :key="over.itemId" class="border-t border-zinc-200 dark:border-zinc-700">
+                    <td class="px-3 py-1">{{ over.name }}</td>
+                    <td class="px-3 py-1 text-right text-zinc-500 dark:text-zinc-400">{{ formatMoney(over.assigned) }} assigned</td>
+                    <td class="px-3 py-1 text-right">{{ formatMoney(over.spent) }} spent</td>
+                    <td class="px-3 py-1 text-right text-red-600 dark:text-red-400 font-black">{{ formatMoney(over.over) }} over</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </template>
+        </template>
+      </div>
 
     </template>
 

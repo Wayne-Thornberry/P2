@@ -463,14 +463,20 @@ try {
             -FilePath 'npm.cmd' -ArgumentList @('run', 'dev') -WorkingDirectory $webDir `
             -Environment @{ Folio_MOCK = '1' }
     } else {
+        # The AI features need a key, and a developer's own goes in the environment rather
+        # than in a file: with none set, the pages simply do not offer them.
+        $apiEnvironment = @{
+            ASPNETCORE_URLS            = $apiUrl
+            ConnectionStrings__Default = $connectionString
+        }
+
+        if ($env:DEEPSEEK_API_KEY) { $apiEnvironment['Ai__DeepSeek__ApiKey'] = $env:DEEPSEEK_API_KEY }
+
         Start-Child -Name 'API' `
             -FilePath 'dotnet' `
             -ArgumentList @('run', '--project', $apiProject, '--no-build') `
             -WorkingDirectory $root `
-            -Environment @{
-                ASPNETCORE_URLS            = $apiUrl
-                ConnectionStrings__Default = $connectionString
-            }
+            -Environment $apiEnvironment
 
         Start-Child -Name 'site' -FilePath 'npm.cmd' -ArgumentList @('run', 'dev') -WorkingDirectory $webDir
     }

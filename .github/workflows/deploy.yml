@@ -489,14 +489,23 @@ jobs:
               -Database '${{ env.DB_NAME }}'
 
           # The settings the deploy owns, written over appsettings.json on every deploy:
-          # the connection string and the origin the browser loads the site from. Nothing
-          # secret lives in the repository, because nothing here needs a secret.
+          # the connection string, the origin the browser loads the site from, and the key
+          # the two AI features ask DeepSeek with. Nothing secret lives in the repository.
           $settings = [ordered]@{ ConnectionStrings = @{ Default = $conn } }
 
           $origins = '${{ env.WEB_PUBLIC_ORIGIN }}' -split ',' |
                 ForEach-Object { $_.Trim() } |
                 Where-Object { $_ }
           if ($origins) { $settings['Cors'] = @{ AllowedOrigins = @($origins) } }
+
+          # The analysis report and the categorising. With no key set, neither page offers
+          # its button and nothing else breaks; the site asks /api/folio/ai first.
+          $aiKey = '${{ secrets.DEEPSEEK_API_KEY }}'
+          if ($aiKey) {
+              $settings['Ai'] = @{ DeepSeek = @{ ApiKey = $aiKey } }
+          } else {
+              Write-Warning 'No DEEPSEEK_API_KEY secret is set, so the site will not offer the AI report or AI categorising.'
+          }
 
           $settingsPath = "$src\appsettings.Production.json"
           [System.IO.File]::WriteAllText(

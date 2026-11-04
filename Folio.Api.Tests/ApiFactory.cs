@@ -106,6 +106,13 @@ public class ApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("ConnectionStrings:Default", TestDatabase.ConnectionString(TestDatabase.Server, _databaseName));
 
         builder.UseEnvironment(Environments.Development);
+
+        ConfigureSettings(builder);
+    }
+
+    /// <summary>Settings a subclass wants on top of these, for behaviour that depends on one.</summary>
+    protected virtual void ConfigureSettings(IWebHostBuilder builder)
+    {
     }
 
     protected override void Dispose(bool disposing)

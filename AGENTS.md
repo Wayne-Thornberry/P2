@@ -98,6 +98,29 @@ of working sessions.
 - The rules are in [AccountRules](Folio.Api/Auth/AccountRules.cs); the site's copy in
   [rules.ts](Folio.Web/src/auth/rules.ts) only lets a form say what is wrong sooner.
 
+## The AI
+
+Two features ask DeepSeek, and both are on a button because both cost a call:
+
+- **The report** (`POST /api/folio/analysis`) on the Reports page, for all accounts or the
+  ones picked. **The numbers in it are the API's** — every total, average, share, trend and
+  over-budget line in [AnalysisService](Folio.Api/Modules/Folio/AnalysisService.cs) is
+  arithmetic over saved rows and is tested without a model. DeepSeek is given those facts and
+  asked only for the reading of them: the headline, the findings, the patterns, the risks,
+  the actions.
+- **The categorising** (`POST /api/folio/categorise`) on the Transactions page, for the
+  selected rows or all of them. The answer is a *proposal*: the item, the reason and a
+  confidence, with any new items named but not created. The page applies it through the
+  stores, so it is saved the way every other edit is. An existing item wins wherever one
+  fits, matched by its name however it is spelt, and a new one is a last resort capped at
+  eight.
+
+The key is `Ai:DeepSeek:ApiKey`, from the `DEEPSEEK_API_KEY` repository secret via
+appsettings.Production.json, or from the environment for a local run. **Empty means no AI**:
+`GET /api/folio/ai` answers `available: false`, neither page offers its button, and the two
+endpoints answer 503 rather than reaching for a key that is not there. A model that answers
+with something that is not the shape asked for is the same refusal — nothing is half-applied.
+
 ## Adding an app
 
 1. **Database** — a schema (`Schemas/`), its tables (`Tables/`), and the same thing again

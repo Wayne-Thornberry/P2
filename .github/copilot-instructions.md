@@ -13,6 +13,12 @@ it before changing anything. In short:
   behind `SignedInFilter`; a folio query that does not filter on the account is a bug.
 - **The first account is made from the page; every other one on the box** with
   `--add-user`. Do not add a sign-up screen.
+- **The AI is the API's, and it is asked for.** DeepSeek is called only from
+  [AnalysisService](Folio.Api/Modules/Folio/AnalysisService.cs) and
+  [CategoriseService](Folio.Api/Modules/Folio/CategoriseService.cs), only when a button is
+  pressed. The numbers a report is about are the API's arithmetic, never the model's; the
+  model writes what they mean. A categorising answer is a proposal the page applies, not a
+  write. No key means `GET /api/folio/ai` answers false and nothing offers either feature.
 - **A rule lives on the server.** Rules, limits and computed values go in the module's
   service class on the API, and the page displays what comes back. Do not re-implement a
   rule in TypeScript for a faster message. `GET /api/folio/health` is the shape to copy.

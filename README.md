@@ -158,6 +158,41 @@ The rules are [AccountRules](Folio.Api/Auth/AccountRules.cs) and
 [rules.ts](Folio.Web/src/auth/rules.ts) only lets a form say what is wrong without a round
 trip.
 
+## The AI
+
+Two things in Folio ask DeepSeek, and both are on a button because both cost a call and take
+a moment.
+
+**The report** — Reports → *AI Report* — reads the last 6, 12, 24 or 36 months, for every
+account or the ones picked, and writes what the numbers mean: the headline, what stands out,
+the habits and rhythms, the risks, and what to do about them. Underneath it are the figures
+it was written from: money in and out, savings rate, every month, every item, the biggest
+payees, what repeats, what is over budget.
+
+**The categorising** — Transactions → *AI categorize* — looks at the selected transactions
+(or all of them) and proposes the budget item each one belongs to, from its name and notes.
+It prefers an item that already exists, matched however it is spelt, and only invents one
+when nothing fits — at most eight, named in the proposal before anything is created. Nothing
+is written until you press Apply, and applying goes through the stores, so it is saved the
+way every other edit is.
+
+**What the AI is not asked to do.** It never adds up your money. Every figure in a report is
+worked out by the API from the saved rows — that is the part with tests that need no model —
+and the model is given those numbers and asked to read them. A model asked to total a year of
+transactions would be a model guessing at arithmetic.
+
+**The key.** It lives in the `DEEPSEEK_API_KEY` repository secret, which the deploy writes
+into the API's appsettings.Production.json. For a local run, put it in the environment:
+
+```powershell
+$env:DEEPSEEK_API_KEY = 'sk-…'
+.\start.ps1
+```
+
+With no key, neither page shows its button and both endpoints answer 503: nothing is broken,
+there is simply no AI. The mock API in `-Mock` answers both of them itself, so the pages can
+be worked on with no key, no network and no bill.
+
 ## Running it locally
 
 Requirements: .NET 8 SDK, Node 22+, SQL Server Express LocalDB (or a SQL Server to point

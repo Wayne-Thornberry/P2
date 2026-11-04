@@ -10,6 +10,7 @@ import { useMoneyInput } from '../composables/useMoneyInput'
 import { getTodayStr } from '../utils/date'
 import { useImportHistoryStore } from '../stores/importHistoryStore'
 import { useConfirm } from '../composables/useConfirm'
+import { useCategorise } from '../composables/useCategorise'
 import { cleanTxName, hasFriendlyName, txNamesMatch } from '../utils/txNameCleaner'
 import { CSV_ADAPTERS } from '../utils/csvAdapters'
 
@@ -21,6 +22,38 @@ const budgetStore  = useBudgetStore()
 const settings     = useSettingsStore()
 const historyStore = useImportHistoryStore()
 const { confirm }  = useConfirm()
+
+// ── AI categorising ────────────────────────────────────────────
+// The answer is a proposal, so it is shown before it is applied: what each transaction
+// looks like, why, and which items would have to be created — and nothing is written
+// until the person looking at it says so.
+const categorise = useCategorise()
+const aiNotice   = ref('')
+
+function askAiToCategorise(): void {
+  aiNotice.value = ''
+
+  const rows = selectedCount.value > 0
+    ? filteredTransactions.value.filter(t => selectedIds.value.has(t.id))
+    : filteredTransactions.value
+
+  void categorise.propose(settings.country, rows)
+}
+
+function applyAiCategorise(): void {
+  const { assigned, created } = categorise.apply()
+
+  aiNotice.value = created > 0
+    ? `${assigned} transactions categorised, ${created} new item${created === 1 ? '' : 's'} created.`
+    : `${assigned} transactions categorised.`
+
+  selectedIds.value = new Set()
+}
+
+function dismissAiCategorise(): void {
+  categorise.dismiss()
+  aiNotice.value = ''
+}
 
 // ── Balance cutoff pin ─────────────────────────────────────────
 const cutoffTxId = computed(() => settings.balanceCutoffTxId)
@@ -1318,6 +1351,58 @@ const historyExpanded = ref(false)
       </Teleport>
 
       <!-- Bulk-assign banner — shown after a new item assignment when similar unassigned transactions exist -->
+      <!-- What the AI proposes, before anything is written -->
+      <div v-if="categorise.error.value" class="assign-bulk-banner tx-bulk-banner">
+        <div class="assign-bulk-banner-msg">{{ categorise.error.value }}</div>
+        <div class="assign-bulk-banner-actions">
+          <button class="assign-bulk-dismiss-btn" @click="dismissAiCategorise">Dismiss</button>
+        </div>
+      </div>
+
+      <div v-else-if="categorise.proposal.value" class="assign-bulk-banner tx-bulk-banner">
+        <div class="assign-bulk-banner-msg">
+          <strong>{{ categorise.proposal.value.assignments.length }}</strong>
+          of <strong>{{ categorise.proposal.value.considered }}</strong> transactions have an item.
+          <template v-if="categorise.proposal.value.newItems.length">
+            New item{{ categorise.proposal.value.newItems.length === 1 ? '' : 's' }}:
+            <strong>{{ categorise.proposal.value.newItems.join(', ') }}</strong>.
+          </template>
+          <template v-if="categorise.proposal.value.unmatched.length">
+            {{ categorise.proposal.value.unmatched.length }} left alone.
+          </template>
+
+          <details class="mt-1">
+            <summary class="cursor-pointer text-[0.7rem] text-zinc-500 dark:text-zinc-400">See them</summary>
+            <ul class="mt-1 max-h-48 overflow-y-auto flex flex-col gap-0.5">
+              <li
+                v-for="assignment in categorise.proposal.value.assignments"
+                :key="assignment.transactionId"
+                class="text-[0.7rem] leading-snug"
+              >
+                <span class="font-semibold">{{ store.transactions.find(t => t.id === assignment.transactionId)?.name ?? `#${assignment.transactionId}` }}</span>
+                → <span class="font-semibold">{{ assignment.itemName }}</span>
+                <span class="text-zinc-400 dark:text-zinc-500">
+                  · {{ Math.round(assignment.confidence * 100) }}%{{ assignment.why ? ` · ${assignment.why}` : '' }}
+                </span>
+              </li>
+            </ul>
+          </details>
+        </div>
+        <div class="assign-bulk-banner-actions">
+          <button class="assign-bulk-confirm-btn" @click="applyAiCategorise">
+            <i class="pi pi-check" /> Apply {{ categorise.proposal.value.assignments.length }}
+          </button>
+          <button class="assign-bulk-dismiss-btn" @click="dismissAiCategorise">Cancel</button>
+        </div>
+      </div>
+
+      <div v-if="aiNotice" class="assign-bulk-banner tx-bulk-banner">
+        <div class="assign-bulk-banner-msg">{{ aiNotice }}</div>
+        <div class="assign-bulk-banner-actions">
+          <button class="assign-bulk-dismiss-btn" @click="aiNotice = ''">Dismiss</button>
+        </div>
+      </div>
+
       <div v-if="bulkSuggest" class="assign-bulk-banner tx-bulk-banner">
         <div class="assign-bulk-banner-msg">
           <i class="pi pi-bolt" />
@@ -1757,6 +1842,17 @@ const historyExpanded = ref(false)
 
       <!-- Footer -->
       <div class="tx-footer">
+        <button
+          class="tx-export-btn"
+          :disabled="categorise.loading.value"
+          :title="selectedCount > 0
+            ? `Ask the AI what item ${selectedCount} selected transactions belong to`
+            : `Ask the AI what item all ${totalCount} filtered transactions belong to`"
+          @click="askAiToCategorise"
+        >
+          <i class="pi pi-sparkles" />
+          {{ categorise.loading.value ? 'Asking…' : `AI categorize${selectedCount > 0 ? ` (${selectedCount})` : ''}` }}
+        </button>
         <button class="tx-export-btn" @click="exportCsv" :title="selectedCount > 0 ? `Export ${selectedCount} selected` : `Export all ${totalCount} filtered`">
           <i class="pi pi-download" /> Export CSV{{ selectedCount > 0 ? ` (${selectedCount})` : '' }}
         </button>
